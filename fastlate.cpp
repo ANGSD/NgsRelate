@@ -4,39 +4,9 @@
 #include <cstdio>
 #include <cstdlib>
 #include <cmath>
-#include <signal.h>
-int SIG_COND=1;
-int VERBOSE=1;
-int really_kill=3;
 
 //this is as close to the bound we will allow
 float emTole=1e-12;
-
-
-void handler(int s) {
-
-  if(VERBOSE)
-    fprintf(stderr,"\n\t-> Caught SIGNAL: Will try to exit nicely (no more threads are created.\n\t\t\t  We will wait for the current threads to finish)\n");
-  
-  if(--really_kill!=3)
-  fprintf(stderr,"\n\t-> If you really want angsd to exit uncleanly ctrl+c: %d more times\n",really_kill+1);
-  fflush(stderr);
-  if(!really_kill)
-    exit(0);
-  VERBOSE=0;
-  SIG_COND=0;
-}
-
- //we are threading so we want make a nice signal handler for ctrl+c
-void catchkill(){
-  struct sigaction sa;
-  sigemptyset (&sa.sa_mask);
-  sa.sa_flags = 0;
-  sa.sa_handler = handler;
-  sigaction(SIGPIPE, &sa, 0);
-  sigaction(SIGINT, &sa, 0);  
-
-}
 
 void normalize(double *tmp,int len){
   double s=0;
@@ -201,7 +171,7 @@ int em1(double *sfs,double  **emis,double tole,int maxIter,int len){
 
   double tmp[3];
   int it;
-  for(it=0;SIG_COND&&it<maxIter;it++) {
+  for(it=0;it<maxIter;it++) {
     emStep1(sfs,emis,tmp,len);
     for(int i=0;i<3;i++)
       sfs[i]= tmp[i];
@@ -228,7 +198,7 @@ int em2(double *sfs,double  **emis,double tole,int maxIter,int len){
 
   double tmp[3];
   int it;
-  for(it=0;SIG_COND&&it<maxIter;it++) {
+  for(it=0;it<maxIter;it++) {
     emAccel(sfs,emis,tmp,len);
 
     for(int i=0;i<3;i++)
@@ -258,7 +228,7 @@ int em3(double *sfs,double  **emis,double tole,int maxIter,int len){
   double tmp[3];
   int it;
   int speedy=1;
-  for(it=0;SIG_COND&&it<maxIter;it++) {
+  for(it=0;it<maxIter;it++) {
     if(speedy)
       emAccel(sfs,emis,tmp,len);
     else
@@ -353,8 +323,8 @@ void emission_ngsrelate(std::vector<double> &freq,double **l1,double **l2,double
    double **ret=new double*[sites];
    
    for(int i=0;i<sites;i++){
-     ret[i] = new double[6];
-     gzread(gz,ret[i],sizeof(double)*6);
+     ret[i] = new double[ngl];
+     gzread(gz,ret[i],sizeof(double)*ngl);
    }
    gzclose(gz);
    return ret;
@@ -388,18 +358,18 @@ void print_info(FILE *fp){
   fprintf(fp, "\n");
   fprintf(fp, "Usage: da  [options] \n");
   fprintf(fp, "Options:\n");
-  fprintf(fp, "   -p <filename>       plink prefix filename\n");
   fprintf(fp, "   -o <filename>       outputfilename\n");
   fprintf(fp, "   -f <filename>       freqs\n");
   fprintf(fp, "   -m <INTEGER>        model 0=EMnormal 1=accelerated em\n");
-  fprintf(fp, "   -b <filename>       file containing the start NI\n");
   fprintf(fp, "   -i <UINTEGER>       maxIter\n");
   fprintf(fp, "   -t <FLOAT>          tolerance for breaking EM\n");
   fprintf(fp, "   -r <FLOAT>          seed for rand\n");
   fprintf(fp, "   -g gfile            genotypellh file\n");
-  fprintf(fp, "   -P <INT>            nThreads\n");
-  fprintf(fp, "   -c <INT>            should call genotypes instead?");
-  fprintf(fp, "   -e <INT>            errorrates when calling genotypes?");
+  fprintf(fp, "   -c <INT>            should call genotypes instead?\n");
+  fprintf(fp, "   -e <INT>            errorrates when calling genotypes?\n");
+  fprintf(fp, "   -a <INT>            First individual used for analysis? (zero offset)\n");
+  fprintf(fp, "   -b <INT>            Second individual used for analysis? (zero offset)\n");
+  fprintf(fp, "   -n <INT>            Number of samples in glf.gz\n");
   fprintf(fp, "\n");
   exit(0);
 }
@@ -439,44 +409,42 @@ void callgenotypes(double **gls,int len,double eps){
 int main(int argc, char *argv[]){
   if(argc==1)
     print_info(stderr);
-  char *pname = NULL;
   char *outname = NULL;
   char *freqname=NULL;
   char *gname=NULL;
-  char *startk = NULL;
   int maxIter =10;
   double tole =1e-3;
   int n;
   int seed=100;
-  int nThreads = 1;
   int model =0;
   int gc =0;
   double errate = 0.005;
-
-  while ((n = getopt(argc, argv, "p:o:f:i:t:r:P:g:m:c:e:")) >= 0) {
+  int pair1 =0;
+  int pair2 =1;
+  int nind =2;
+  while ((n = getopt(argc, argv, "p:o:f:i:t:r:P:g:m:c:e:a:b:")) >= 0) {
     switch (n) {
-    case 'p': pname = strdup(optarg); break; 
     case 'o': outname = strdup(optarg); break;
     case 'f': freqname = strdup(optarg); break;
     case 'i': maxIter = atoi(optarg); break;
     case 't': tole = atof(optarg); break;
     case 'r': seed = atoi(optarg); break;
-    case 'P': nThreads = atoi(optarg); break;
     case 'g': gname = strdup(optarg); break;
-    case 'b': startk = strdup(optarg); break;      
     case 'm': model = atoi(optarg); break;      
     case 'c': gc = atoi(optarg); break;      
+    case 'a': pair1 = atoi(optarg); break;      
+    case 'b': pair2 = atoi(optarg); break;      
+    case 'n': nind = atoi(optarg); break;      
     case 'e': errate = atof(optarg); break;      
     default: {fprintf(stderr,"unknown arg:\n");return 0;}
       print_info(stderr);
     }
   }
   srand48(seed);
-  catchkill();
 
   std::vector<double> freq = getDouble(freqname);
 
-  double **gls = getGL(gname,freq.size(),6);
+  double **gls = getGL(gname,freq.size(),2*nind);
   // print(stdout,freq.size(),6,gls);
   double **l1,**l2;l1=l2=NULL;
   l1=new double*[freq.size()];
@@ -490,8 +458,8 @@ int main(int argc, char *argv[]){
     l2[i] = new double[3];
     emis[i] = new double[3];
     for(int j=0;j<3;j++){
-      l1[i][j] = gls[i][j];
-      l2[i][j] = gls[i][j+3];
+      l1[i][j] = gls[i][pair1*3+j];
+      l2[i][j] = gls[i][pair2*3+j];
     }
     
     //skip of both samples are missing
