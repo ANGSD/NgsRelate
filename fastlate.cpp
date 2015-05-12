@@ -444,7 +444,7 @@ int main(int argc, char *argv[]){
 
   std::vector<double> freq = getDouble(freqname);
 
-  double **gls = getGL(gname,freq.size(),2*nind);
+  double **gls = getGL(gname,freq.size(),3*nind);
   // print(stdout,freq.size(),6,gls);
   double **l1,**l2;l1=l2=NULL;
   l1=new double*[freq.size()];
