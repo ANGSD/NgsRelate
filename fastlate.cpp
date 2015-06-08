@@ -325,6 +325,8 @@ void emission_ngsrelate(std::vector<double> &freq,double **l1,double **l2,double
    for(int i=0;i<sites;i++){
      ret[i] = new double[ngl];
      gzread(gz,ret[i],sizeof(double)*ngl);
+     for(int g =0;g<ngl;g++)
+       ret[i][g] = exp(ret[i][g]);
    }
    gzclose(gz);
    return ret;
@@ -422,7 +424,7 @@ int main(int argc, char *argv[]){
   int pair1 =0;
   int pair2 =1;
   int nind =2;
-  while ((n = getopt(argc, argv, "p:o:f:i:t:r:P:g:m:c:e:a:b:")) >= 0) {
+  while ((n = getopt(argc, argv, "p:o:f:i:t:r:P:g:m:c:e:a:b:n:")) >= 0) {
     switch (n) {
     case 'o': outname = strdup(optarg); break;
     case 'f': freqname = strdup(optarg); break;
