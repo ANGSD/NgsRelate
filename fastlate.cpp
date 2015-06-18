@@ -7,7 +7,7 @@
 
 //this is as close to the bound we will allow
 float emTole=1e-12;
-
+double TINY=1e-12;
 void normalize(double *tmp,int len){
   double s=0;
   for(int i=0;i<len;i++)
@@ -312,7 +312,7 @@ void emission_ngsrelate(std::vector<double> &freq,double **l1,double **l2,double
 }
 
 
- double **getGL(const char *fname,int sites, int ngl){
+ double **getGL(const char *fname,int sites, int nInd){
    gzFile gz=Z_NULL;
    if(((gz=gzopen(fname,"rb")))==Z_NULL){
      fprintf(stderr,"Problem opening file:%s\n",fname);
@@ -320,13 +320,40 @@ void emission_ngsrelate(std::vector<double> &freq,double **l1,double **l2,double
    }
    
 
-   double **ret=new double*[sites];
+   double **ret=new double*[sites+10];
    
-   for(int i=0;i<sites;i++){
-     ret[i] = new double[ngl];
-     gzread(gz,ret[i],sizeof(double)*ngl);
-     for(int g =0;g<ngl;g++)
+   int i=0;
+   while(1){
+     //   for(int i=0;i<sites;i++){
+     ret[i] = new double[3*nInd];
+     int nbit = gzread(gz,ret[i],sizeof(double)*nInd*3);
+     if(nbit==0)
+       break;
+     if(sizeof(double)*nInd*3!=nbit){
+       fprintf(stderr,"\t-> Problem reading full chunk\n");
+       exit(0);
+     }
+     for(int g =0;g<3*nInd;g++)
        ret[i][g] = exp(ret[i][g]);
+#if 0
+     for(int g=0;g<nInd;g++){
+       double ts = 0;
+       for(int gg=0;gg<3;gg++)
+	 ts += ret[i][g*3+gg];
+       for(int gg=0;gg<3;gg++)
+	 ret[i][g*3+gg] /= ts;
+
+     }
+#endif
+     i++;
+     if(i>sites){
+       fprintf(stderr,"too many sites in glf file. Looks outof sync\n");
+       exit(0);
+     }
+   }
+   if(i!=sites){
+     fprintf(stderr,"nsites: %d assumed but %d read\n",sites,i);
+     exit(0);
    }
    gzclose(gz);
    return ret;
@@ -446,9 +473,12 @@ int main(int argc, char *argv[]){
 
   std::vector<double> freq = getDouble(freqname);
 
-  double **gls = getGL(gname,freq.size(),3*nind);
-  // print(stdout,freq.size(),6,gls);
-  double **l1,**l2;l1=l2=NULL;
+  double **gls = getGL(gname,freq.size(),nind);
+#if 0
+  print(stdout,freq.size(),3*nind,gls);
+  exit(0);
+#endif
+   double **l1,**l2;l1=l2=NULL;
   l1=new double*[freq.size()];
   l2=new double*[freq.size()];
   char *keep=new char[freq.size()];
@@ -463,7 +493,13 @@ int main(int argc, char *argv[]){
       l1[i][j] = gls[i][pair1*3+j];
       l2[i][j] = gls[i][pair2*3+j];
     }
-    
+#if 0
+    for(int j=0;j<3;j++)
+      fprintf(stdout,"%f ",l1[i][j]);
+    for(int j=0;j<3;j++)
+      fprintf(stdout,"%f ",l2[i][j]);
+    fprintf(stdout,"\n");
+#endif
     //skip of both samples are missing
     if(l1[i][0]==l1[i][1]&&l1[i][0]!=l1[i][2])
       keep[i]=0;
@@ -473,7 +509,7 @@ int main(int argc, char *argv[]){
   }
   //print(stdout,freq.size(),6,gls);
   //return 0;
-  fprintf(stderr,"fraction of missing:%f\n",nkeep/(1.0*freq.size()));
+  fprintf(stderr,"fraction of Non-missing:%f\n",nkeep/(1.0*freq.size()));
   if(gc){
     callgenotypes(l1,freq.size(),errate);
     callgenotypes(l2,freq.size(),errate);
@@ -493,21 +529,22 @@ int main(int argc, char *argv[]){
   else//below might not work
     niter=em3(pars,emis,tole,maxIter,freq.size());
 
-  double p100[3]={1,0,0};
-  double p010[3]={0,1,0};
-  double p001[3]={0,0,1};
+  double p100[3]={1-TINY,TINY/2.0,TINY/2.0};
+  double p010[3]={TINY/2.0,1-TINY,TINY/2.0};
+  double p001[3]={TINY/2.0,TINY/2.0,1-TINY};
   double l100=loglike(p100,emis,freq.size());
   double l010=loglike(p010,emis,freq.size());
   double l001=loglike(p001,emis,freq.size());
   double lopt= loglike(pars,emis,freq.size());
-  fprintf(stderr,"%f %f %f\n",l100,l010,l001);
+  //  fprintf(stderr,"%f %f %f\n",l100,l010,l001);
 
   double likes[4] = {l100,l010,l001,lopt};
   int best = 0;
-  for(int i=0;i<4;i++)
+  for(int i=0;i<4;i++){
     if(likes[i]>likes[best])
       best=i;
-  
+  }
+  // fprintf(stderr,"100:%f 010:%f 001:%f lopt:%f\n",l100,l010,l001,lopt);
   if(best==3)
     fprintf(stdout,"%f\t%f\t%f\t%f\t%d\n",pars[0],pars[1],pars[2],lopt,niter);
   if(best==0)
