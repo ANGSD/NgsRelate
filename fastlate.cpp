@@ -40,10 +40,7 @@ double loglike(double *p,double **emis,int len){
     double tmp = 0;
     for(int j=0;j<3;j++)
       tmp += p[j]*emis[i][j];
-    //    fprintf(stderr,"tmp:%f\n",log(tmp));
-    //exit(0);
     ret +=log(tmp);
-
   }
   return ret;
 }
@@ -304,8 +301,8 @@ void emission_ngsrelate(double *freq,double **l1,double **l2,double **emis,int l
       emis[i][2] += pow(freqa,2)*l1[i][2]*l2[i][2];
 
       
-
-      //      fprintf(stderr,"%f %f %f\n",emis[0][0],emis[0][1],emis[0][2]);
+      if(i==295&&0)
+	fprintf(stderr,"emis[%d]:freq:%f %f %f %f\n",i,freqa,emis[i][0],emis[i][1],emis[i][2]);
       //      exit(0);
     }
 
@@ -389,7 +386,7 @@ void print_info(FILE *fp){
   fprintf(fp, "Options:\n");
   fprintf(fp, "   -o <filename>       outputfilename\n");
   fprintf(fp, "   -f <filename>       freqs\n");
-  fprintf(fp, "   -m <INTEGER>        model 0=EMnormal 1=accelerated em\n");
+  fprintf(fp, "   -m <INTEGER>        model 0=normalEM 1=acceleratedEM\n");
   fprintf(fp, "   -i <UINTEGER>       maxIter\n");
   fprintf(fp, "   -t <FLOAT>          tolerance for breaking EM\n");
   fprintf(fp, "   -r <FLOAT>          seed for rand\n");
@@ -399,12 +396,13 @@ void print_info(FILE *fp){
   fprintf(fp, "   -a <INT>            First individual used for analysis? (zero offset)\n");
   fprintf(fp, "   -b <INT>            Second individual used for analysis? (zero offset)\n");
   fprintf(fp, "   -n <INT>            Number of samples in glf.gz\n");
+  fprintf(fp, "   -l <INT>            minMaf or 1-Maf filter\n");
   fprintf(fp, "\n");
   exit(0);
 }
 
 void callgenotypes(double **gls,int len,double eps){
-  fprintf(stderr,"callgentypes\n");
+  fprintf(stderr,"\t-> Call genotypes: %f\n",eps);
   double g00 = (1-eps)*(1-eps);
   double g01 = 2*(1-eps)*eps;
   double g02 = eps*eps;
@@ -451,7 +449,7 @@ int main(int argc, char *argv[]){
   int pair1 =-1;
   int pair2 =-1;
   int nind =2;
-  double minMaf =0.0;
+  double minMaf =0.05;
   while ((n = getopt(argc, argv, "p:o:f:i:t:r:P:g:m:c:e:a:b:n:l:")) >= 0) {
     switch (n) {
     case 'o': outname = strdup(optarg); break;
@@ -513,7 +511,7 @@ int main(int argc, char *argv[]){
 	  continue;
 	if(l2[nkeep][0]==l2[nkeep][1]&&l2[nkeep][0]==l2[nkeep][2])
 	  continue;
-	if(freq[i]<minMaf)
+	if(freq[i]<minMaf||(1-freq[i])<minMaf)
 	  continue;
 	
 	newfreq[nkeep]=freq[i];
@@ -530,12 +528,12 @@ int main(int argc, char *argv[]){
 	callgenotypes(l2,nkeep,errate);
       }
       emission_ngsrelate(newfreq,l1,l2,emis,nkeep);
-      //  print(stdout,freq.size(),3,emis);return 0;
+      //      print(stdout,freq.size(),3,emis);return 0;
       double pars[3];
       pars[0] = drand48();
       pars[1] = drand48()*(1-pars[0]);
       pars[2] = 1-pars[0]-pars[1];
-      // fprintf(stdout,"loglike:%f\t",loglike(pars,emis,nkeep));
+      //      fprintf(stdout,"loglike:%f\t",loglike(pars,emis,nkeep));return 0;
       int niter;
       if(model==0)
 	niter=em1(pars,emis,tole,maxIter,nkeep);
