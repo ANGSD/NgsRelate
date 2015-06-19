@@ -451,7 +451,8 @@ int main(int argc, char *argv[]){
   int pair1 =0;
   int pair2 =1;
   int nind =2;
-  while ((n = getopt(argc, argv, "p:o:f:i:t:r:P:g:m:c:e:a:b:n:")) >= 0) {
+  double minMaf =0.0;
+  while ((n = getopt(argc, argv, "p:o:f:i:t:r:P:g:m:c:e:a:b:n:l:")) >= 0) {
     switch (n) {
     case 'o': outname = strdup(optarg); break;
     case 'f': freqname = strdup(optarg); break;
@@ -465,6 +466,7 @@ int main(int argc, char *argv[]){
     case 'b': pair2 = atoi(optarg); break;      
     case 'n': nind = atoi(optarg); break;      
     case 'e': errate = atof(optarg); break;      
+    case 'l': minMaf = atof(optarg); break;      
     default: {fprintf(stderr,"unknown arg:\n");return 0;}
       print_info(stderr);
     }
@@ -505,7 +507,10 @@ int main(int argc, char *argv[]){
       keep[i]=0;
     if(l2[i][0]==l2[i][1]&&l2[i][0]!=l2[i][2])
       keep[i]=0;
+    if(freq[i]<minMaf)
+      keep[i]=0;
     nkeep += keep[i];
+    
   }
   //print(stdout,freq.size(),6,gls);
   //return 0;
