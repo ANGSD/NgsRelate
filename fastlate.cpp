@@ -445,7 +445,7 @@ int main(int argc, char *argv[]){
   double tole =1e-3;
   int n;
   int seed=100;
-  int model =0;
+  int model =1;
   int gc =0;
   double errate = 0.005;
   int pair1 =-1;
