@@ -448,8 +448,8 @@ int main(int argc, char *argv[]){
   int model =0;
   int gc =0;
   double errate = 0.005;
-  int pair1 =0;
-  int pair2 =1;
+  int pair1 =-1;
+  int pair2 =-1;
   int nind =2;
   double minMaf =0.0;
   while ((n = getopt(argc, argv, "p:o:f:i:t:r:P:g:m:c:e:a:b:n:l:")) >= 0) {
@@ -492,76 +492,97 @@ int main(int argc, char *argv[]){
     l2[i] = new double[3];
     emis[i] = new double[3];
   }
-  int nkeep=0;
-  for(int i=0;i<freq.size();i++){
-    //copoy data into l1, this might be overwritten at next iteration if, if either is missing or freq<minmaf
-    for(int j=0;j<3;j++){
-      l1[nkeep][j] = gls[i][pair1*3+j];
-      l2[nkeep][j] = gls[i][pair2*3+j];
+  fprintf(stdout,"Pair\tk0\tk1\tk2\tloglh\tnIter\tcoverage\n");
+  for(int a=0;a<nind;a++){
+    for(int b=a+1;b<nind;b++){
+      //      fprintf(stderr,"a:%d b:%d pair1:%d pair2:%d\n",a,b,pair1,pair2);
+      int nkeep=0;
+      if(pair1!=-1)
+	a=pair1;
+      if(pair2!=-1)
+	b=pair2;
+
+      for(int i=0;i<freq.size();i++){
+	//copoy data into l1, this might be overwritten at next iteration if, if either is missing or freq<minmaf
+	for(int j=0;j<3;j++){
+	  l1[nkeep][j] = gls[i][a*3+j];
+	  l2[nkeep][j] = gls[i][b*3+j];
+	}
+	
+	if(l1[nkeep][0]==l1[nkeep][1]&&l1[nkeep][0]==l1[nkeep][2])
+	  continue;
+	if(l2[nkeep][0]==l2[nkeep][1]&&l2[nkeep][0]==l2[nkeep][2])
+	  continue;
+	if(freq[i]<minMaf)
+	  continue;
+	
+	newfreq[nkeep]=freq[i];
+	
+	nkeep++;
+	
+      }
+      //print(stdout,freq.size(),6,gls);
+      //return 0;
+      //      fprintf(stdout,"(%d,%d)\t%f\t",a,b,nkeep/(1.0*freq.size()));
+      fprintf(stdout,"(%d,%d)\t",a,b);
+      if(gc){
+	callgenotypes(l1,nkeep,errate);
+	callgenotypes(l2,nkeep,errate);
+      }
+      emission_ngsrelate(newfreq,l1,l2,emis,nkeep);
+      //  print(stdout,freq.size(),3,emis);return 0;
+      double pars[3];
+      pars[0] = drand48();
+      pars[1] = drand48()*(1-pars[0]);
+      pars[2] = 1-pars[0]-pars[1];
+      // fprintf(stdout,"loglike:%f\t",loglike(pars,emis,nkeep));
+      int niter;
+      if(model==0)
+	niter=em1(pars,emis,tole,maxIter,nkeep);
+      else if(model==1)
+	niter=em2(pars,emis,tole,maxIter,nkeep);
+      else//below might not work
+	niter=em3(pars,emis,tole,maxIter,nkeep);
+      
+      double p100[3]={1-TINY,TINY/2.0,TINY/2.0};
+      double p010[3]={TINY/2.0,1-TINY,TINY/2.0};
+      double p001[3]={TINY/2.0,TINY/2.0,1-TINY};
+      double l100=loglike(p100,emis,nkeep);
+      double l010=loglike(p010,emis,nkeep);
+      double l001=loglike(p001,emis,nkeep);
+      double lopt= loglike(pars,emis,nkeep);
+      //  fprintf(stderr,"%f %f %f\n",l100,l010,l001);
+      
+      double likes[4] = {l100,l010,l001,lopt};
+      int best = 0;
+      for(int i=0;i<4;i++){
+	if(likes[i]>likes[best])
+	  best=i;
+      }
+      // fprintf(stderr,"100:%f 010:%f 001:%f lopt:%f\n",l100,l010,l001,lopt);
+      if(best==3)
+	fprintf(stdout,"%f\t%f\t%f\t%f\t%d\t%f\n",pars[0],pars[1],pars[2],lopt,niter,(1.0*nkeep)/(1.0*freq.size()));
+      if(best==0)
+	fprintf(stdout,"%f\t%f\t%f\t%f\t%d\t%f\n",p100[0],p100[1],p100[2],l100,-1,(1.0*nkeep)/(1.0*freq.size()));
+      if(best==1)
+	fprintf(stdout,"%f\t%f\t%f\t%f\t%d\t%f\n",p010[0],p010[1],p010[2],l010,-1,(1.0*nkeep)/(1.0*freq.size()));
+      if(best==2)
+	fprintf(stdout,"%f\t%f\t%f\t%f\t%d\t%f\n",p001[0],p001[1],p001[2],l001,-1,(1.0*nkeep)/(1.0*freq.size()));
+      
+      if(pair1!=-1||pair2!=-1){
+	//	fprintf(stderr,"BREAKING\n");
+	break;
+      }
     }
-
-    if(l1[nkeep][0]==l1[nkeep][1]&&l1[nkeep][0]==l1[nkeep][2])
-      continue;
-    if(l2[nkeep][0]==l2[nkeep][1]&&l2[nkeep][0]==l2[nkeep][2])
-      continue;
-    if(freq[i]<minMaf)
-      continue;
-
-    newfreq[nkeep]=freq[i];
-
-    nkeep++;
-    
+    if(pair1!=-1||pair2!=-1){
+      //	fprintf(stderr,"BREAKING\n");
+	break;
+    }
   }
-  //print(stdout,freq.size(),6,gls);
-  //return 0;
-  fprintf(stderr,"fraction of Non-Missing:%f\n",nkeep/(1.0*freq.size()));
-  if(gc){
-    callgenotypes(l1,nkeep,errate);
-    callgenotypes(l2,nkeep,errate);
-  }
-  emission_ngsrelate(newfreq,l1,l2,emis,nkeep);
-  //  print(stdout,freq.size(),3,emis);return 0;
-  double pars[3];
-  pars[0] = drand48();
-  pars[1] = drand48()*(1-pars[0]);
-  pars[2] = 1-pars[0]-pars[1];
-  fprintf(stderr,"loglike:%f\n",loglike(pars,emis,nkeep));
-  int niter;
-  if(model==0)
-    niter=em1(pars,emis,tole,maxIter,nkeep);
-  else if(model==1)
-    niter=em2(pars,emis,tole,maxIter,nkeep);
-  else//below might not work
-    niter=em3(pars,emis,tole,maxIter,nkeep);
 
-  double p100[3]={1-TINY,TINY/2.0,TINY/2.0};
-  double p010[3]={TINY/2.0,1-TINY,TINY/2.0};
-  double p001[3]={TINY/2.0,TINY/2.0,1-TINY};
-  double l100=loglike(p100,emis,nkeep);
-  double l010=loglike(p010,emis,nkeep);
-  double l001=loglike(p001,emis,nkeep);
-  double lopt= loglike(pars,emis,nkeep);
-  //  fprintf(stderr,"%f %f %f\n",l100,l010,l001);
-
-  double likes[4] = {l100,l010,l001,lopt};
-  int best = 0;
-  for(int i=0;i<4;i++){
-    if(likes[i]>likes[best])
-      best=i;
-  }
-  // fprintf(stderr,"100:%f 010:%f 001:%f lopt:%f\n",l100,l010,l001,lopt);
-  if(best==3)
-    fprintf(stdout,"%f\t%f\t%f\t%f\t%d\n",pars[0],pars[1],pars[2],lopt,niter);
-  if(best==0)
-    fprintf(stdout,"%f\t%f\t%f\t%f\t%d\n",p100[0],p100[1],p100[2],l100,-1);
-  if(best==1)
-    fprintf(stdout,"%f\t%f\t%f\t%f\t%d\n",p010[0],p010[1],p010[2],l010,-1);
-  if(best==2)
-    fprintf(stdout,"%f\t%f\t%f\t%f\t%d\n",p001[0],p001[1],p001[2],l001,-1);
-  
-  for(int i=0;i<freq.size();i++){
-    delete [] gls[i];
-    delete [] l1[i];
+for(int i=0;i<freq.size();i++){
+  delete [] gls[i];
+  delete [] l1[i];
     delete [] l2[i];
     delete [] emis[i];
   }
