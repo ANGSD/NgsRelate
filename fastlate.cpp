@@ -261,9 +261,9 @@ int em3(double *sfs,double  **emis,double tole,int maxIter,int len){
 
 
 
-void emission_ngsrelate(std::vector<double> &freq,double **l1,double **l2,double **emis){
+void emission_ngsrelate(double *freq,double **l1,double **l2,double **emis,int len){
 
-  for(int i=0;i<freq.size();i++){
+  for(int i=0;i<len;i++){
     double freqA=freq[i];
     double freqa=1-freqA;
       //1 E<-cbind(freqA^4,freqA^3,freqA^2)*l1[,1]*l2[,1];			      // G_real=(AA,AA)
@@ -481,66 +481,66 @@ int main(int argc, char *argv[]){
   exit(0);
 #endif
    double **l1,**l2;l1=l2=NULL;
+   double *newfreq = NULL;
   l1=new double*[freq.size()];
   l2=new double*[freq.size()];
-  char *keep=new char[freq.size()];
-  memset(keep,1,freq.size());
+  newfreq =new double[freq.size()];
   double **emis=new double*[freq.size()];
-  int nkeep=0;
+
   for(int i=0;i<freq.size();i++){
     l1[i] = new double[3];
     l2[i] = new double[3];
     emis[i] = new double[3];
+  }
+  int nkeep=0;
+  for(int i=0;i<freq.size();i++){
+    //copoy data into l1, this might be overwritten at next iteration if, if either is missing or freq<minmaf
     for(int j=0;j<3;j++){
-      l1[i][j] = gls[i][pair1*3+j];
-      l2[i][j] = gls[i][pair2*3+j];
+      l1[nkeep][j] = gls[i][pair1*3+j];
+      l2[nkeep][j] = gls[i][pair2*3+j];
     }
-#if 0
-    for(int j=0;j<3;j++)
-      fprintf(stdout,"%f ",l1[i][j]);
-    for(int j=0;j<3;j++)
-      fprintf(stdout,"%f ",l2[i][j]);
-    fprintf(stdout,"\n");
-#endif
-    //skip of both samples are missing
-    if(l1[i][0]==l1[i][1]&&l1[i][0]!=l1[i][2])
-      keep[i]=0;
-    if(l2[i][0]==l2[i][1]&&l2[i][0]!=l2[i][2])
-      keep[i]=0;
+
+    if(l1[nkeep][0]==l1[nkeep][1]&&l1[nkeep][0]==l1[nkeep][2])
+      continue;
+    if(l2[nkeep][0]==l2[nkeep][1]&&l2[nkeep][0]==l2[nkeep][2])
+      continue;
     if(freq[i]<minMaf)
-      keep[i]=0;
-    nkeep += keep[i];
+      continue;
+
+    newfreq[nkeep]=freq[i];
+
+    nkeep++;
     
   }
   //print(stdout,freq.size(),6,gls);
   //return 0;
-  fprintf(stderr,"fraction of Non-missing:%f\n",nkeep/(1.0*freq.size()));
+  fprintf(stderr,"fraction of Non-Missing:%f\n",nkeep/(1.0*freq.size()));
   if(gc){
-    callgenotypes(l1,freq.size(),errate);
-    callgenotypes(l2,freq.size(),errate);
+    callgenotypes(l1,nkeep,errate);
+    callgenotypes(l2,nkeep,errate);
   }
-  emission_ngsrelate(freq,l1,l2,emis);
+  emission_ngsrelate(newfreq,l1,l2,emis,nkeep);
   //  print(stdout,freq.size(),3,emis);return 0;
   double pars[3];
   pars[0] = drand48();
   pars[1] = drand48()*(1-pars[0]);
   pars[2] = 1-pars[0]-pars[1];
-  fprintf(stderr,"loglike:%f\n",loglike(pars,emis,freq.size()));
+  fprintf(stderr,"loglike:%f\n",loglike(pars,emis,nkeep));
   int niter;
   if(model==0)
-    niter=em1(pars,emis,tole,maxIter,freq.size());
+    niter=em1(pars,emis,tole,maxIter,nkeep);
   else if(model==1)
-    niter=em2(pars,emis,tole,maxIter,freq.size());
+    niter=em2(pars,emis,tole,maxIter,nkeep);
   else//below might not work
-    niter=em3(pars,emis,tole,maxIter,freq.size());
+    niter=em3(pars,emis,tole,maxIter,nkeep);
 
   double p100[3]={1-TINY,TINY/2.0,TINY/2.0};
   double p010[3]={TINY/2.0,1-TINY,TINY/2.0};
   double p001[3]={TINY/2.0,TINY/2.0,1-TINY};
-  double l100=loglike(p100,emis,freq.size());
-  double l010=loglike(p010,emis,freq.size());
-  double l001=loglike(p001,emis,freq.size());
-  double lopt= loglike(pars,emis,freq.size());
+  double l100=loglike(p100,emis,nkeep);
+  double l010=loglike(p010,emis,nkeep);
+  double l001=loglike(p001,emis,nkeep);
+  double lopt= loglike(pars,emis,nkeep);
   //  fprintf(stderr,"%f %f %f\n",l100,l010,l001);
 
   double likes[4] = {l100,l010,l001,lopt};
