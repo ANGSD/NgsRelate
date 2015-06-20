@@ -401,7 +401,7 @@ void print_info(FILE *fp){
   exit(0);
 }
 
-void callgenotypes(double **gls,int len,double eps){
+void callgenotypesEps(double **gls,int len,double eps){
   fprintf(stderr,"\t-> Call genotypes: %f\n",eps);
   double g00 = (1-eps)*(1-eps);
   double g01 = 2*(1-eps)*eps;
@@ -428,6 +428,28 @@ void callgenotypes(double **gls,int len,double eps){
       fprintf(stderr,"never happens\n");
     }
       
+  }
+
+}
+
+void callgenotypesHwe(double **gls,int len,double eps,double *freq){
+  fprintf(stderr,"\t-> Call genotypesHwe: %f\n",eps);
+
+  for(int s=0;s<len;s++){
+    gls[s][0] = gls[s][0]*freq[s]*freq[s];
+    gls[s][1] = 2*gls[0][1]*(1-freq[s])*freq[s];
+    gls[s][2] = gls[s][2]*(1-freq[s])*(1-freq[s]);
+
+    int whmax=0;
+    for(int i=1;i<3;i++){
+      //      fprintf(stderr,"%d %d | %f %f\n",s,i,gls[s][i],gls[s][whmax]);
+      if(gls[s][i]>gls[s][whmax])
+	whmax=i;
+    }
+    //    fprintf(stdout,"i\t%d\n",whmax);
+    for(int i=1;i<3;i++)
+      gls[s][i] = 0;
+    gls[s][whmax]=1;
   }
 
 }
@@ -524,8 +546,15 @@ int main(int argc, char *argv[]){
       //      fprintf(stdout,"(%d,%d)\t%f\t",a,b,nkeep/(1.0*freq.size()));
       fprintf(stdout,"(%d,%d)\t",a,b);
       if(gc){
-	callgenotypes(l1,nkeep,errate);
-	callgenotypes(l2,nkeep,errate);
+	if(gc>1){
+	  callgenotypesHwe(l1,nkeep,errate,newfreq);
+	  callgenotypesHwe(l2,nkeep,errate,newfreq);
+	}
+
+	if(gc>0){
+	  callgenotypesEps(l1,nkeep,errate);
+	  callgenotypesEps(l2,nkeep,errate);
+	}
       }
       emission_ngsrelate(newfreq,l1,l2,emis,nkeep);
       //      print(stdout,freq.size(),3,emis);return 0;
