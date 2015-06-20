@@ -1,3 +1,13 @@
+/*
+  ida@binf.ku.dk thorfinn@binf.ku.dk
+  20 june, 2015
+
+  thorfinn@binf.ku.dk
+  ida@binf.ku.dk
+
+  http://www.popgen.dk/software/
+  https://github.com/ANGSD/NgsRelate/
+ */
 #include <vector>
 #include <cstring>
 #include <zlib.h>
