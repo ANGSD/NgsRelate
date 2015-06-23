@@ -7,14 +7,36 @@
 
   http://www.popgen.dk/software/
   https://github.com/ANGSD/NgsRelate/
- */
+*/
+
 #include <vector>
 #include <cstring>
 #include <zlib.h>
 #include <cstdio>
 #include <cstdlib>
 #include <cmath>
+#include <cassert>
+#include <map>
 
+#define LENS  4096
+int refToInt[256] = {
+  0,1,2,3,4,4,4,4,4,4,4,4,4,4,4,4,//15
+  4,4,4,4,4,4,4,4,4,4,4,4,4,4,4,4,//31
+  4,4,4,4,4,4,4,4,4,4,4,4,4,4,4,4,//47
+  0,1,2,3,4,4,4,4,4,4,4,4,4,4,4,4,//63
+  4,0,4,1,4,4,4,2,4,4,4,4,4,4,4,4,//79
+  4,4,4,4,3,4,4,4,4,4,4,4,4,4,4,4,//95
+  4,0,4,1,4,4,4,2,4,4,4,4,4,4,4,4,//111
+  4,4,4,4,3,4,4,4,4,4,4,4,4,4,4,4,//127
+  4,4,4,4,4,4,4,4,4,4,4,4,4,4,4,4,//143
+  4,4,4,4,4,4,4,4,4,4,4,4,4,4,4,4,//159
+  4,4,4,4,4,4,4,4,4,4,4,4,4,4,4,4,//175
+  4,4,4,4,4,4,4,4,4,4,4,4,4,4,4,4,//191
+  4,4,4,4,4,4,4,4,4,4,4,4,4,4,4,4,//207
+  4,4,4,4,4,4,4,4,4,4,4,4,4,4,4,4,//223
+  4,4,4,4,4,4,4,4,4,4,4,4,4,4,4,4,//239
+  4,4,4,4,4,4,4,4,4,4,4,4,4,4,4,4//255
+};
 //this is as close to the bound we will allow
 float emTole=1e-12;
 double TINY=1e-12;
@@ -392,7 +414,7 @@ void emission_ngsrelate(double *freq,double **l1,double **l2,double **emis,int l
 
 void print_info(FILE *fp){
   fprintf(fp, "\n");
-  fprintf(fp, "Usage: da  [options] \n");
+  fprintf(fp, "Usage main analyses: ./ngsrelate  [options] \n");
   fprintf(fp, "Options:\n");
   fprintf(fp, "   -o <filename>       outputfilename\n");
   fprintf(fp, "   -f <filename>       freqs\n");
@@ -408,6 +430,7 @@ void print_info(FILE *fp){
   fprintf(fp, "   -n <INT>            Number of samples in glf.gz\n");
   fprintf(fp, "   -l <INT>            minMaf or 1-Maf filter\n");
   fprintf(fp, "\n");
+  fprintf(fp,"Or\n ngsrelate extract_freq pos.glf.gz plink.bim plink.freq\n");
   exit(0);
 }
 
@@ -464,10 +487,154 @@ void callgenotypesHwe(double **gls,int len,double eps,double *freq){
 
 }
 
+struct ltstr
+{
+  bool operator()(const char* s1, const char* s2) const
+  {
+    return strcmp(s1, s2) < 0;
+  }
+};
 
-int main(int argc, char *argv[]){
+typedef struct{
+  char *chr;
+  int pos;
+}gpos;
+
+
+struct ltstr2
+{
+  bool operator()(const gpos &s1, const gpos &s2) const
+  {
+    if(strcmp(s1.chr,s2.chr)==0)
+      return s1.pos< s2.pos;
+    else
+      return strcmp(s1.chr, s2.chr) < 0;
+  }
+};
+
+
+
+typedef struct{
+  int major;
+  int minor;
+  double freq;
+}datum;
+
+
+
+typedef std::map<const char *,datum,ltstr> rsMap;
+
+
+typedef std::map<const gpos,datum,ltstr2> posMap;
+
+
+
+posMap getBim(char *bname,char *fname){
+  //first generate rsnumber to freq
+  char *buf = new char[LENS];
+  gzFile gz = Z_NULL;
+  gz = gzopen(fname,"rb");
+  assert(gz!=Z_NULL);
+  gzgets(gz,buf,LENS);//header
+  
+  rsMap rMap;
+  while(  gzgets(gz,buf,LENS)){
+    strtok(buf,"\t\n ");
+    char *rs = strdup(strtok(NULL,"\t\n "));
+    int A1 = refToInt[strtok(NULL,"\t\n ")[0]];
+    int A2 = refToInt[strtok(NULL,"\t\n ")[0]];
+    double freq = atof(strtok(NULL,"\t\n "));
+    datum d;
+    d.minor = A1;//http://pngu.mgh.harvard.edu/~purcell/plink/summary.shtml#freq
+    d.major = A2;//always forget which one if major and minor
+    d.freq = freq;
+    assert(rMap.find(rs)==rMap.end());
+    rMap[rs]= d;
+  }
+  fprintf(stderr,"nfreqs:%lu read from plink.frq:\'%s\' file\n",rMap.size(),fname);
+  gzclose(gz);gz=Z_NULL;
+  gz = gzopen(bname,"rb");
+  assert(gz!=Z_NULL);
+
+  posMap pm;
+  int linenr=0;
+  while(  gzgets(gz,buf,LENS)){
+    linenr++;
+    gpos gp;
+    gp.chr = strdup(strtok(buf,"\t\n "));
+    char *rs = strtok(NULL,"\t\n ");
+    strtok(NULL,"\t\n ");
+    gp.pos = atoi(strtok(NULL,"\t\n "));
+    //check that position is new
+    assert(pm.find(gp)==pm.end());
+
+    rsMap::iterator rit = rMap.find(rs);
+    if(rit == rMap.end()){
+      fprintf(stderr,"\t-> rsnumber:%s from bimfile[%d]:\'%s\' doesn't exists in freqfile: \'%s\' \n",rs,linenr,bname,fname);
+      exit(0);
+    }
+    pm[gp] = rit->second;
+    
+  }
+  fprintf(stderr,"nsites:%lu read from plink.bim file\n",pm.size());
+
+
+  return pm;
+}
+
+
+int extract_freq(int argc,char **argv){
+  char *pfile,*bfile,*ffile;
+  pfile=bfile=ffile=NULL;
+  pfile =*argv++;
+  bfile =*argv++;
+  ffile =*argv++;
+  fprintf(stderr,"posfile:%s bimfile:%s ffile:%s\n",pfile,bfile,ffile);
+  assert(pfile &&bfile &&ffile);
+  posMap pm = getBim(bfile,ffile);
+  //
+  char *buf = new char[LENS];
+  gzFile gz = Z_NULL;
+  gz = gzopen(pfile,"rb");
+  assert(gz!=Z_NULL);
+  while(gzgets(gz,buf,LENS)){
+    gpos gp;
+    gp.chr = strtok(buf,"\t\n ");
+    gp.pos = atoi(strtok(NULL,"\t\n "));
+    //    fprintf(stderr,"chr:%s pos:%d\n",gp.chr,gp.pos);
+    char major = refToInt[strtok(NULL,"\t\n ")[0]];
+    char minor = refToInt[strtok(NULL,"\t\n ")[0]];
+    posMap::iterator it = pm.find(gp);
+    if(it==pm.end()){
+      fprintf(stderr,"\t-> Problem finding chr:%s pos:%d from pos.glf.gz in plinkfiles\n",gp.chr,gp.pos);
+      exit(0);
+    }
+    if(major!=it->second.major&&major!=it->second.minor){
+      fprintf(stderr,"\t-> major from glf.pos.gz is not defined properly in majorminor from plink");
+      exit(0);
+    }
+    if(minor!=it->second.major&&major!=it->second.minor){
+      fprintf(stderr,"\t-> minor from glf.pos.gz is not defined properly in majorminor from plink");
+      exit(0);
+    }
+    if(major!=it->second.major)
+      fprintf(stdout,"%f\n",it->second.freq);
+    else
+      fprintf(stdout,"%f\n",1-it->second.freq);
+  }
+  
+  
+  return 0;
+}
+
+
+int main(int argc, char **argv){
   if(argc==1)
     print_info(stderr);
+  ++argv;
+  if(strcasecmp(*argv,"extract_freq")==0)
+    return extract_freq(--argc,++argv);
+  
   char *outname = NULL;
   char *freqname=NULL;
   char *gname=NULL;
