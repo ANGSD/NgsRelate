@@ -416,7 +416,6 @@ void print_info(FILE *fp){
   fprintf(fp, "\n");
   fprintf(fp, "Usage main analyses: ./ngsrelate  [options] \n");
   fprintf(fp, "Options:\n");
-  fprintf(fp, "   -o <filename>       outputfilename\n");
   fprintf(fp, "   -f <filename>       freqs\n");
   fprintf(fp, "   -m <INTEGER>        model 0=normalEM 1=acceleratedEM\n");
   fprintf(fp, "   -i <UINTEGER>       maxIter\n");
@@ -584,6 +583,7 @@ posMap getBim(char *bname,char *fname){
 
 
 int extract_freq(int argc,char **argv){
+  ++argv;
   char *pfile,*bfile,*ffile;
   pfile=bfile=ffile=NULL;
   pfile =*argv++;
@@ -631,16 +631,15 @@ int extract_freq(int argc,char **argv){
 int main(int argc, char **argv){
   if(argc==1)
     print_info(stderr);
-  ++argv;
+
   if(strcasecmp(*argv,"extract_freq")==0)
     return extract_freq(--argc,++argv);
   
-  char *outname = NULL;
   char *freqname=NULL;
   char *gname=NULL;
   int maxIter =10;
-  double tole =1e-3;
-  int n;
+  double tole =1e-6;
+  int n=-1;
   int seed=100;
   int model =1;
   int gc =0;
@@ -649,9 +648,8 @@ int main(int argc, char **argv){
   int pair2 =-1;
   int nind =2;
   double minMaf =0.05;
-  while ((n = getopt(argc, argv, "p:o:f:i:t:r:P:g:m:c:e:a:b:n:l:")) >= 0) {
+  while ((n = getopt(argc, argv, "f:i:t:r:g:m:c:e:a:b:n:l:")) >= 0) {
     switch (n) {
-    case 'o': outname = strdup(optarg); break;
     case 'f': freqname = strdup(optarg); break;
     case 'i': maxIter = atoi(optarg); break;
     case 't': tole = atof(optarg); break;
@@ -669,7 +667,10 @@ int main(int argc, char **argv){
     }
   }
   srand48(seed);
-
+  if(nind==-1||freqname==NULL||gname==NULL){
+    fprintf(stderr,"\t-> Must supply -n -f -g parameters (%d,%s,%s)\n",nind,freqname,gname);
+    return 0;
+  }
   std::vector<double> freq = getDouble(freqname);
 
   double **gls = getGL(gname,freq.size(),nind);
