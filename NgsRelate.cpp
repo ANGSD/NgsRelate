@@ -401,7 +401,7 @@ void emission_ngsrelate(double *freq,double **l1,double **l2,double **emis,int l
      ret.push_back(atof(strtok(buf,"\n\t\r ")));
      char *tok=NULL;
      while(((tok=strtok(NULL,"\n\t\r ")))){
-       ret.push_back(atof(tok));
+       ret.push_back(1-atof(tok));
 
      }
 
@@ -618,9 +618,9 @@ int extract_freq(int argc,char **argv){
       exit(0);
     }
     if(major!=it->second.major)
-      fprintf(stdout,"%f\n",it->second.freq);
-    else
       fprintf(stdout,"%f\n",1-it->second.freq);
+    else
+      fprintf(stdout,"%f\n",it->second.freq);
   }
   
   
