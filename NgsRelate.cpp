@@ -621,23 +621,23 @@ void print_info(FILE *fp){
   fprintf(fp, "\n");
   fprintf(fp, "Usage main analyses: ./ngsrelate  [options] \n");
   fprintf(fp, "Options:\n");
-  fprintf(fp, "   -f <filename>       freqs\n");
+  fprintf(fp, "   -f <filename>       Name of file with frequencies\n");
   fprintf(fp, "   -m <INTEGER>        model 0=normalEM 1=acceleratedEM\n");
-  fprintf(fp, "   -i <UINTEGER>       maxIter\n");
-  fprintf(fp, "   -t <FLOAT>          tolerance for breaking EM\n");
-  fprintf(fp, "   -r <FLOAT>          seed for rand\n");
-  fprintf(fp, "   -g gfile            genotypellh file\n");
-  fprintf(fp, "   -c <INT>            should call genotypes instead?\n");
-  fprintf(fp, "   -s <INT>            should you swich the freq with 1-freq?\n");
-  fprintf(fp, "   -v <INT>            verbose. print like per iteration\n");
-  fprintf(fp, "   -F <INT>            estimate inbreeding instead of relatedness\n");
-  fprintf(fp, "   -e <INT>            errorrates when calling genotypes?\n");
+  fprintf(fp, "   -i <UINTEGER>       Maximum number of EM iterations\n");
+  fprintf(fp, "   -t <FLOAT>          Tolerance for breaking EM\n");
+  fprintf(fp, "   -r <FLOAT>          Seed for rand\n");
+  fprintf(fp, "   -g gfile            Name of genotypellh file\n");
+  fprintf(fp, "   -c <INT>            Should call genotypes instead?\n");
+  fprintf(fp, "   -s <INT>            Should you swich the freq with 1-freq?\n");
+  fprintf(fp, "   -v <INT>            Verbose. print like per iteration\n");
+  fprintf(fp, "   -F <INT>            Estimate inbreeding instead of relatedness\n");
+  fprintf(fp, "   -e <INT>            Errorrates when calling genotypes?\n");
   fprintf(fp, "   -a <INT>            First individual used for analysis? (zero offset)\n");
   fprintf(fp, "   -b <INT>            Second individual used for analysis? (zero offset)\n");
   fprintf(fp, "   -n <INT>            Number of samples in glf.gz\n");
   fprintf(fp, "   -l <INT>            minMaf or 1-Maf filter\n");
   fprintf(fp, "\n");
-  fprintf(fp,"Or\n ngsrelate extract_freq pos.glf.gz plink.bim plink.freq\n");
+  fprintf(fp,"Or\n ./ngsrelate extract_freq pos.glf.gz plink.bim plink.freq\n");
   exit(0);
 }
 
@@ -840,7 +840,7 @@ int main(int argc, char **argv){
   if(argc==1)
     print_info(stderr);
 
-  if(strcasecmp(*argv,"extract_freq")==0)
+  if(strcasecmp(argv[1],"extract_freq")==0)
     return extract_freq(--argc,++argv);
   
   char *freqname=NULL;
