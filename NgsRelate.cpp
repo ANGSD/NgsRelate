@@ -984,7 +984,7 @@ int main(int argc, char **argv){
       //print(stdout,freq.size(),6,gls);
       //return 0;
       //      fprintf(stdout,"(%d,%d)\t%f\t",a,b,nkeep/(1.0*freq.size()));
-      fprintf(stdout,"(%d,%d)\t",a,b);
+      fprintf(stdout,"(%d,%d):%d\t",a,b,nkeep);
       if(gc){
 	if(gc>1){
 	  callgenotypesHwe(l1,nkeep,errate,newfreq);
