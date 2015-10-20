@@ -780,8 +780,8 @@ posMap getBim(char *bname,char *fname){
 
     rsMap::iterator rit = rMap.find(rs);
     if(rit == rMap.end()){
-      fprintf(stderr,"\t-> rsnumber:%s from bimfile[%d]:\'%s\' doesn't exists in freqfile: \'%s\' \n",rs,linenr,bname,fname);
-      exit(0);
+      fprintf(stderr,"\t-> rsnumber:%s from bimfile[%d]:\'%s\' doesn't exists in freqfile: \'%s\' will continue filereading but discarding the site \n",rs,linenr,bname,fname);
+      //exit(0);
     }
     pm[gp] = rit->second;
     
