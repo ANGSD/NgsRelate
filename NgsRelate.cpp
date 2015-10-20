@@ -818,11 +818,11 @@ int extract_freq(int argc,char **argv){
       exit(0);
     }
     if(major!=it->second.major&&major!=it->second.minor){
-      fprintf(stderr,"\t-> major from glf.pos.gz is not defined properly in majorminor from plink");
+      fprintf(stderr,"\t-> major from glf.pos.gz is not defined properly in majorminor from plink at site: (%s,%d) \n",gp.chr,gp.pos);
       exit(0);
     }
     if(minor!=it->second.major&&major!=it->second.minor){
-      fprintf(stderr,"\t-> minor from glf.pos.gz is not defined properly in majorminor from plink");
+      fprintf(stderr,"\t-> minor from glf.pos.gz is not defined properly in majorminor from plink at site: (%s,%d)\n",gp.chr,gp.pos);
       exit(0);
     }
     if(major!=it->second.major)
