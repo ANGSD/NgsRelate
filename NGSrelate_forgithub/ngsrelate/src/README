@@ -1,0 +1,32 @@
+This folder contains that implements and tests ngsRelate (R version) without LD.
+Files are:
+
+Method implementations
+-------------------------
+- ngsrelateHMM_270812.R implementation that mimicks Telate witout LD completely
+- ngsrelateHMM_300812.R implementation that corrects potential errors in Relate
+
+
+Code for simulating data
+--------------------------
+simrelatedatafuns.R contains all basic functions for simulating data for testing the methods. 
+Note that a new version of sim_chr is used! The old one (the one distributed with Relate is WRONG!)
+
+
+Tests that show method 1 works as Relate
+--------------------------------------------
+ testifworks1.R show that method 1 (genotype version) and Relate gives the exact same likelihoods and viterbi/posterior results (NB whole inference results differe a bit because the par est results differ slightly)
+ 
+ testifworks2.R same as 1 but without the slow par est and now with the genolike version in use 
+
+
+Tests that suggests that ngs is better than relate on ML called genotypes (and that my corrected version on relate using in the ngs frameworks works much better than the uncorrected one
+--------------------------------
+qualitycheck_new.R
+results can be seen in firsttest_ngsrelate.pdf  firsttest_relate_knowngenos.pdf  firsttest_relate_MLgenos.pdf and firstresults.txt 
+
+Tests made to figure out what was wrong in the beginning
+----------------------------------------------------------------
+simpletest*
+
+revealed that something was wrong with the function the simulates data!!!

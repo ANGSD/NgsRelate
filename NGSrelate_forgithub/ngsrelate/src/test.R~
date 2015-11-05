@@ -1,0 +1,95 @@
+error_old<-function(obsgeno,epsilon,snp){
+	ep<-matrix(NA,ncol=3,nrow=snp)
+	
+	ep[obsgeno==0,1]<-(1-epsilon)^2
+	ep[obsgeno==1,1]<-(1-epsilon)*epsilon
+	ep[obsgeno==2,1]<-(epsilon)^2
+	
+	ep[obsgeno==0,2]<-2*(1-epsilon)*epsilon
+	ep[obsgeno==1,2]<-(1-epsilon)^2+epsilon^2
+	ep[obsgeno==2,2]<-2*(1-epsilon)*epsilon
+	
+	ep[obsgeno==0,3]<-(epsilon)^2
+	ep[obsgeno==1,3]<-(1-epsilon)*epsilon
+	ep[obsgeno==2,3]<-(1-epsilon)^2
+	
+	return(ep)
+}
+
+error_new<-function(obsgeno,epsilon,snp){
+	ep<-matrix(NA,ncol=3,nrow=snp)
+	
+	ep[obsgeno==0,1]<-(1-epsilon)^2
+	ep[obsgeno==1,1]<-2*(1-epsilon)*epsilon
+	ep[obsgeno==2,1]<-(epsilon)^2
+	
+	ep[obsgeno==0,2]<-(1-epsilon)*epsilon
+	ep[obsgeno==1,2]<-(1-epsilon)^2+epsilon^2
+	ep[obsgeno==2,2]<-(1-epsilon)*epsilon
+	
+	ep[obsgeno==0,3]<-(epsilon)^2
+	ep[obsgeno==1,3]<-2*(1-epsilon)*epsilon
+	ep[obsgeno==2,3]<-(1-epsilon)^2
+	
+	return(ep)
+}
+
+
+prin
+
+emission_relateHMM_old<-function(freq,ep1,ep2){
+# Input:   freq is freqs for all loci in the pop, 
+#	   ep1 and ep2 are matrices with P(G_obs|G_real,epsilon) (a col per posible G_real, a row per observed locus) 
+# Output:  a matrix E with a col per posible hidden state X (# alleles IBD), a row perlocus 
+#          E[i,j] = P(G_obs in i|X=(j-1)) = sum over G_real P(G_real|X=(j-1))P(G_obs|G_real,epsilon)
+
+	nsnps = length(freq)
+	freqA = freq
+	freqa = 1-freq	
+
+    	# Summing over over all 9 possible combinations of (G^ind1_real,G^ind2_real) 
+	E<-cbind(freqA^4,freqA^3,freqA^2)*ep1[,1]*ep2[,1]				# G_real=(AA,AA) 
+	E<-E+cbind(4*freqA^3*freqa,2*freqA^2*freqa,0)*ep1[,1]*ep2[,2]			# G_real=(AA,Aa)
+	E<-E+cbind(2*freqA^2*freqa^2,0,0)*ep1[,1]*ep2[,3]				# G_real=(AA,aa)
+	E<-E+cbind(4*freqA^3*freqa,2*freqA^2*freqa,0)*ep1[,2]*ep2[,1]			# G_real=(Aa,AA)
+	E<-E+cbind(4*freqA^2*freqa^2,freqA*freqa,2*freqA*freqa)*ep1[,2]*ep2[,2]		# G_real=(Aa,Aa)
+	E<-E+cbind(4*freqA*freqa^3,2*freqA*freqa^2,0)*ep1[,2]*ep2[,3]			# G_real=(Aa,aa)
+	E<-E+cbind(2*freqA^2*freqa^2,0,0)*ep1[,3]*ep2[,1]				# G_real=(aa,AA)
+	E<-E+cbind(4*freqA*freqa^3,2*freqA*freqa^2,0)*ep1[,3]*ep2[,2]			# G_real=(aa,Aa)
+	E<-E+cbind(freqa^4,freqa^3,freqa^2)*ep1[,3]*ep2[,3]				# G_real=(aa,aa)
+
+        # Fixing bug...
+        Etmp<-E
+        E[,1]<-Etmp[,3]
+        E[,3]<-Etmp[,1]
+    	return(t(E))
+}
+
+
+emission_relateHMM_new<-function(freq,ep1,ep2){
+# Input:   freq is freqs for all loci in the pop, 
+#	   ep1 and ep2 are matrices with P(G_obs|G_real,epsilon) (a col per posible G_real, a row per observed locus) 
+# Output:  a matrix E with a col per posible hidden state X (# alleles IBD), a row perlocus 
+#          E[i,j] = P(G_obs in i|X=(j-1)) = sum over G_real P(G_real|X=(j-1))P(G_obs|G_real,epsilon)
+
+	nsnps = length(freq)
+	freqA = freq
+	freqa = 1-freq	
+	
+	# Summing over over all 9 possible combinations of (G^ind1_real,G^ind2_real) 
+	E<-cbind(freqA^4,freqA^3,freqA^2)*ep1[,1]*ep2[,1]				# G_real=(AA,AA) 
+	E<-E+cbind(2*freqA^3*freqa,1*freqA^2*freqa,0)*ep1[,1]*ep2[,2]			# G_real=(AA,Aa)
+	E<-E+cbind(1*freqA^2*freqa^2,0,0)*ep1[,1]*ep2[,3]				# G_real=(AA,aa)
+	E<-E+cbind(2*freqA^3*freqa,1*freqA^2*freqa,0)*ep1[,2]*ep2[,1]			# G_real=(Aa,AA)
+	E<-E+cbind(4*freqA^2*freqa^2,freqA*freqa,2*freqA*freqa)*ep1[,2]*ep2[,2]		# G_real=(Aa,Aa)
+	E<-E+cbind(2*freqA*freqa^3,1*freqA*freqa^2,0)*ep1[,2]*ep2[,3]			# G_real=(Aa,aa)
+	E<-E+cbind(1*freqA^2*freqa^2,0,0)*ep1[,3]*ep2[,1]				# G_real=(aa,AA)
+	E<-E+cbind(2*freqA*freqa^3,1*freqA*freqa^2,0)*ep1[,3]*ep2[,2]			# G_real=(aa,Aa)
+	E<-E+cbind(freqa^4,freqa^3,freqa^2)*ep1[,3]*ep2[,3]				# G_real=(aa,aa)
+
+	# Fixing bug...
+        Etmp<-E
+        E[,1]<-Etmp[,3]
+        E[,3]<-Etmp[,1]
+    	return(t(E))
+}

@@ -1,0 +1,282 @@
+\documentclass[a4paper, 11pt]{article}  
+\linespread{1.3}
+\usepackage[a4paper]{geometry}
+\usepackage{amsmath}
+\usepackage{verbatim} 
+
+
+
+\title{Inferring identity-by-descent sharing between pairs of individuals from Next Generation Sequencing Data.}
+\author{Thorfinn Sand Korneliussen,$^{1}$ and Ida Moltke,$^{2,3,*}$\\
+$^{1}$\small The Center for Geogenetics , University of Copenhagen, Copenhagen, Denmark\\
+$^{2}$\small Department of Human Genetics, University of Chicago, Chicago, Il, USA;\\
+$^{3}$\small The Bioinformatics Centre, University of Copenhagen, Copenhagen, Denmark\\
+\small*Corresponding author, e-mail: ida@binf.ku.dk
+}
+%\graphicspath{{./pics/}{../miscResults/}{../results13m1ay/}}
+
+\begin{document}
+%\graphicspath{{pics/}}
+\maketitle
+\section*{Abstract}
+Inference of identity-by-descent (IBD) sharing between pairs of individuals has in the last few years received renewed attention. Several new inference methods have been proposed and it has successfully been shown that IBD inference results can be used for a range of purposes including identification of disease causing genes. However, all current methods base their inference on genotype data. With the emergence of vast amounts of Next Generation sequencing data this is not always ideal, especially not when only low depth sequencing data is available and thus genotypes can only be called with high uncertainly.  
+Here we present a new method for identifying IBD tracts among pairs of individuals from Next Generation Sequencing (NGS) data. In contrast to all previous methods this new method is applicable directly to genotype likelihoods, instead of to genotype data. This allows the new method to take any uncertainty of genotypes into account. We show that this approach leads to a more accurate IBD inference in some cases and explore when(??). Finally we provide a publicly available implementation of the method so others can use it for future analyses. 
+
+\section*{Introduction}
+Identity-by-descent (IBD) is an old concept in genetics, first introduced by Cotterman (2012) and Malecot (1948), which has received a renewed attention the past few years (Purcell et al 2008, Browning and Browning 2008....). IBD basically means sequence identity due to common ancestry, and two alleles are said to be shared IBD if they are identical because the have been inherited from a commen ancestor. Different studies use slightly different definition the main difference being how far back in time common ancestry is considered. We here follow the definition used in xxxx ... [specify what that means].
+With this definition IBD has been shown to be useful in disease mapping \cite{Albrechtsen09,Moltke11}, for detection selection \cite{Albrechtsen10}, for phasing data \cite{xx}. 
+
+All current methods for IBD inference are developed for genotype data, e.g. for SNP chip data.  However, when you have Next Generation Sequencing (NGS) data, called genotypes are not always the best type of data to base statistical methods on. Especially when the depth is low it can be an advantage to take the uncertainty of the genotypes into account by basing the statistical methods directly on the genotype likelihoods, instead of first using these likelihoods for genotype calling and then running the inference methods based on these called genotypes (cf. e.g. \cite{ngsadmix}). 
+Here we present a method for IBD inference that is based directly on genotype likelihoods. And we show that this approach is advantageous when??....
+
+[Intro should be longer but will writ the rest later...]
+
+\section*{Methods and Materials}
+In any one genetic locus two non-inbred individuals will share either 0,1 or 2 alleles IBD. Based on NGS data we want to be able to infer the proportions in which two given individuals are in each of these 3 possible IBD states. Also, we want to be able to infer their IBD sharing state in any specific locus. 
+
+We will first briefly describe how IBD information %proportions $\Theta=(k_0,k_1,k_2)$ 
+can be inferred from genotype data. More specifically we will describe a method very close to the one presented in \cite{Albrechtsen09} (a version without LD correction). We then adjust this method so it is applicable to genotype likelihoods instead and thus describe our a new method.
+%Then we expand the latter method 
+
+\subsection*{Basic model}
+Assume we know the genotypes in $L$ diallelic loci of two individuals $i$ and $j$ and let $G^{i}=(G^{i}_1,G^{i}_2,...,G^{i}_L)$ and $G^{j}=(G^{j}_1,G^{j}_2,...,G^{j}_L)$ denote these genotypes. %with each $G^{k}_{l}\in \{aa,Aa,AA\}$ being the number of major alleles in locus $l$ of individual $k\in \{i,j\}$. 
+Also, let $X = (X_1,X_2,...,X_L)$ denote the number of alleles the two individuals share and $\Theta=(k_0,k_1,k_2)$ denote the overall proportions of the genome in which they share 0,1 and 2 alleles IBD respectively. Finally, let the two alleles in every locus $l$ be denoted $A$ and $a$ and the frequencies of the A alleles be denoted $f^A=(f^A_1,f^A_2,..., f^A_L)$. Then, if we assume that the $L$ loci are independent and that the genotypes are known with no uncertainty it must hold that
+
+\scriptsize%small
+\begin{eqnarray*}%\begin{ealign}
+P(G^{i},G^{j}| \Theta,f^A)&=& \prod_{l=1}^L P(G^{i}_l,G^{j}_l| \Theta,f^A_l)\\
+&=&\prod_{l=1}^L \sum_{x_l\in\{0,1,2\}}P(X_l=x_l|\Theta,f^A_l)P(G^{i}_l,G^{j}_l| \Theta,f^A_l,X_l=x_l)\\ 
+&=&\prod_{l=1}^L \sum_{x_l\in\{0,1,2\}}P(X_l=x_l|\Theta)P(G^{i}_l,G^{j}_l|f^A_l,X_l=x_l)\\ 
+&=&\prod_{l=1}^L \sum_{x_l\in\{0,1,2\}}P(X_l=x_l|\Theta)P(G^{i}_l|f^A_l,X_l=x_l)P(G^{j}_l|f^A_l,X_l=x_l,G^{i}_l)\\ 
+&=&\prod_{l=1}^L \sum_{x_l\in\{0,1,2\}}P(X_l=x_l|\Theta)P(G^{i}_l|f^A_l)P(G^{j}_l|f^A_l,X_l=x_l,G^{i}_l)\\ 
+\end{eqnarray*}%\end{align}
+\normalsize
+where $P(X_l=x_l|\Theta)$ is simply:
+\small
+\begin{equation}
+%\begin{align*}
+P(X_{l}\text{=}x_{l}| \Theta)\normalsize= \left\{ \begin{array}{ll}
+k_0 & \text{if} \ x_{l} \text{=} 0 \\
+k_1 & \text{if} \ x_{l} \text{=} 1 \\
+k_2 & \text{if} \ x_{l} \text{=} 2 \\
+\end{array} \right.
+\label{eq1}
+\end{equation}\\%\end{align*}\\
+\normalsize
+
+\noindent
+and where $P(G^{i}_l|f^A_l)$ and $P(G^{j}_l|f^A_l,X_l=x_l,G^{i}_l)$ are given in table \ref{tab:prob} and table \ref{tab:cond_prob} respectively.
+
+\begin{table}[h!]
+  \centering
+  \begin{tabular}{|c|c|c|}
+\hline
+  AA & Aa & aa\\
+\hline
+  $(f^A_l)^2$ & $2f^A_lf^a_l$& $(f^a_l)^2$\\
+\hline
+\end{tabular}
+  \caption{The probability that the true genotype of individual $i$ n locus $l$ is $G^{i}_l$given that the population frequency of allele A in $l$ is $f^A_l (=1-f^a_l)$.}
+\label{tab:prob}
+\end{table}
+
+\begin{table}[h!]
+  \centering
+  \begin{tabular}{|l|l|c|c|c|}
+\hline
+$G^{i}_l$ & $G^{j}_l$    & $X_l$=0 & $X_l$=1 & $X_l$=2\\
+\hline
+AA & AA & $(f^A_l)^2$ & $f^A_l$ & 1\\
+AA & Aa & $2f^A_lf^a_l$ & $f^a_l$ & 0\\
+AA & aa & $(f^a_l)^2$ & 0 & 0\\
+Aa & AA & $(f^A_l)^2$ & $\frac{1}{2}f^A_l$ & 0\\
+Aa & Aa & $2f^A_lf^a_l$ & $\frac{1}{2}f^A_l + \frac{1}{2}f^a_l$ & 1\\
+Aa & aa & $(f^a_l)^2$ & $\frac{1}{2}f^a_l$ & 0\\
+aa & AA & $(f^A_l)^2$ & 0 & 0\\
+aa & Aa & $2f^A_lf^a_l$ & $f^A_l$ & 0\\
+aa & aa & $(f^a_l)^2$ & $f^a_l$ & 1\\
+\hline
+  \end{tabular}
+  \caption{The probability that the true genotype of individual $j$ in locus $l$ is $G^{j}_l$, given that the true genotype of individual $i$ in this locus is $G^{i}$, that $i$ and $j$ share $X_l$ alleles IBD and that the population frequency of allele A the locus is $f^A_l$ $(=1-f^a)$.}
+\label{tab:cond_prob}
+\end{table}
+
+\begin{table}[h!]
+  \centering
+  \begin{tabular}{|c|c|c|c|}
+\hline
+                         &$ O^k_l=AA$ & $ O^k_l=Aa$ & $ O^k_l=aa$\\
+\hline
+ $G^k_l=AA$ & $(1-\epsilon)^2$ &$2(1-\epsilon)\epsilon$ &$\epsilon^2$\\
+\hline
+ $G^k_l=Aa$ & $(1-\epsilon)\epsilon$ &$(1-\epsilon)^2+\epsilon^2$ &$(1-\epsilon)\epsilon$\\
+\hline
+ $G^k_l=aa$ & $\epsilon^2$ &$2(1-\epsilon)\epsilon$ &$(1-\epsilon)^2$\\
+\hline
+\end{tabular}
+  \caption{The probability of observing the genotype $O^{k}_l$ in individual $k$ in a locus $l$ given that the true genotype is $G^k_l$ and the rate of error for any one allele in any locus is $\epsilon$.}
+\label{tab:epsilon}
+\end{table}
+
+\noindent
+Based on this simple model we can get maximum likelihood (ML) estimates of $\Theta$ using e.g. a numerical optimization algorithm such as the BFGS
+algorithm \cite{Byrd95}. 	
+However, unless the $L$ are very far apart the IBD states of the loci that are close to each other will not be independent. When they are not, 
+the equation above can be seen as a composite likelihood function and the ML estimation will still be unbiased and consistent. But, significance testing using a simple likelihood ratio test is not possible. And perhaps more importantly not all information is used:
+%If we use a hidden Markov model framework as described in \cite{Albrechtsen09}, %This
+%will provide the probability of being inbred across the genome.  However
+%this method assumes that there is no LD between markers. We therefore used a modified version of this method.
+%We use the same approach as described in \cite{Albrechtsen09} for relatedness to
+%accommodate LD; we condition on the previous locus with the highest
+%amount of LD. Genotyping errors are also accounted for by assuming a fixed
+%error rate of XXX again using an approach described in \cite{Albrechtsen09}. The measure of the inbreeding from the hidden Markov model will be less affected by the fact that the Saqqaq individual is not part of the reference population because it takes into account the length distribution of the IBD tracts. However, this bias will still affect the estimates of inbreeding sligtly. 
+the dependencies can be used for inference by taking into account the length distribution of the IBD tracts. This can be done using a hidden Markov model framework as described in \cite{Albrechtsen09}: 
+
+More specifically we assume that the IBD states can be modeled as continuous time Markov chain with instantaneous rate matrix\\
+\small
+%\begin{equation} 
+%\begin{align*}
+\[ Q = \left( \begin{array}{ccc}
+-\alpha k_1& \alpha k_1 & 0 \\
+\alpha k_0 & -\alpha (k_0+k_2) & \alpha k_2 \\
+0 & \alpha k_1 & -\alpha k_1 \end{array} \right)\] \\
+where $\alpha$ is the overall rate of change of the Markov chain.
+\normalsize
+This basically corresponds to assuming that the length of all IBD sharing tracts are  exponentially distributed. 
+If we also assume that the genotypes are independent conditional on the IBD states, i.e. that there is no linkage disequilibrium (LD) in the data it must hold that
+
+\scriptsize%small
+\begin{eqnarray}%\begin{ealign}
+&&P(G^{i},G^{j}| \Theta,f^A,\alpha)\\
+&=& \sum_x P(X=x|\Theta,f^A,\alpha)P(G^{i},G^{j}| \Theta,f^A,\alpha,X=x)\\
+&=& \sum_x P(X=x|\Theta,\alpha)P(G^{i},G^{j}|f^A,X=x)\\
+&=& \sum_x P(X_1=x_1|\Theta) (\prod_{l=2}^L P(X_l=x_l|X_{l-1}=x_{l-1},\Theta,\alpha))(\prod_{l=1}^LP(G^{i}_l,G^{j}_l|f^A_l,X_l=x_l)\\
+&=& \sum_x P(X_1=x_1|\Theta) (\prod_{l=2}^L P(X_l=x_l|X_{l-1}=x_{l-1},\Theta,\alpha))(\prod_{l=1}^LP(G^{i}_l|f^A_l)P(G^{j}_l|f^A_l,X_l=x_l,G^{i}_l) \label{eq:xx}
+\end{eqnarray}%\end{align}
+\normalsize
+And based on this model one can achieve ML estimates of parameters $\Theta=k_0,k_1, k_1$ and $\alpha$ using ML estimation. And not only that once these estimates are achieved we can make inferences about exactly where their genomes the two individuals share 0, 1 and two alleles IBD using standard HMM inference algorithms such a viterbi and the forward backwards algorithm.  
+Note that this is the model in \cite{Albrechtsen09} without LD correction (see discussion for comments on LD) and without a model for genotyping errors.
+
+\subsection*{When genotypes are not known with certainty}
+In the basic models we assumed that the genotypes were known with certainty. However this is rarely the case. Neither for SNPs chip genotype data nor for NGS data. In the case of SNP chip data this is usually accommodated for by assuming some fixed allelic error rate,  $\epsilon$, for all sites.  E.g. in the model of \cite{Albrechtsen09} the above model is augmented by calculating the probability of the observed genotypes $O^{i}=(O^{i}_1,O^{i}_2,...,O^{i}_L)$ and $O^{j}=(O^{j}_1,O^{j}_2,...,O^{j}_L)$ instead of the probability of the true genotypes $G^i$ and $G^j$. And this is done by for each locus summing over all possible values of the true underlying genotype pair ($G^{i}_l$,$G^{j}_l$) so equation \ref{eq:xx} instead becomes:%so the product $P(G^{i}_l,G^{j}_l|f^A_l,X_l=x_l)$ in equation xx is replaced by 
+
+\scriptsize
+\begin{eqnarray*}%\begin{ealign}
+&&P(O^{i},O^{j}| \Theta,f^A,\alpha,\epsilon) =\\
+&& \sum_x P(X_1=x_1|\Theta) (\prod_{l=2}^L P(X_l=x_l|X_{l-1}=x_{l-1},\Theta,\alpha))(\prod_{l=1}^LP(O^{i}_l,O^{j}_l|f^A_l,X_l=x_l,\epsilon)\\
+&& \sum_x P(X_1=x_1|\Theta) (\prod_{l=2}^L P(X_l=x_l|X_{l-1}=x_{l-1},\Theta,\alpha))(\prod_{l=1}^L\sum_{(G^{i}_l,G^{j,}_l)} P(G^{i}_l,G^{j}_l|f^A_l,X_l=x_l)P(O^{i}_l,O^{j}_l|G^{i}_l,G^{j}_l,\epsilon)\\
+&& \sum_x P(X_1=x_1|\Theta) (\prod_{l=2}^L P(X_l=x_l|X_{l-1}=x_{l-1},\Theta,\alpha))(\prod_{l=1}^L\sum_{P(G^{i}_l,G^{j}_l)} P(G^{i}_l|f^A_l)P(G^{j}_l|f^A_l,X_l=x_l,G^{i}_l)P(O^{i}_l|G^{i}_l,\epsilon)P(O^{i}_l|G^{i}_l,\epsilon)
+\end{eqnarray*}%\end{align}
+\normalsize
+where $P(G^{i}_l|f^A_l)$ and $P(G^{j}_l|f^A_l,X_l=x_l,G^{i}_l)$ is calculated exactly as before and $P(O^{i}_l|G^{i}_l,\epsilon)$ and $P(O^{j}_l|G^{j}_l,\epsilon)$ is calculated using table \ref{tab:epsilon}.
+
+However, for NGS data the error rates for called genotypes will depend highly on e.g local read depth. Which is the main motivation for our new method. We suggest to accommodate for errors in a different manner, for this type of data, where genotypes are usually called based on the likelihood of all the possible genotypes. More specifically we suggest to take genotype uncertainty into account by making inference based directly on genotype likelihoods. 
+We can do that using a model very similar to the genotype based model just described. % However the observed data is now no longer genotypes but read data and the probabilities of the form $P(O^{k}_l|G^{k}_l)$ are no longer given as in table \ref{tab:epsilon} but instead in the form of the genotype likelihoods we have for the NGS data.
+%We can do this by 
+
+ Let $D^{i}=(D^{i}_1,D^{i}_2,...,D^{i}_L)$ and $D^{j}=(D^{j}_1,D^{j}_2,...,D^{j}_L)$ be the observed data (sequence reads) in the 2 individuals, then %(again assuming all the loci are independent):
+%\small
+%\begin{eqnarray*}
+%& &P(D^{i},D^{j}| \Theta,f^A)\\
+%&=& \prod_{l=1}^L P(D^{i}_l,D^{j}_l| \Theta,f^A_l)\\
+%&=&\prod_{l=1}^L \sum_{x_l\in\{0,1,2\}}P(X_l=x_l|\Theta,f^A_l)P(D^{i}_l,D^{j}_l| \Theta,f^A_l,X_l=x_l)\\ 
+%&=&\prod_{l=1}^L \sum_{x_l\in\{0,1,2\}}P(X_l=x_l|\Theta)P(D^{i}_l,D^{j}_l|f^A_l,X_l=x_l)\\ 
+%&=&\prod_{l=1}^L \sum_{x_l\in\{0,1,2\}}P(X_l=x_l|\Theta)\sum_{(G^{i}_l ,G^{j}_l)\in\{0,1,2\}^2}P(G^{i}_l,G^{j}_l|f^A_l,X_l=x_l)P(D^{i}_l,D^{j}_l|f^A_l,X_l=x_l,G^{i}_l,G^{j}_l)\\ 
+%&=&\prod_{l=1}^L \sum_{x_l\in\{0,1,2\}}P(X_l=x_l|\Theta)\sum_{(G^{i}_l,G^{j}_l)\in\{0,1,2\}^2}P(G^{i}_l,G^{j}_l|f^A_l,X_l=x_l)P(D^{i}_l,D^{j}_l|G^{i}_l,G^{j}_l)\\ 
+%&=&\prod_{l=1}^L \sum_{x_l\in\{0,1,2\}}P(X_l=x_l|\Theta)\sum_{(G^{i}_l,G^{j}_l)\in\{0,1,2\}^2}P(G^{l}_i|f^A_l)P(G^{j}_l|f^A_l,X_l=x_l,G^{i}_l)P(D^{i}_l|G^{i}_i)P(D^{j}_l|G^{j}_i)\\ 
+%\end{eqnarray*}
+%\normalsize
+%Note that this is almost the same formula as in the error augmented model from \cite{Albrechtsen09}. The only difference os 
+%Like in the first basic model we can we based on the above model estimate $\Theta$ using a ML approach and numerical optimization. 	
+
+%And similarly we must have that:
+\scriptsize%small
+\begin{eqnarray*}%\begin{ealign}
+&&P(D^{i},D^{j}| \Theta,f^A,\alpha)\\
+&=& \sum_x P(X=x|\Theta,f^A,\alpha)P(D^{i},D^{j}| \Theta,f^A,\alpha,X=x)\\
+&=& \sum_x P(X=x|\Theta,\alpha)P(D^{i},D^{j}|f^A,X=x)\\
+&=& \sum_x P(X_1=x_1|\Theta) (\prod_{l=2}^L P(X_l=x_l|X_{l-1}=x_{l-1},\Theta,\alpha))(\prod_{l=1}^LP(D^{i}_l,D^{j}_l|f^A_l,X_l=x_l)\\
+&=& \sum_x P(X_1=x_1|\Theta) (\prod_{l=2}^L P(X_l=x_l|X_{l-1}=x_{l-1},\Theta,\alpha))(\prod_{l=1}^L\sum_{(G^{i}_l,G^{j}_l)\in\{0,1,2\}^2}P(D^{i}_l,D^{j}_l|G^{i}_l,G^{j}_l)P(G^{i}_l,G^{j}_l|f^A_l,X_l=x_l)\\ 
+&=& \sum_x P(X_1=x_1|\Theta) (\prod_{l=2}^L P(X_l=x_l|X_{l-1}=x_{l-1},\Theta,\alpha))(\prod_{l=1}^L\sum_{(G^{i}_l,G^{j}_l)\in\{0,1,2\}^2}P(D^{i}_l|G^{i}_i)P(D^{j}_l|G^{j}_l)P(G^{i}_l|f^A_l)P(G^{j}_l|f^A_l,X_l=x_l,G^{i}_l)\\ 
+\end{eqnarray*}%\end{align}
+\normalsize
+Note that the only difference between this model and the error augmented genotype based model is that the probabilities of the form $P(D^{i}_l|G^{i}_i)$ are not based on a fixed error rate, $\epsilon$, that is common for all loci. Instead we use the genotype likelihoods that genotype calling in NGS data is usually based on and thus take into account that the uncertainty of genotype varies a lot from locus to locus. [comment: In the exact same manner the full model from \cite{Albrechtsen09} that can accommodate for LD can be adjusted to work on NGS genotype likelihoods -- do we want to do that in this paper? If not we have to argue for why we do not do it in the discussion]
+%Like in the first basic model we can we based on the above model estimate $\Theta$ using a ML approach and numerical optimization. 	
+
+%This is the model we are using in this study. Additionally, in a completely analog way we, also use the LD corrected model from
+
+\begin{comment}
+\begin{table}
+\label{tab:cond_prob}
+  \centering
+  \begin{tabular}{|l|l|c|c|c|}
+\hline
+$G^{i2}_l$ & $G^{i1}_l$    & $X_l$=0 & $X_l$=1 & $X_l$=2\\
+\hline
+AA & AA & $(f^A_l)^2$ & $f^A_l$ & 1\\
+AA & Aa & $(f^A_l)^2$ & $\frac{1}{2}f^A_l$ & 0\\
+AA & aa & $(f^A_l)^2$ & 0 & 0\\
+Aa & AA & $2f^A_lf^a_l$ & $f^a_l$ & 0\\
+Aa & Aa & $2f^A_lf^a_l$ & $\frac{1}{2}f^A_l + \frac{1}{2}f^a_l$ & 1\\
+Aa & aa & $2f^A_lf^a_l$ & $f^A_l$ & 0\\
+aa & AA & $(f^a_l)^2$ & 0 & 0\\
+aa & Aa & $(f^a_l)^2$ & $\frac{1}{2}f^a_l$ & 0\\
+aa & aa & $(f^a_l)^2$ & $f^a_l$ & 1\\
+\hline
+  \end{tabular}
+  \caption{Probabilities of observing the genotype $G^{i2}_l$ in individual $i2$ given that individual $i1$ has genotype $G^{i1}$, that $i1$ and $i2$ share $X_l$ alleles IBD and that the population frequency of allele A in locus $l$ is $f^A_l (=1-f^a_l)$.}
+\end{table}
+\end{comment}
+
+\subsection*{Materials}
+In order to test our new method we used both simulated data and real data.
+\subsubsection*{Simulated data}
+How did we simulate data...
+
+\subsubsection*{Simulated data}
+What real dataset did we apply the data to?
+
+\section{Results}
+....
+
+
+\section{Discussion}
+LD, comparison of the two error models,when is it beneficial? 
+
+
+
+\begin{thebibliography}{10}
+\bibitem{Patterson06}
+Patterson N, Price AL, Reich D
+\newblock (2006)
+\newblock {{P}opulation Structure and Eigenanalysis}
+\newblock PLoS Genet {\em 2}(12): e190
+
+\bibitem{Leutenegger}
+Leutenegger, A. L.  and Prum, B.  and Genin, E.  and Verny, C.  and Lemainque, A.  and Clerget-Darpoux, F.  and Thompson, E. A.
+\newblock (2003)
+\newblock   {{E}stimation of the inbreeding coefficient through use of genomic data}",
+ \newblock Am. J. Hum. Genet. {\em 73} 516--523.
+\bibitem{Albrechtsen09}
+Albrechtsen, A., Sand~Korneliussen, T., Moltke, I., van Overseem~Hansen, T.,
+  Nielsen, F.~C., and Nielsen, R.
+\newblock (2009).
+\newblock {{R}elatedness mapping and tracts of relatedness for genome-wide data
+  in the presence of linkage disequilibrium}.
+\newblock Genet. Epidemiol. {\em 33}, 266--274.
+\bibitem{Moltke11}
+ Moltke, I., Albrechtsen, A., van Overseem~Hansen, T.,
+  Nielsen, F.~C., and Nielsen, R.
+\newblock (2011).
+\newblock {{A} method for detecting IBD regions simultaneously in multiple individuals -- with applications to disease genetics.}.
+\newblock Genome Res. {\em 21}, 1168--1180.
+\bibitem{Albrechtsen10}
+Albrechtsen, A., Moltke, I., and Nielsen, R.
+\newblock (2010).
+\newblock {{N}atural Selection and the Distribution of Identity-by-Descent in the Human Genome}.
+\newblock Genetics {\em 186}, 295--308.
+\end{thebibliography}
+
+
+
+\end{document}

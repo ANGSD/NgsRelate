@@ -1,0 +1,30 @@
+" Parameter values
+> k0
+[1] 0.75
+> k1
+[1] 0.25
+> k2
+[1] 0
+> a
+[1] 0.069
+
+# Results from run with relate on real genos
+# calc.a=T
+[1] "Proportion of genome where post of sharing 1 allele is >0.5 is 0.1696"
+[1] "Proportion of genome where post of sharing 1 allele is >0.75 is 0.1527"
+[1] "Proportion of genome where post of sharing 1 allele is >0.9 is 0.1327"
+[1] "Proportion of genome where post of sharing 1 allele is >0.95 is 0.1187"
+[1] "Proportion of genome where post of sharing 1 allele is >0.99 is 0.0967"
+[1] "Proportion of genome where viterbi path has state 1 is 0.1534"
+[1] "ML k1 is 0.180281441638117"
+[1] "Proportion of genome where 1 allele is shared ibd is 0.194415089780378"
+# calc.a=F
+[1] "Proportion of genome where post of sharing 1 allele is >0.5 is 0.1721"
+[1] "Proportion of genome where post of sharing 1 allele is >0.75 is 0.1516"
+[1] "Proportion of genome where post of sharing 1 allele is >0.9 is 0.1354"
+[1] "Proportion of genome where post of sharing 1 allele is >0.95 is 0.1192"
+[1] "Proportion of genome where post of sharing 1 allele is >0.99 is 0.0895"
+[1] "Proportion of genome where viterbi path has state 1 is 0.1534"
+[1] "ML k1 is 0.186482653809127"
+[1] "Proportion of genome where 1 allele is shared ibd is 0.194415089780378"
+

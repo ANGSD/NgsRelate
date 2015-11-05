@@ -1,0 +1,36 @@
+-------------------
+This program is based on clayton's snpMatrix package.
+
+It will remove loci from a snp file, such that only loci with a low ld will remain.
+
+This program is implemented in R and C.
+
+thorfinn@binf.ku.dk
+-------------------
+INSTALLATION
+Installation for R is straightforward,
+R CMD INSTALL pruning_0.6.tar.gz
+
+Installation for C/C++ is also straightforward.
+
+goto src subdir,
+rename Makefile_old to Makefile
+type make
+
+./prune
+-------------------
+MANUAL
+In R type ?prune
+
+from commandline the syntax is:
+
+./prune -g GENOTYPEFILE -LD {0,1} -back BACK -threshold prune_val -filename OUTPUTDATA -snps KEEPLIST
+
+Genotypefile should have samples as rows and snps as columns.
+Missing can be 0,NA, Na, na.
+Futhermore seperators are ",;: \t".
+Missing in output data are denoted by zero.
+
+Program will check if output files exist and will print error message if they exists.
+
+

@@ -1,0 +1,2 @@
+I can get to the exact same results as Relate, but with an error function that I believe is wrong (transpose of the right on)
+and an emission fuction that I believe is wrong (old=Relate versions, new=my versions)
