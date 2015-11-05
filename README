@@ -1,0 +1,8 @@
+5nov 2015. Added the first version of NGSrelate which is a hmm. Input are beagle files.
+
+The ngsrelate.cpp is the ML estimator described in the paper:
+http://bioinformatics.oxfordjournals.org/content/early/2015/08/29/bioinformatics.btv509
+
+
+
+thorfinn@binf.ku.dk
