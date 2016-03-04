@@ -22,6 +22,7 @@ typedef struct{
 }para;
 
 
+//for each chr
 typedef struct{
   int nSites;
   int *pos;

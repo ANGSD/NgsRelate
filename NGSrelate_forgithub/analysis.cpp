@@ -225,9 +225,10 @@ void fixunderflow(double *a,int l, double tole){
       a[i]=0.0;
 
 }
+/*
+  results will be put in last argument
 
-
-
+ */
 void trans(const double *pars,double *pos,int l,double **ret) {
 
   double a = pars[0];
@@ -376,7 +377,7 @@ double **forward(double *pars,double **eprob,double **tprob,int nSites){
     }
   }
   double loglike = m+log(exp(res[0][nSites-1]-m) + exp(res[1][nSites-1]-m)+ exp(res[2][nSites-1]-m));
-  fprintf(stderr,"[%s]\tloglike=%f\n",__FUNCTION__,loglike);
+  //  fprintf(stderr,"[%s]\tloglike=%f\n",__FUNCTION__,loglike);
 
   //  double res = m+log(exp(lp[0]-m) + exp(lp[1]-m)+ exp(lp[2]-m));
   return res;
@@ -428,7 +429,7 @@ double **backward(double *pars,double **eprob,double **tprob,int nSites){
 
 
   double loglike = m+log(exp(logres[0]-m) + exp(logres[1]-m)+ exp(logres[2]-m));
-  fprintf(stderr,"[%s]\tloglike=%f\n",__FUNCTION__,loglike);
+  //fprintf(stderr,"[%s]\tloglike=%f\n",__FUNCTION__,loglike);
   //  double res = m+log(exp(lp[0]-m) + exp(lp[1]-m)+ exp(lp[2]-m));
   return res;
 }
@@ -469,7 +470,7 @@ char *viterbi(double *pars,double **eprob,double **tprob,int nSites){
   }
   
   double loglike = max(res[0][nSites-1],res[1][nSites-1],res[2][nSites-1]);
-  fprintf(stderr,"[%s] \tloglike=%f\n",__FUNCTION__,loglike);
+  //  fprintf(stderr,"[%s] \tloglike=%f\n",__FUNCTION__,loglike);
 
   
   char *vit = new char[nSites];
@@ -502,6 +503,18 @@ double **post(double **fw,double **bw,int nSites,double lik){
   return res;
 }
 
+
+void forward_backward_decode_viterbi(double *pars,const genome &g){
+  assert(pars[0]>0);
+  if(pars[1]+pars[2]+pars[3]!=1)
+    fprintf(stderr,"alhpa=%f k0=%f k1=%f k2=%f\n",pars[0],pars[1],pars[2],pars[3]);
+  for(size_t i=0;i<g.results.size();i++){
+    hmmRes res = g.results[i];
+    res.forward = forward(pars+1,res.emis,res.trans,res.nSites);
+    res.backward = backward(pars+1,res.emis,res.trans,res.nSites);
+    res.viterbi = viterbi(pars+1,res.emis,res.trans,res.nSites);
+  }
+}
 
 
 
@@ -715,6 +728,7 @@ double run_optim_full3(const genome &g,const std::vector<perChr>&pc,para&p){
 }
 
 
+
 //this function allocates and precomputes the data structures that doesn't depend on the a,k0,k1,k2
 genome mkGenome(const std::vector<perChr> &pc,const para &p){
   genome g;
@@ -758,20 +772,20 @@ double doOptim(para &p,const genome &g,const std::vector<perChr>&pc,int calcA){
   return lik;
 } 
 
-/*
 
 
 
-hmm analysis(const perChr &pc,double *freq,para p,int calcA){
+
+hmmRes analysis(const perChr &pc,double *freq,para p,int calcA){
   srand48(0);
   fprintf(stderr,"[%s](p0=%d,p1=%d) a=%f k0=%f k1=%f k2=%f\n",__FUNCTION__,p.pair[0],p.pair[1],p.a,p.k0,p.k1,p.k2);
-  hmm res;
+  hmmRes res;
   res.pos = pc.pos;
   res.nSites = pc.nSites;
   res.trans = new double*[9];
   for(int i=0;i<9;i++)
     res.trans[i] = new double[pc.nSites+1];
-  
+  /*
   emis(p.pair[0],p.pair[1],pc,freq,&res.emis);
   double *dpos = diffPos(pc.pos,pc.nSites);
   //calc unrelated likelihood
@@ -790,8 +804,6 @@ hmm analysis(const perChr &pc,double *freq,para p,int calcA){
   
   
   //  Check if we should perform optimizaiton
-  
-
 
   if(p.k0==-1||p.k1==-1||p.k2==-1||p.a==-1){
     fprintf(stderr,"Performing optimation\n");
@@ -840,6 +852,7 @@ hmm analysis(const perChr &pc,double *freq,para p,int calcA){
     fprintf(stderr,"basis lik=%f a=%f k0=%f k1=%f k2=%f\n",res.like,pars[0],pars[1],pars[2],pars[3]);
 
   }
+  */
   return res;
 }
-*/
+

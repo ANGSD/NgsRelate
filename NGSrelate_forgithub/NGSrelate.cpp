@@ -676,8 +676,7 @@ int main(int argc, char **argv){
     else if(strcmp(*argv,"-calcA")==0 )  ca.calcA = atoi(*++argv);
     else if(strcmp(*argv,"-pair1")==0 )  ca.p.pair[0] = atoi(*++argv); 
     else if(strcmp(*argv,"-pair2")==0 )  ca.p.pair[1] = atoi(*++argv); 
-    else if(strcmp(*argv,"-selectChr")==0 )  ca.
-selectChr = atoi(*++argv); 
+    else if(strcmp(*argv,"-selectChr")==0 )  ca.selectChr = atoi(*++argv); 
     else{
       fprintf(stderr,"Unknown arg:%s\n",*argv);
       info();
@@ -725,6 +724,7 @@ selectChr = atoi(*++argv);
 
     gzclose(dfile);
   }
+  fprintf(stderr,"number of chrs:%lu\n",pd.size());
   //calculate GL frequencies
   int totSites = 0;
   for(uint i=0;i<pd.size();i++){
@@ -765,7 +765,7 @@ selectChr = atoi(*++argv);
   genome mkGenome(const std::vector<perChr> &pd,const para &p);
   double calcLike(double *pars,const genome &g,const std::vector<perChr>&pc);
   double doOptim(para &p,const genome &g,const std::vector<perChr>&pc,int calcA);
-  
+  void forward_backward_decode_viterbi(double *pars,const genome &g);
 
   //if we want to run analysis on a single chr.
   if(ca.selectChr!=-1){
@@ -797,12 +797,13 @@ selectChr = atoi(*++argv);
   fprintf(fres,"%f %f %f %f %f\n",ca.p.a,ca.p.k0,ca.p.k1,ca.p.k2,lik);
   fclose(fres);
 
+  //now do the forward,backward, decode and viterbi
+  double pars[] = {ca.p.a,ca.p.k0,ca.p.k1,ca.p.k2};
+  forward_backward_decode_viterbi(pars,g);
+  
+  
 
 
-
-
-
-  //  genome g = calcLike
 
   /*
 
@@ -823,15 +824,6 @@ selectChr = atoi(*++argv);
     fprintf(fres,"%f %f %f %f %f\n",p[0],p[1],p[2],p[3],all_res[i].like);
   }
   fclose(fres);
-
-  //deallocate memory
-  
-  for(int i=0;1&&i<dumpedFiles.size();i++){
-    fprintf(stderr,"dumpedfiles are: %s\n",dumpedFiles[i]);
-    free(dumpedFiles[i]);
-  }
-  fprintf(stderr, "\t[ALL done] cpu-time used =  %.2f sec\n", (float)(clock() - t) / CLOCKS_PER_SEC);
-  fprintf(stderr, "\t[ALL done] walltime used =  %.2f sec\n", (float)(time(NULL) - t2));  
 
   */
   // print to log file
