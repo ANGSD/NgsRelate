@@ -339,7 +339,7 @@ double fastlike(double *pars,double **eprob,double **tprob,int nSites) {
 
 
 
-double **forward(double *pars,double **eprob,double **tprob,int nSites){
+double **forward(double *pars,double **eprob,double **tprob,int nSites,double &loglike){
   //fprintf(stderr,"[%s] %f %f %f\n",__FUNCTION__,pars[0],pars[1],pars[2]);
   double logres[3]={log(pars[0]),log(pars[1]),log(pars[2])};
   //  fprintf(stderr,"init logres: %f %f %f\n",logres[0],logres[1],logres[2]);
@@ -376,7 +376,7 @@ double **forward(double *pars,double **eprob,double **tprob,int nSites){
       exit(0);
     }
   }
-  double loglike = m+log(exp(res[0][nSites-1]-m) + exp(res[1][nSites-1]-m)+ exp(res[2][nSites-1]-m));
+  loglike = m+log(exp(res[0][nSites-1]-m) + exp(res[1][nSites-1]-m)+ exp(res[2][nSites-1]-m));
   //  fprintf(stderr,"[%s]\tloglike=%f\n",__FUNCTION__,loglike);
 
   //  double res = m+log(exp(lp[0]-m) + exp(lp[1]-m)+ exp(lp[2]-m));
@@ -384,7 +384,7 @@ double **forward(double *pars,double **eprob,double **tprob,int nSites){
 }
 
 
-double **backward(double *pars,double **eprob,double **tprob,int nSites){
+double **backward(double *pars,double **eprob,double **tprob,int nSites,double &loglike){
   //fprintf(stderr,"[%s] %f %f %f\n",__FUNCTION__,pars[0],pars[1],pars[2]);
   double logres[3]={log(pars[0]),log(pars[1]),log(pars[2])};
   //  fprintf(stderr,"init logres: %f %f %f\n",logres[0],logres[1],logres[2]);
@@ -418,7 +418,7 @@ double **backward(double *pars,double **eprob,double **tprob,int nSites){
     //    fprintf(stderr,"m[%d]=%f\n",i,m);
     // exit(0);
     if(std::isnan(m)||std::isnan(logres[0])){
-      fprintf(stderr,"Probs in forward at site:%d\n",i);
+      fprintf(stderr,"Probs in backward at site:%d\n",i);
       exit(0);
     }
   }
@@ -428,7 +428,7 @@ double **backward(double *pars,double **eprob,double **tprob,int nSites){
   m=max(logres);
 
 
-  double loglike = m+log(exp(logres[0]-m) + exp(logres[1]-m)+ exp(logres[2]-m));
+  loglike = m+log(exp(logres[0]-m) + exp(logres[1]-m)+ exp(logres[2]-m));
   //fprintf(stderr,"[%s]\tloglike=%f\n",__FUNCTION__,loglike);
   //  double res = m+log(exp(lp[0]-m) + exp(lp[1]-m)+ exp(lp[2]-m));
   return res;
@@ -474,6 +474,7 @@ char *viterbi(double *pars,double **eprob,double **tprob,int nSites){
 
   
   char *vit = new char[nSites];
+  //  fprintf(stderr,"[%s] %f %f %f nsites:%d\n",__FUNCTION__,pars[0],pars[1],pars[2],nSites);
   vit[nSites-1] = whichmax(ptr[0][nSites-1],ptr[1][nSites-1],ptr[2][nSites-1]);  
   for(int i=(nSites-1);i>0;i--)
     if(vit[i]==2)
@@ -504,16 +505,25 @@ double **post(double **fw,double **bw,int nSites,double lik){
 }
 
 
-void forward_backward_decode_viterbi(double *pars,const genome &g){
+void forward_backward_decode_viterbi(double *pars,genome &g){
   assert(pars[0]>0);
   if(pars[1]+pars[2]+pars[3]!=1)
     fprintf(stderr,"alhpa=%f k0=%f k1=%f k2=%f\n",pars[0],pars[1],pars[2],pars[3]);
+  double loglikef,loglikeb;
+  loglikef=loglikeb =0;
   for(size_t i=0;i<g.results.size();i++){
-    hmmRes res = g.results[i];
-    res.forward = forward(pars+1,res.emis,res.trans,res.nSites);
-    res.backward = backward(pars+1,res.emis,res.trans,res.nSites);
+    hmmRes &res = g.results[i];
+    double tmp =0;
+    res.forward = forward(pars+1,res.emis,res.trans,res.nSites,tmp);
+    loglikef += tmp;
+    tmp=0;
+    res.backward = backward(pars+1,res.emis,res.trans,res.nSites,tmp);
+    loglikeb += tmp;
+    res.post = post(res.forward,res.backward,res.nSites,tmp);
     res.viterbi = viterbi(pars+1,res.emis,res.trans,res.nSites);
+    //    fprintf(stderr,"in main:%p\n",res.viterbi);
   }
+  fprintf(stderr,"loglikeforward:%f loglikebackward:%f \n",loglikef,loglikeb);
 }
 
 
@@ -546,18 +556,19 @@ typedef struct toOptim2_t{
   toOptim2_t(const genome &gg,const std::vector<perChr> &pcc) : g(gg),pc(pcc) {};
 }toOptim2;
 
-double calcLike(double *pars,const genome &g,const std::vector<perChr>&pc){
+double calcLike(double *pars,const genome &g){
   //  fprintf(stderr,"alhpa=%f k0=%f k1=%f k2=%f\n",pars[0],pars[1],pars[2],pars[3]);
   assert(pars[0]>0);
   if(pars[1]+pars[2]+pars[3]!=1)
       fprintf(stderr,"alhpa=%f k0=%f k1=%f k2=%f\n",pars[0],pars[1],pars[2],pars[3]);
   //  assert(pars[1]+pars[2]+pars[3]==1);
 
-  double lik[pc.size()];
+  double lik[g.results.size()];
   double totLik =0;
-  for(size_t i=0;i<pc.size();i++){
-    trans(pars,g.results[i].dpos,pc[i].nSites+1,g.results[i].trans);
-    lik[i] = fastlike(pars+1,g.results[i].emis,g.results[i].trans,pc[i].nSites);
+  for(size_t i=0;i<g.results.size();i++){
+    hmmRes results = g.results[i];
+    trans(pars,results.dpos,results.nSites+1,results.trans);
+    lik[i] = fastlike(pars+1,results.emis,results.trans,results.nSites);
     //fprintf(stderr,"i=%lu=%f\n",i,lik[i]);
     totLik += lik[i];
   }
@@ -578,7 +589,7 @@ double bfgs_call_k2zero_calcA2(const double* pars,const void *dats){
     fprintf(stderr,"CalcA is outside bounds\n");
     return DBL_MAX;
   }
-  double lik=-calcLike(inV,to->g,to->pc);
+  double lik=-calcLike(inV,to->g);
   //  fprintf(stderr,"lik=%f\n",lik);
   return lik;
 }
@@ -616,7 +627,7 @@ double bfgs_call_full_calcA2(const double* pars,const void *dats){
   inV[0]= calculateA(inV[1],inV[2],inV[3],PHI);
   if(std::isnan(inV[0]))
     return DBL_MAX;
-  double lik=-calcLike(inV,to->g,to->pc);
+  double lik=-calcLike(inV,to->g);
   //  fprintf(stderr,"lik=%f\n",lik);
   return lik;
 }
@@ -652,7 +663,7 @@ double bfgs_call_full2(const double* pars,const void *dats){
 
   if(std::isnan(inV[0]))
     return DBL_MAX;
-  double lik=-calcLike(inV,to->g,to->pc);
+  double lik=-calcLike(inV,to->g);
   //  fprintf(stderr,"lik=%f\n",lik);
   return lik;
 }
@@ -698,7 +709,7 @@ double bfgs_call_full3(const double* pars,const void *dats){
 
   if(std::isnan(inV[0]))
     return DBL_MAX;
-  double lik=-calcLike(inV,to->g,to->pc);
+  double lik=-calcLike(inV,to->g);
   //  fprintf(stderr,"lik=%f\n",lik);
   return lik;
 }

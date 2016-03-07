@@ -763,9 +763,9 @@ int main(int argc, char **argv){
 
 
   genome mkGenome(const std::vector<perChr> &pd,const para &p);
-  double calcLike(double *pars,const genome &g,const std::vector<perChr>&pc);
+  double calcLike(double *pars,const genome &g);
   double doOptim(para &p,const genome &g,const std::vector<perChr>&pc,int calcA);
-  void forward_backward_decode_viterbi(double *pars,const genome &g);
+  void forward_backward_decode_viterbi(double *pars,genome &g);
 
   //if we want to run analysis on a single chr.
   if(ca.selectChr!=-1){
@@ -786,7 +786,7 @@ int main(int argc, char **argv){
       ca.p.a=calculateA(ca.p.k0,ca.p.k1,ca.p.k2,PHI);
       fprintf(stderr,"p.a=%f\n",ca.p.a);
       double pars[] = {ca.p.a,ca.p.k0,ca.p.k1,ca.p.k2};
-      lik = calcLike(pars,g,pd);
+      lik = calcLike(pars,g);
     }
   }else{
     fprintf(stderr,"Will now run optimizaton\n");
@@ -800,11 +800,24 @@ int main(int argc, char **argv){
   //now do the forward,backward, decode and viterbi
   double pars[] = {ca.p.a,ca.p.k0,ca.p.k1,ca.p.k2};
   forward_backward_decode_viterbi(pars,g);
+  pars[1] = 1; pars[2] = pars[3] = 0;
+  g.ulike = calcLike(pars,g);
+  pars[1] = 0; pars[2] = 1;
+  g.polike = calcLike(pars,g);
+  fprintf(stderr,"ulike:%f polike:%f\n",g.ulike,g.polike);
   
-  
-
-
-
+  gzFile add = openFileGz(ca.outnames,".all.gz","wb");
+  for(int i=0;i<pd.size();i++){
+    perChr en = pd[i];
+    hmmRes to = g.results[i];
+    assert(en.nSites==to.nSites);
+    for(int j=0;j<en.nSites;j++){
+      gzprintf(add,"%s\t%d\t%f\t",en.name,to.pos[j],en.freq[j]);
+      gzprintf(add,"%d\t",to.viterbi[j]);
+      gzprintf(add,"%f\t%f\t%f\n",to.post[0][j],to.post[1][j],to.post[2][j]);
+    }
+  }
+  gzclose(add);
   /*
 
   std::vector<hmm> all_res;
@@ -827,7 +840,8 @@ int main(int argc, char **argv){
 
   */
   // print to log file
-
+  
+  
   for(int i=0;1&&i<dumpedFiles.size();i++){
     fprintf(stderr,"dumpedfiles are: %s\n",dumpedFiles[i]);
     free(dumpedFiles[i]);
