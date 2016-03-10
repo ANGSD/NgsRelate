@@ -641,13 +641,14 @@ int main(int argc, char **argv){
     return 0;
   }
   //below for catching ctrl+c, and dumping files
+  /*
   struct sigaction sa;
   sigemptyset (&sa.sa_mask);
   sa.sa_flags = 0;
   sa.sa_handler = handler;
   sigaction(SIGPIPE, &sa, 0);
   sigaction(SIGINT, &sa, 0);  
-
+  */
   //set default parameters
   cArg ca;
   ca.beagle=NULL;
@@ -683,6 +684,10 @@ int main(int argc, char **argv){
       return 0;
     }
     ++argv;
+  }
+  if(ca.p.a!=-1 && ca.p.calcA==1){
+    fprintf(stderr,"\t-> Cant supply -a and -calcA\n");
+    info();
   }
   if(ca.beagle==NULL&&ca.bin==NULL){
     fprintf(stderr,"Please supply input data file: -beagle OR -bin");
@@ -780,6 +785,10 @@ int main(int argc, char **argv){
   genome g = mkGenome(pd,ca.p);
   double lik;
   if(ca.p.k0!=-1&&ca.p.k1!=-1&&ca.p.k2!=-1){
+    double ts = ca.p.k0+ca.p.k1+ca.p.k2;
+    ca.p.k0 /= ts;
+    ca.p.k1 /= ts;
+    ca.p.k2 /= ts;
     if(ca.calcA==1 && ca.p.a==-1){
       fprintf(stderr,"Calculating point estimate of llh\n");
       fprintf(stderr,"p.a=%f\n",ca.p.a);
@@ -788,13 +797,22 @@ int main(int argc, char **argv){
       double pars[] = {ca.p.a,ca.p.k0,ca.p.k1,ca.p.k2};
       lik = calcLike(pars,g);
     }
+    if(ca.calcA==0 && ca.p.a!=-1){
+      fprintf(stderr,"Calculating point estimate of llh\n");
+      fprintf(stderr,"p.a=%f\n",ca.p.a);
+      ca.p.a=calculateA(ca.p.k0,ca.p.k1,ca.p.k2,PHI);
+      fprintf(stderr,"p.a=%f\n",ca.p.a);
+      double pars[] = {ca.p.a,ca.p.k0,ca.p.k1,ca.p.k2};
+      lik = calcLike(pars,g);
+    }
+
   }else{
     fprintf(stderr,"Will now run optimizaton\n");
     lik = doOptim(ca.p,g,pd,ca.calcA);
   }
-  fprintf(stderr,"%f %f %f %f %f\n",ca.p.a,ca.p.k0,ca.p.k1,ca.p.k2,lik);
+  fprintf(stderr,"%e %e %e %e %e\n",ca.p.a,ca.p.k0,ca.p.k1,ca.p.k2,lik);
   FILE *fres=openFile(ca.outnames,".res");
-  fprintf(fres,"%f %f %f %f %f\n",ca.p.a,ca.p.k0,ca.p.k1,ca.p.k2,lik);
+  fprintf(fres,"%e %e %e %e %e\n",ca.p.a,ca.p.k0,ca.p.k1,ca.p.k2,lik);
   fclose(fres);
 
   //now do the forward,backward, decode and viterbi
@@ -818,27 +836,6 @@ int main(int argc, char **argv){
     }
   }
   gzclose(add);
-  /*
-
-  std::vector<hmm> all_res;
-  for(size_t i =0;i<pd.size();i++){
-    hmm res = analysis(pd[i],freq,p,calcA);
-    all_res.push_back(res);
-    char cname[1024];
-    sprintf(cname,"%s.%lu.bres.gz",outfiles,i);
-    gzFile bo = openFileGz(cname,".bres.gz","wb");
-    //    fdump(bo,res,pd[i].name);
-    gzclose(bo);
-  }
-  
-  FILE *fres=openFile(outfiles,".res");
-  for(size_t i =0;i<all_res.size();i++){
-    double *p = all_res[i].pars;
-    fprintf(fres,"%f %f %f %f %f\n",p[0],p[1],p[2],p[3],all_res[i].like);
-  }
-  fclose(fres);
-
-  */
   // print to log file
   
   

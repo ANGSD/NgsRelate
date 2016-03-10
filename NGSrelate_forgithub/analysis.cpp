@@ -11,7 +11,8 @@
 
 
 double alim[2]={0.001,0.15};
-
+double klim[2]={DBL_EPSILON,1-DBL_EPSILON};
+//double klim[2]={0.000001,0.999999};
 
 double myRand(double low,double up){
   assert(up>low);
@@ -47,6 +48,8 @@ double calculateA(double k0,double k1, double k2,double phi){
     fprintf(stderr,"m=%f , ma=%f ,xa=%f, sq=%f  mb=%f  , a=%f  k0=%f ,  k1=%f   , k2=%f \n",m,ma,xa,sq,mb,a,k0,k1,k2);
     fprintf(stderr,"calc.a(k0=%f,k1=%f,k2=%f)\n",k0,k1,k2);
     fprintf(stderr,"std::isnan in calculate.a\n");
+    fprintf(stderr,"Will return a very large value\n");
+    return DBL_MAX;
   }
 
   else if(std::isinf(a)){
@@ -369,7 +372,7 @@ double **forward(double *pars,double **eprob,double **tprob,int nSites,double &l
       if(res[ii][i]>m)
 	m=res[ii][i];
     
-    //    fprintf(stderr,"m[%d]=%f\n",i,m);
+    // fprintf(stderr,"m[%d]=%f\n",i,m);
     // exit(0);
     if(std::isnan(m)||std::isnan(logres[0])){
       fprintf(stderr,"Probs in forward at site:%d\n",i);
@@ -507,8 +510,8 @@ double **post(double **fw,double **bw,int nSites,double lik){
 
 void forward_backward_decode_viterbi(double *pars,genome &g){
   assert(pars[0]>0);
-  if(pars[1]+pars[2]+pars[3]!=1)
-    fprintf(stderr,"alhpa=%f k0=%f k1=%f k2=%f\n",pars[0],pars[1],pars[2],pars[3]);
+  if(fabs(pars[1]+pars[2]+pars[3]-1)>1e-6)
+    fprintf(stderr,"alhpa=%f k0=%f k1=%f k2=%f sum:%f\n",pars[0],pars[1],pars[2],pars[3],pars[1]+pars[2]+pars[3]);
   double loglikef,loglikeb;
   loglikef=loglikeb =0;
   for(size_t i=0;i<g.results.size();i++){
@@ -552,15 +555,17 @@ void norm(double *a){
 typedef struct toOptim2_t{
   const genome &g;
   const std::vector<perChr> &pc;
+  const para &p;
   double *tsk;
-  toOptim2_t(const genome &gg,const std::vector<perChr> &pcc) : g(gg),pc(pcc) {};
+  toOptim2_t(const genome &gg,const std::vector<perChr> &pcc,const para &pp) : g(gg),pc(pcc), p(pp) {};
 }toOptim2;
 
 double calcLike(double *pars,const genome &g){
   //  fprintf(stderr,"alhpa=%f k0=%f k1=%f k2=%f\n",pars[0],pars[1],pars[2],pars[3]);
   assert(pars[0]>0);
-  if(pars[1]+pars[2]+pars[3]!=1)
-      fprintf(stderr,"alhpa=%f k0=%f k1=%f k2=%f\n",pars[0],pars[1],pars[2],pars[3]);
+  if(fabs(pars[1]+pars[2]+pars[3]-1)>1e-6)
+    fprintf(stderr,"alhpa=%f k0=%f k1=%f k2=%f sum:%e\n",pars[0],pars[1],pars[2],pars[3],pars[1]+pars[2]+pars[3]-1);
+
   //  assert(pars[1]+pars[2]+pars[3]==1);
 
   double lik[g.results.size()];
@@ -577,7 +582,7 @@ double calcLike(double *pars,const genome &g){
 
 //case of CalcA==TRUE and k2==0. So only one free parameter
 double bfgs_call_k2zero_calcA2(const double* pars,const void *dats){
-  //fprintf(stderr,"[%s] %f %f %f\n",__FUNCTION__,pars[0],pars[1],pars[2]);
+  fprintf(stderr,"[%s] %f %f %f\n",__FUNCTION__,pars[0],pars[1],pars[2]);
   toOptim2 *to = (toOptim2*)dats;
 
   double *inV = to->tsk;
@@ -594,14 +599,14 @@ double bfgs_call_k2zero_calcA2(const double* pars,const void *dats){
   return lik;
 }
 double run_optim_k2zero_calcA2(const genome &g,const std::vector<perChr>&pc,para&p){
-  toOptim2 *to = new toOptim2(g,pc);
+  toOptim2 *to = new toOptim2(g,pc,p);
   double tsk[4];//tmparray used of saving stackpointers
   to->tsk = tsk;
  
   double pars[1]={myRand(0,1)};
   //  fprintf(stderr,"pars=%f\n",pars[0]);
-  double lbd[1]={0.000001};
-  double ubd[1]={0.999999};
+  double lbd[1]={klim[0]};
+  double ubd[1]={klim[1]};
   int nbd[1]={2};
 
   double opt= -findmax_bfgs(1,pars,(void *)to, bfgs_call_k2zero_calcA2,NULL,lbd, ubd,nbd, -1);
@@ -632,13 +637,13 @@ double bfgs_call_full_calcA2(const double* pars,const void *dats){
   return lik;
 }
 double run_optim_full_calcA2(const genome &g,const std::vector<perChr>&pc,para&p){
-  toOptim2 *to = new toOptim2(g,pc);
+  toOptim2 *to = new toOptim2(g,pc,p);
   double tsk[4];//tmparray used of saving stackpointers
   to->tsk = tsk;
   double pars[2]; pars[0]=myRand(0,1);pars[1]=myRand(0,1-pars[0]);
   //fix last pars
-  double lbd[2]={0.000001,0.000001};
-  double ubd[2]={0.999999,0.999999};
+  double lbd[2]={klim[0],klim[0]};
+  double ubd[2]={klim[1],klim[1]};
   int nbd[2]={2,2};
   double opt= -findmax_bfgs(2,pars,(void *)to, bfgs_call_full_calcA2,NULL,lbd, ubd,nbd, -1);
   p.k0=pars[0];
@@ -668,15 +673,15 @@ double bfgs_call_full2(const double* pars,const void *dats){
   return lik;
 }
 double run_optim_full2(const genome &g,const std::vector<perChr>&pc,para&p){
-  toOptim2 *to = new toOptim2(g,pc);
+  toOptim2 *to = new toOptim2(g,pc,p);
   double tsk[4];//tmparray used of saving stackpointers
   to->tsk = tsk;
   double pars[3];pars[0]=myRand(alim[0],alim[1]); pars[1]=myRand(0,1);pars[2]=myRand(0,1-pars[1]);
   //double pars[3];pars[0]=myRand(alim[0],alim[1]); pars[1]=myRand(0,1);pars[2]=1-pars[1];pars[2]=0;
   //  double pars[3]={0.045854, 0.823746,0.176254};
   //fix last pars
-  double lbd[3]={alim[0],0.000001,0.000001};
-  double ubd[3]={alim[1],0.999999,0.999999};
+  double lbd[3]={alim[0],klim[0],klim[0]};
+  double ubd[3]={alim[1],klim[1],klim[1]};
   int nbd[3]={2,2,2};
   double opt= -findmax_bfgs(3,pars,(void *)to, bfgs_call_full2,NULL,lbd, ubd,nbd, -1);
   p.a=pars[0];
@@ -689,7 +694,7 @@ double run_optim_full2(const genome &g,const std::vector<perChr>&pc,para&p){
 
 //pars is a,k0,k1
 double bfgs_call_full3(const double* pars,const void *dats){
-  fprintf(stderr,"[%s] %f %f %f\n",__FUNCTION__,pars[0],pars[1],pars[2],pars[3]);
+  //fprintf(stderr,"[%s] %f %f %f\n",__FUNCTION__,pars[0],pars[1],pars[2],pars[3]);
   toOptim2 *to = (toOptim2*)dats;
   double *inV = to->tsk;
   if(pars[1]+pars[2]>1)
@@ -714,7 +719,7 @@ double bfgs_call_full3(const double* pars,const void *dats){
   return lik;
 }
 double run_optim_full3(const genome &g,const std::vector<perChr>&pc,para&p){
-  toOptim2 *to = new toOptim2(g,pc);
+  toOptim2 *to = new toOptim2(g,pc,p);
   double tsk[4];//tmparray used of saving stackpointers
   to->tsk = tsk;
   //  double pars[3];pars[0]=myRand(alim[0],alim[1]); pars[1]=myRand(0,1);pars[2]=myRand(0,1-pars[1]);
@@ -725,8 +730,8 @@ double run_optim_full3(const genome &g,const std::vector<perChr>&pc,para&p){
   pars[3]=1-pars[1]-pars[2];
   //  double pars[3]={0.045854, 0.823746,0.176254};
   //fix last pars
-  double lbd[4]={alim[0],0.000001,0.000001,0.000001};
-  double ubd[4]={alim[1],0.999999,0.999999,0.999999};
+  double lbd[4]={alim[0],klim[0],klim[0],klim[0]};
+  double ubd[4]={alim[1],klim[1],klim[1],klim[1]};
   int nbd[4]={2,2,2,2};
   double opt= -findmax_bfgs(4,pars,(void *)to, bfgs_call_full3,NULL,lbd, ubd,nbd, -1);
   p.a=pars[0];
@@ -737,7 +742,6 @@ double run_optim_full3(const genome &g,const std::vector<perChr>&pc,para&p){
 
   return opt;
 }
-
 
 
 //this function allocates and precomputes the data structures that doesn't depend on the a,k0,k1,k2
@@ -766,15 +770,16 @@ genome mkGenome(const std::vector<perChr> &pc,const para &p){
 
 double doOptim(para &p,const genome &g,const std::vector<perChr>&pc,int calcA){
   double lik;
-  srand48(0); 
+  srand48(0);
+  
   if(calcA==1&&p.k0==-1&&p.k1==-1&&p.k2==0&&p.a==-1){
-    fprintf(stderr,"[%s] Optimizing k0, with (k2=zero,k1=1-k0, calcA=TRUE)\n",__FUNCTION__);
+    fprintf(stderr,"1) [%s] Optimizing k0, with (k2=zero,k1=1-k0, calcA=TRUE)\n",__FUNCTION__);
     lik = run_optim_k2zero_calcA2(g,pc,p);
   }else if(calcA==1&&p.k0==-1&&p.k1==-1&&p.k2==-1&&p.a==-1){
-    fprintf(stderr,"[%s] Optimizing k0,k1 (k2=1-k0-k1, calcA=TRUE)\n",__FUNCTION__);
+    fprintf(stderr,"2) [%s] Optimizing k0,k1 (k2=1-k0-k1, calcA=TRUE)\n",__FUNCTION__);
     lik = run_optim_full_calcA2(g,pc,p);
   }else if(calcA==0&&p.k0==-1&&p.k1==-1&&p.k2==-1&&p.a==-1){
-      fprintf(stderr,"[%s] Optimizing k0,k1 (k2=1-k0-k1, calcA=FALSE)\n",__FUNCTION__);
+      fprintf(stderr,"3) [%s] Optimizing k0,k1 (k2=1-k0-k1, calcA=FALSE)\n",__FUNCTION__);
       lik = run_optim_full3(g,pc,p);
   }else{
     fprintf(stderr,"[%s] Optimization not implemented for this combination\n",__FUNCTION__);

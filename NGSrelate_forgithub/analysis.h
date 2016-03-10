@@ -19,6 +19,7 @@ typedef struct{
   double k1;
   double k2;
   int pair[2];
+  int calcA;
 }para;
 
 
