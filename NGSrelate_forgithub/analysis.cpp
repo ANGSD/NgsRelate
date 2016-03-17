@@ -11,8 +11,8 @@
 
 
 double alim[2]={0.001,0.15};
-//double klim[2]={DBL_EPSILON,1-DBL_EPSILON};
-double klim[2]={0.000001,0.999999};
+double klim[2]={DBL_EPSILON,1-DBL_EPSILON};
+//double klim[2]={0.000001,0.999999};
 
 double myRand(double low,double up){
   assert(up>low);
