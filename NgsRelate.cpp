@@ -751,9 +751,9 @@ posMap getBim(char *bname,char *fname){
     int A1 = refToInt[strtok(NULL,"\t\n ")[0]];
     int A2 = refToInt[strtok(NULL,"\t\n ")[0]];
     char *tok = strtok(NULL,"\t\n ");
-    if(strcmp(tok,"NA")==0)
-      continue;
-    double freq = atof(tok);
+    double freq = 0;
+    if(strcmp(tok,"NA")!=0)
+      freq = atof(tok);
     datum d;
     d.minor = A1;//http://pngu.mgh.harvard.edu/~purcell/plink/summary.shtml#freq
     d.major = A2;//always forget which one if major and minor
