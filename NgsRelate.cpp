@@ -564,7 +564,7 @@ void emission_ngsInbreed(double *freq,double **l1,double **emis,int len){
      if(nbit==0)
        break;
      if(sizeof(double)*nInd*3!=nbit){
-       fprintf(stderr,"\t-> Problem reading full chunk\n");
+       fprintf(stderr,"\t-> Problem reading full chunk: %d\n",nbit);
        exit(0);
      }
      for(int g =0;g<3*nInd;g++)
