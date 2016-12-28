@@ -190,7 +190,7 @@ int emAccel(double *F,double **emis,double *F_new,int len){
   double stepMax0 = 1;
   static double stepMax=stepMax0;
   double mstep=4;
-  double objfnInc=1;
+  //  double objfnInc=1;
 
 
   double F_em1[3];
@@ -235,7 +235,7 @@ int emAccel(double *F,double **emis,double *F_new,int len){
       std::swap(F_new[i],F_tmp[i]);
   }
 
-  double lnew = 1;
+  //  double lnew = 1;
   if ((alpha - stepMax) > -0.001) {
     stepMax = mstep*stepMax;
   }
@@ -259,7 +259,7 @@ int emAccel_inbreed(double *F,double **emis,double *F_new,int len){
   double stepMax0 = 1;
   static double stepMax=stepMax0;
   double mstep=4;
-  double objfnInc=1;
+  //  double objfnInc=1;
 
 
   double F_em1[2];
@@ -304,7 +304,7 @@ int emAccel_inbreed(double *F,double **emis,double *F_new,int len){
       std::swap(F_new[i],F_tmp[i]);
   }
 
-  double lnew = 1;
+  //  double lnew = 1;
   if ((alpha - stepMax) > -0.001) {
     stepMax = mstep*stepMax;
   }
@@ -549,7 +549,7 @@ void emission_ngsInbreed(double *freq,double **l1,double **emis,int len){
  double **getGL(const char *fname,int sites, int nInd){
    gzFile gz=Z_NULL;
    if(((gz=gzopen(fname,"rb")))==Z_NULL){
-     fprintf(stderr,"Problem opening file:%s\n",fname);
+     fprintf(stderr,"\t-> Problem opening file: \'%s\'\n",fname);
      exit(0);
    }
    
@@ -560,11 +560,11 @@ void emission_ngsInbreed(double *freq,double **l1,double **emis,int len){
    while(1){
      //   for(int i=0;i<sites;i++){
      ret[i] = new double[3*nInd];
-     int nbit = gzread(gz,ret[i],sizeof(double)*nInd*3);
+     unsigned nbit = gzread(gz,ret[i],sizeof(double)*nInd*3);
      if(nbit==0)
        break;
      if(sizeof(double)*nInd*3!=nbit){
-       fprintf(stderr,"\t-> Problem reading full chunk: is %d should be:%d\n",nbit,sizeof(double)*nInd*3);
+       fprintf(stderr,"\t-> Problem reading full chunk\n");
        exit(0);
      }
      for(int g =0;g<3*nInd;g++)
@@ -611,7 +611,7 @@ void emission_ngsInbreed(double *freq,double **l1,double **emis,int len){
      }
 
    }
-   fprintf(stderr,"frequency file:%s contain %lu number of sites\n",fname,ret.size());
+   fprintf(stderr,"\t-> Frequency file: \'%s\' contain %lu number of sites\n",fname,ret.size());
    gzclose(gz);
    delete [] buf;
    return ret;
@@ -751,9 +751,9 @@ posMap getBim(char *bname,char *fname){
     int A1 = refToInt[strtok(NULL,"\t\n ")[0]];
     int A2 = refToInt[strtok(NULL,"\t\n ")[0]];
     char *tok = strtok(NULL,"\t\n ");
-    double freq = 0;
-    if(strcmp(tok,"NA")!=0)
-      freq = atof(tok);
+    if(strcmp(tok,"NA")==0)
+      continue;
+    double freq = atof(tok);
     datum d;
     d.minor = A1;//http://pngu.mgh.harvard.edu/~purcell/plink/summary.shtml#freq
     d.major = A2;//always forget which one if major and minor
@@ -890,8 +890,8 @@ int main(int argc, char **argv){
   }
   std::vector<double> freq = getDouble(freqname);
   if(swichMaf){
-    fprintf(stderr,"swiching frequencies\n");
-    for(int i=0;i<freq.size();i++)
+    fprintf(stderr,"\t-> switching frequencies\n");
+    for(size_t i=0;i<freq.size();i++)
       freq[i] = 1 - freq[i];
   }
  
@@ -907,7 +907,7 @@ int main(int argc, char **argv){
   newfreq =new double[freq.size()];
   double **emis=new double*[freq.size()];
 
-  for(int i=0;i<freq.size();i++){
+  for(size_t i=0;i<freq.size();i++){
     l1[i] = new double[3];
     l2[i] = new double[3];
     emis[i] = new double[3];
@@ -921,7 +921,7 @@ int main(int argc, char **argv){
     for(int a=0;a<nind;a++){
       int nkeep=0;
 
-      for(int i=0;i<freq.size();i++){
+      for(size_t i=0;i<freq.size();i++){
 	for(int j=0;j<3;j++)
 	  l1[nkeep][j] = gls[i][a*3+j];
 	if(l1[nkeep][0]==l1[nkeep][1]&&l1[nkeep][0]==l1[nkeep][2])
@@ -931,7 +931,7 @@ int main(int argc, char **argv){
 	newfreq[nkeep]=freq[i];
 	nkeep++;
       }
-      fprintf(stdout,"(%d,%d)\t",a,a);
+      fprintf(stdout,"(%d,%d):%d\t",a,a,nkeep);
       //call genotypes
       if(gc){
 	if(gc>1)
@@ -949,7 +949,22 @@ int main(int argc, char **argv){
       
       niter=em_inbreed(pars,emis,tole,maxIter,nkeep,model,verbose);
       double lopt= loglikeInbreed(pars,emis,nkeep);
-      fprintf(stdout,"%f\t%f\t%f\t%d\t%f\n",pars[0],pars[1],lopt,niter,(1.0*nkeep)/(1.0*freq.size()));
+      double p10[2]={1-TINY,TINY};
+      double p01[2]={TINY,1-TINY};
+      double l01= loglikeInbreed(p10,emis,nkeep);
+      double l10= loglikeInbreed(p01,emis,nkeep);
+      double likes[3] ={l10,l10,lopt};
+      int best = 0;
+      for(int i=1;i<3;i++){
+	if(likes[i]>likes[best])
+	  best=i;
+      }
+      if(best==0)
+	fprintf(stdout,"%f\t%f\t%f\t%d\t%f\n",p10[0],p10[1],l10,-1,(1.0*nkeep)/(1.0*freq.size()));
+      if(best==1)
+	fprintf(stdout,"%f\t%f\t%f\t%d\t%f\n",p01[0],p01[1],l01,-1,(1.0*nkeep)/(1.0*freq.size()));
+      if(best==2)
+	fprintf(stdout,"%f\t%f\t%f\t%d\t%f\n",pars[0],pars[1],lopt,niter,(1.0*nkeep)/(1.0*freq.size()));
     }  
   }
   else{
@@ -962,7 +977,7 @@ int main(int argc, char **argv){
       if(pair2!=-1)
 	b=pair2;
 
-      for(int i=0;i<freq.size();i++){
+      for(size_t i=0;i<freq.size();i++){
 	//copoy data into l1, this might be overwritten at next iteration if, if either is missing or freq<minmaf
 	for(int j=0;j<3;j++){
 	  l1[nkeep][j] = gls[i][a*3+j];
@@ -1022,7 +1037,7 @@ int main(int argc, char **argv){
       
       double likes[4] = {l100,l010,l001,lopt};
       int best = 0;
-      for(int i=0;i<4;i++){
+      for(int i=1;i<4;i++){
 	if(likes[i]>likes[best])
 	  best=i;
       }
@@ -1047,7 +1062,7 @@ int main(int argc, char **argv){
     }
   }
   }
-for(int i=0;i<freq.size();i++){
+for(size_t i=0;i<freq.size();i++){
   delete [] gls[i];
   delete [] l1[i];
     delete [] l2[i];
