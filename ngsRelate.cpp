@@ -823,7 +823,7 @@ int extract_freq(int argc,char **argv){
     fprintf(stderr,"\t-> Unrecognized parameter supplied: \'%s\', only -rmTrans is implemented\n",*argv);
     
   fprintf(stderr,"\t-> .mafs.gz file:\'%s\' .glf.pos.gz file:\'%s\' \n",mfile,gfile);
-  exit(0);
+  //exit(0);
   assert(mfile &&gfile);
 
   char *buf = new char[LENS];
