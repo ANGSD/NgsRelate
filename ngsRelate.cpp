@@ -581,7 +581,7 @@ void emission_ngsInbreed(double *freq,double **l1,double **emis,int len){
 #endif
      i++;
      if(i>sites){
-       fprintf(stderr,"too many sites in glf file. Looks outof sync\n");
+       fprintf(stderr,"\t-> Too many sites in glf file. Looks outof sync, or make sure you supplied correct number of individuals (-n)\n");
        exit(0);
      }
    }
@@ -638,7 +638,7 @@ void print_info(FILE *fp){
   fprintf(fp, "   -l <INT>            minMaf or 1-Maf filter\n");
   fprintf(fp, "\n");
   fprintf(fp,"Or\n ./ngsrelate extract_freq_bim pos.glf.gz plink.bim plink.freq\n");
-  fprintf(fp,"Or\n ./ngsrelate extract_freq .pos.glf.gz .mafs.gz\n");
+  fprintf(fp,"Or\n ./ngsrelate extract_freq .mafs.gz .pos.glf.gz \n");
   exit(0);
 }
 
@@ -795,12 +795,17 @@ posMap getBim(char *bname,char *fname){
 
 
 int extract_freq(int argc,char **argv){
+  if(argc!=3){
+    fprintf(stderr,"\t-> supply mafs.gz glf.gz files\n");
+    return 0;
+  }
+
   ++argv;
   char *mfile,*gfile;
   mfile=gfile=NULL;
   mfile =*argv++;
   gfile =*argv++;
-  fprintf(stderr,".mafs.gz file:%s .glf.pos.gz file:%s \n",mfile,gfile);
+  fprintf(stderr,"\t-> .mafs.gz file:\'%s\' .glf.pos.gz file:\'%s\' \n",mfile,gfile);
   assert(mfile &&gfile);
 
   char *buf = new char[LENS];
@@ -811,10 +816,8 @@ int extract_freq(int argc,char **argv){
   
   posMap pm;
   while(  gzgets(gz,buf,LENS)){
-    strtok(buf,"\t\n ");
     gpos gp;
     gp.chr = strdup(strtok(buf,"\t\n "));
-    strtok(NULL,"\t\n ");
     gp.pos = atoi(strtok(NULL,"\t\n "));
     //check that position is new
     assert(pm.find(gp)==pm.end());
@@ -828,7 +831,7 @@ int extract_freq(int argc,char **argv){
     d.freq = freq;
     pm[gp]= d;
   }
-  fprintf(stderr,"nfreqs:%lu read from mafs.gz:\'%s\' file\n",pm.size(),mfile);
+  fprintf(stderr,"\t-> nfreqs:%lu read from mafs.gz:\'%s\' file\n",pm.size(),mfile);
   gzclose(gz);gz=Z_NULL;
   gz = gzopen(gfile,"rb");
   assert(gz!=Z_NULL);
@@ -846,12 +849,12 @@ int extract_freq(int argc,char **argv){
 
     int A1 = refToInt[strtok(NULL,"\t\n ")[0]];
     int A2 = refToInt[strtok(NULL,"\t\n ")[0]];
-    assert(A1==pit->second.major);
-    assert(A2==pit->second.minor);
+    assert(A2==pit->second.major);
+    assert(A1==pit->second.minor);
     fprintf(stdout,"%f\n",pit->second.freq);
     
   }
- 
+  fprintf(stderr,"\t-> number of lines in output: %d\n",linenr);
   return 0;
 }
 
@@ -949,7 +952,7 @@ int main(int argc, char **argv){
     }
   }
   if(hasDef==0){
-    fprintf(stderr,"\t-> -n parameter has not been supplied. Will assume that file contains 2 samples...");
+    fprintf(stderr,"\t-> -n parameter has not been supplied. Will assume that file contains 2 samples...\n");
 
   }
   srand48(seed);
