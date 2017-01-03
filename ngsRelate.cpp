@@ -637,7 +637,8 @@ void print_info(FILE *fp){
   fprintf(fp, "   -n <INT>            Number of samples in glf.gz\n");
   fprintf(fp, "   -l <INT>            minMaf or 1-Maf filter\n");
   fprintf(fp, "\n");
-  fprintf(fp,"Or\n ./ngsrelate extract_freq pos.glf.gz plink.bim plink.freq\n");
+  fprintf(fp,"Or\n ./ngsrelate extract_freq_bim pos.glf.gz plink.bim plink.freq\n");
+  fprintf(fp,"Or\n ./ngsrelate extract_freq .pos.glf.gz .mafs.gz\n");
   exit(0);
 }
 
@@ -795,6 +796,67 @@ posMap getBim(char *bname,char *fname){
 
 int extract_freq(int argc,char **argv){
   ++argv;
+  char *mfile,*gfile;
+  mfile=gfile=NULL;
+  mfile =*argv++;
+  gfile =*argv++;
+  fprintf(stderr,".mafs.gz file:%s .glf.pos.gz file:%s \n",mfile,gfile);
+  assert(mfile &&gfile);
+
+  char *buf = new char[LENS];
+  gzFile gz = Z_NULL;
+  gz = gzopen(mfile,"rb");
+  assert(gz!=Z_NULL);
+  gzgets(gz,buf,LENS);//header
+  
+  posMap pm;
+  while(  gzgets(gz,buf,LENS)){
+    strtok(buf,"\t\n ");
+    gpos gp;
+    gp.chr = strdup(strtok(buf,"\t\n "));
+    strtok(NULL,"\t\n ");
+    gp.pos = atoi(strtok(NULL,"\t\n "));
+    //check that position is new
+    assert(pm.find(gp)==pm.end());
+
+    int A1 = refToInt[strtok(NULL,"\t\n ")[0]];
+    int A2 = refToInt[strtok(NULL,"\t\n ")[0]];
+    double freq = atof(strtok(NULL,"\t\n "));
+    datum d;
+    d.minor = A1;//http://pngu.mgh.harvard.edu/~purcell/plink/summary.shtml#freq
+    d.major = A2;//always forget which one if major and minor
+    d.freq = freq;
+    pm[gp]= d;
+  }
+  fprintf(stderr,"nfreqs:%lu read from mafs.gz:\'%s\' file\n",pm.size(),mfile);
+  gzclose(gz);gz=Z_NULL;
+  gz = gzopen(gfile,"rb");
+  assert(gz!=Z_NULL);
+
+  int linenr=0;
+  while(  gzgets(gz,buf,LENS)){
+    linenr++;
+    gpos gp;
+    gp.chr = strdup(strtok(buf,"\t\n "));
+    gp.pos = atoi(strtok(NULL,"\t\n "));
+    //check that position exists
+    assert(pm.find(gp)!=pm.end());
+
+    posMap::iterator pit = pm.find(gp);
+
+    int A1 = refToInt[strtok(NULL,"\t\n ")[0]];
+    int A2 = refToInt[strtok(NULL,"\t\n ")[0]];
+    assert(A1==pit->second.major);
+    assert(A2==pit->second.minor);
+    fprintf(stdout,"%f\n",pit->second.freq);
+    
+  }
+ 
+  return 0;
+}
+
+int extract_freq_bim(int argc,char **argv){
+  ++argv;
   char *pfile,*bfile,*ffile;
   pfile=bfile=ffile=NULL;
   pfile =*argv++;
@@ -843,6 +905,8 @@ int main(int argc, char **argv){
   if(argc==1)
     print_info(stderr);
 
+  if(strcasecmp(argv[1],"extract_freq_bim")==0)
+    return extract_freq_bim(--argc,++argv);
   if(strcasecmp(argv[1],"extract_freq")==0)
     return extract_freq(--argc,++argv);
   
@@ -862,6 +926,7 @@ int main(int argc, char **argv){
   int swichMaf = 0;
   int verbose = 0;
   double minMaf =0.05;
+  int hasDef = 0;
   while ((n = getopt(argc, argv, "f:i:t:r:g:m:v:s:F:c:e:a:b:n:l:")) >= 0) {
     switch (n) {
     case 'f': freqname = strdup(optarg); break;
@@ -876,12 +941,16 @@ int main(int argc, char **argv){
     case 'c': gc = atoi(optarg); break;      
     case 'a': pair1 = atoi(optarg); break;      
     case 'b': pair2 = atoi(optarg); break;      
-    case 'n': nind = atoi(optarg); break;      
+    case 'n': {nind = atoi(optarg); hasDef=1; break;}      
     case 'e': errate = atof(optarg); break;      
     case 'l': minMaf = atof(optarg); break;      
     default: {fprintf(stderr,"unknown arg:\n");return 0;}
       print_info(stderr);
     }
+  }
+  if(hasDef==0){
+    fprintf(stderr,"\t-> -n parameter has not been supplied. Will assume that file contains 2 samples...");
+
   }
   srand48(seed);
   if(nind==-1||freqname==NULL||gname==NULL){
