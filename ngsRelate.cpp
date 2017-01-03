@@ -638,7 +638,7 @@ void print_info(FILE *fp){
   fprintf(fp, "   -l <INT>            minMaf or 1-Maf filter\n");
   fprintf(fp, "\n");
   fprintf(fp,"Or\n ./ngsrelate extract_freq_bim pos.glf.gz plink.bim plink.freq\n");
-  fprintf(fp,"Or\n ./ngsrelate extract_freq .mafs.gz .pos.glf.gz \n");
+  fprintf(fp,"Or\n ./ngsrelate extract_freq .mafs.gz .pos.glf.gz [-rmTrans]\n");
   exit(0);
 }
 
@@ -795,17 +795,35 @@ posMap getBim(char *bname,char *fname){
 
 
 int extract_freq(int argc,char **argv){
-  if(argc!=3){
+  if(argc==1){
     fprintf(stderr,"\t-> supply mafs.gz glf.gz files\n");
     return 0;
   }
-
+  int rmTrans = 0;
   ++argv;
   char *mfile,*gfile;
   mfile=gfile=NULL;
   mfile =*argv++;
+  if(strcasecmp(mfile,"-rmTrans")==0){
+    fprintf(stderr,"\t-> Will remove transitions by setting allele frequency to zero\n");
+    rmTrans=1;
+    mfile=*argv++;
+  }
   gfile =*argv++;
+  if(strcasecmp(gfile,"-rmTrans")==0){
+    fprintf(stderr,"\t-> Will remove transitions by setting allele frequency to zero\n");
+    rmTrans=1;
+    gfile=*argv++;
+  }
+  if(*argv&& strcasecmp(*argv,"-rmTrans")==0){
+    rmTrans=1;
+    fprintf(stderr,"\t-> Will remove transitions by setting allele frequency to zero\n");
+  }
+  if(*argv&& strcasecmp(*argv,"-rmTrans")!=0)
+    fprintf(stderr,"\t-> Unrecognized parameter supplied: \'%s\', only -rmTrans is implemented\n",*argv);
+    
   fprintf(stderr,"\t-> .mafs.gz file:\'%s\' .glf.pos.gz file:\'%s\' \n",mfile,gfile);
+  exit(0);
   assert(mfile &&gfile);
 
   char *buf = new char[LENS];
@@ -825,6 +843,13 @@ int extract_freq(int argc,char **argv){
     int A1 = refToInt[strtok(NULL,"\t\n ")[0]];
     int A2 = refToInt[strtok(NULL,"\t\n ")[0]];
     double freq = atof(strtok(NULL,"\t\n "));
+    if(rmTrans==1){
+      if((A1==0&&A2==2)||(A1==2&&A2==0))
+	freq=0;
+      if((A1==1&&A2==3)||(A1==3&&A2==1))
+	freq=0;
+    }
+
     datum d;
     d.minor = A1;//http://pngu.mgh.harvard.edu/~purcell/plink/summary.shtml#freq
     d.major = A2;//always forget which one if major and minor
