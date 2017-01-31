@@ -940,11 +940,11 @@ int main(int argc, char **argv){
   
   char *freqname=NULL;
   char *gname=NULL;
-  int maxIter =10;
+  int maxIter =100;
   double tole =1e-6;
   int n=-1;
   int seed=100;
-  int model =1;
+  int model =0;
   int gc =0;
   double errate = 0.005;
   int pair1 =-1;
@@ -1147,7 +1147,7 @@ int main(int argc, char **argv){
 	fprintf(stdout,"%f\t%f\t%f\t%f\t%d\t%f\n",p010[0],p010[1],p010[2],l010,-1,(1.0*nkeep)/(1.0*freq.size()));
       if(best==2)
 	fprintf(stdout,"%f\t%f\t%f\t%f\t%d\t%f\n",p001[0],p001[1],p001[2],l001,-1,(1.0*nkeep)/(1.0*freq.size()));
-      
+      fflush(stdout); 
       if(pair1!=-1||pair2!=-1){
 	//	fprintf(stderr,"BREAKING\n");
 	break;
