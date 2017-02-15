@@ -1048,20 +1048,23 @@ int main(int argc, char **argv){
       double lopt= loglikeInbreed(pars,emis,nkeep);
       double p10[2]={1-TINY,TINY};
       double p01[2]={TINY,1-TINY};
-      double l01= loglikeInbreed(p10,emis,nkeep);
-      double l10= loglikeInbreed(p01,emis,nkeep);
-      double likes[3] ={l10,l10,lopt};
+      double l01= loglikeInbreed(p01,emis,nkeep);
+      double l10= loglikeInbreed(p10,emis,nkeep);
+      double likes[3] ={l10,l01,lopt};
       int best = 0;
       for(int i=1;i<3;i++){
 	if(likes[i]>likes[best])
 	  best=i;
       }
+      //      fprintf(stdout,"%f\t%f\t%f\t%d\t",l10,l01,lopt,best);
       if(best==0)
 	fprintf(stdout,"%f\t%f\t%f\t%d\t%f\n",p10[0],p10[1],l10,-1,(1.0*nkeep)/(1.0*freq.size()));
       if(best==1)
 	fprintf(stdout,"%f\t%f\t%f\t%d\t%f\n",p01[0],p01[1],l01,-1,(1.0*nkeep)/(1.0*freq.size()));
       if(best==2)
 	fprintf(stdout,"%f\t%f\t%f\t%d\t%f\n",pars[0],pars[1],lopt,niter,(1.0*nkeep)/(1.0*freq.size()));
+
+      fflush(stdout);
     }  
   }
   else{
