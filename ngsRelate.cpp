@@ -838,7 +838,12 @@ int extract_freq(int argc,char **argv){
     gp.chr = strdup(strtok(buf,"\t\n "));
     gp.pos = atoi(strtok(NULL,"\t\n "));
     //check that position is new
-    assert(pm.find(gp)==pm.end());
+    posMap::iterator mit = pm.find(gp);
+    if(mit!=pm.end()){
+      fprintf(stderr,"\t-> Duplicate position detected in freqfile: %s:%d will set freq to zero and thereby discarding site from analysis\n",gp.chr,gp.pos);
+      mit->second.freq = 0;
+      continue;
+    }
 
     int A1 = refToInt[strtok(NULL,"\t\n ")[0]];
     int A2 = refToInt[strtok(NULL,"\t\n ")[0]];
@@ -874,9 +879,12 @@ int extract_freq(int argc,char **argv){
 
     int A1 = refToInt[strtok(NULL,"\t\n ")[0]];
     int A2 = refToInt[strtok(NULL,"\t\n ")[0]];
-    assert(A2==pit->second.major);
-    assert(A1==pit->second.minor);
-    fprintf(stdout,"%f\n",pit->second.freq);
+    if((A2==pit->second.major)&&(A1==pit->second.minor))
+      fprintf(stdout,"%f\n",pit->second.freq);
+    else{
+      fprintf(stderr,"\t-> Problem with majorminor types for position %s:%d will set freq to zero and thereby discard the site\n",gp.chr,gp.pos);
+      fprintf(stdout,"%f\n",0.0);
+    }
     
   }
   fprintf(stderr,"\t-> number of lines in output: %d\n",linenr);
