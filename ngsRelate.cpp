@@ -45,6 +45,18 @@ int refToInt[256] = {
 //this is as close to the bound we will allow
 float emTole=1e-12;
 double TINY=1e-12;
+
+
+void stayin(double *post){
+  for(int i=0;i<3;i++){
+    if(post[i]<emTole)
+      post[i] = emTole;
+    if(post[i]>(1-emTole))
+      post[i] =1- emTole;
+  }
+}
+  
+
 void normalize(double *tmp,int len){
   double s=0;
   for(int i=0;i<len;i++)
@@ -136,13 +148,9 @@ void emStep1(double *pre,double **emis,double *post,int len){
    //   fprintf(stderr,"%f %f %f\n",post[0],post[1],post[2]);
   }
   //set bounds
+  // fprintf(stderr,"halli haloo\n");
 #if 0
-  for(int i=0;i<3;i++){
-    if(post[i]<emTole)
-      post[i] = emTole;
-    if(post[i]>(1-emTole))
-      post[i] = emTole;
-  }
+  stayin(post);
 #endif
   normalize(post,3);
   //  fprintf(stderr,"%f %f %f\n",post[0],post[1],post[2]);
@@ -180,6 +188,7 @@ double sumSquare2(double mat[2]){
 
 
 
+
 int emAccel(double *F,double **emis,double *F_new,int len){
   //  fprintf(stderr,"calling emaccel \n");
    double ttol=0.0000001;
@@ -201,6 +210,7 @@ int emAccel(double *F,double **emis,double *F_new,int len){
   double F_tmp[3];
 
   emStep1(F,emis,F_em1,len);
+  stayin(F_em1);
   minus(F_em1,F,F_diff1);
   double sr2 = sumSquare(F_diff1);
   
@@ -210,6 +220,7 @@ int emAccel(double *F,double **emis,double *F_new,int len){
     //break;
   }
   emStep1(F_em1,emis,F_em2,len);
+  stayin(F_em2);
   minus(F_em2,F_em1, F_diff2);
 
   double sq2 = sumSquare(F_diff2);
@@ -231,6 +242,7 @@ int emAccel(double *F,double **emis,double *F_new,int len){
 
   if (fabs(alpha - 1) > 0.01){
     emStep1(F_new,emis,F_tmp,len);
+    stayin(F_tmp);
     for(int i=0;i<3;i++)
       std::swap(F_new[i],F_tmp[i]);
   }
@@ -952,7 +964,7 @@ int main(int argc, char **argv){
   double tole =1e-6;
   int n=-1;
   int seed=100;
-  int model =0;
+  int model =1;
   int gc =0;
   double errate = 0.005;
   int pair1 =-1;
