@@ -673,6 +673,7 @@ void print_info(FILE *fp){
   fprintf(fp, "   -b <INT>            Second individual used for analysis? (zero offset)\n");
   fprintf(fp, "   -n <INT>            Number of samples in glf.gz\n");
   fprintf(fp, "   -l <INT>            minMaf or 1-Maf filter\n");
+  fprintf(fp, "   -z <INT>            Name of file with IDs (optional)\n");
   fprintf(fp, "\n");
   fprintf(fp,"Or\n ./ngsrelate extract_freq_bim pos.glf.gz plink.bim plink.freq\n");
   fprintf(fp,"Or\n ./ngsrelate extract_freq .mafs.gz .pos.glf.gz [-rmTrans]\n");
@@ -1079,9 +1080,14 @@ int main(int argc, char **argv){
   }
   if(doInbreed)
     fprintf(stdout,"Pair\tZ=0\tZ=1\tloglh\tnIter\tcoverage\n");
-  else
-    fprintf(stdout,"Pair\tk0\tk1\tk2\tloglh\tnIter\tcoverage\n");
-
+  else{
+    if(ids.size())
+      fprintf(stdout,"a\tb\tida\tidb\tnSites\tk0\tk1\tk2\tloglh\tnIter\tcoverage\n");
+    else
+      fprintf(stdout,"a\tb\tnSites\tk0\tk1\tk2\tloglh\tnIter\tcoverage\n");
+  }
+      //fprintf(stdout,"Pair\tk0\tk1\tk2\tloglh\tnIter\tcoverage\n");
+  //    
   if(doInbreed){
     for(int a=0;a<nind;a++){
       int nkeep=0;
@@ -1167,9 +1173,12 @@ int main(int argc, char **argv){
       //print(stdout,freq.size(),6,gls);
       //return 0;
       //      fprintf(stdout,"(%d,%d)\t%f\t",a,b,nkeep/(1.0*freq.size()));
-      fprintf(stdout,"(%d,%d):%d\t",a,b,nkeep);
+      //fprintf(stdout,"(%d,%d):%d\t",a,b,nkeep);
+      
       if(ids.size()){
-	fprintf(stdout,"(%s,%s)\t",ids[a],ids[b]);
+	fprintf(stdout,"%d\t%d\t%s\t%s\t%d\t",a,b,ids[a],ids[b],nkeep);
+      }else{
+	fprintf(stdout,"%d\t%d\t%d\t",a,b,nkeep);
       }
       if(gc){
 	if(gc>1){
