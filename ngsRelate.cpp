@@ -133,6 +133,12 @@ void emStep1_inbreed(double *pre,double **emis,double *post,int len){
 
 
 void emStep1(double *pre,double **emis,double *post,int len){
+  for(int i=0;i<3;i++){
+    if(pre[i]<0||pre[i]>1){
+      fprintf(stderr,"Problem with gues in emStep1: pres:(%f,%f,%f)\n",pre[0],pre[1],pre[2]);
+      exit(0);
+    }
+  }
   //  fprintf(stderr,"%f %f %f\n",pre[0],pre[1],pre[2]);
   double inner[3];
   for(int x=0;x<3;x++)
@@ -153,6 +159,11 @@ void emStep1(double *pre,double **emis,double *post,int len){
   stayin(post);
 #endif
   normalize(post,3);
+  for(int i=0;i<3;i++){
+    if(post[i]<0||post[i]>1){
+      fprintf(stderr,"Proble after normalizgin: pres:(%f,%f,%f) post:(%f,%f,%f)\n",pre[0],pre[1],pre[2],post[0],post[1],post[2]);
+    }
+  }
   //  fprintf(stderr,"%f %f %f\n",post[0],post[1],post[2]);
 }
 
@@ -210,7 +221,7 @@ int emAccel(double *F,double **emis,double *F_new,int len){
   double F_tmp[3];
 
   emStep1(F,emis,F_em1,len);
-  stayin(F_em1);
+  // stayin(F_em1);
   minus(F_em1,F,F_diff1);
   double sr2 = sumSquare(F_diff1);
   
@@ -220,7 +231,7 @@ int emAccel(double *F,double **emis,double *F_new,int len){
     //break;
   }
   emStep1(F_em1,emis,F_em2,len);
-  stayin(F_em2);
+  //  stayin(F_em2);
   minus(F_em2,F_em1, F_diff2);
 
   double sq2 = sumSquare(F_diff2);
@@ -238,11 +249,24 @@ int emAccel(double *F,double **emis,double *F_new,int len){
   double alpha = sqrt(sr2/sv2);
   alpha = std::max(stepMin,std::min(stepMax,alpha));
   for(size_t i=0;i<3;i++)
-      F_new[i] = F[i]+2*alpha*F_diff1[i]+alpha*alpha*F_diff3[i];
-
+    F_new[i] = F[i]+2*alpha*F_diff1[i]+alpha*alpha*F_diff3[i];
+  //  fprintf(stderr,"F_new (this the linear jump: (%f,%f,%f)\n",F_new[0],F_new[1],F_new[2]);
+  int outofparspace =0;
+  for(int i=0;i<3;i++){
+    if(F_new[i]<0||F_new[i]>1)
+      outofparspace++;
+  }
+  if(outofparspace){
+    fprintf(stderr,"outofparspace will use second emstep as jump\n");
+    for(int i=0;i<3;i++)
+      F_new[i] = F_em2[i];
+    return 1;
+  }
+    
+  
   if (fabs(alpha - 1) > 0.01){
     emStep1(F_new,emis,F_tmp,len);
-    stayin(F_tmp);
+    //    stayin(F_tmp);
     for(int i=0;i<3;i++)
       std::swap(F_new[i],F_tmp[i]);
   }
@@ -255,6 +279,7 @@ int emAccel(double *F,double **emis,double *F_new,int len){
   //  fprintf(stderr,"alpha %f stepMax %f\n",alpha,stepMax);
 
   // fprintf(stderr,"calling emaccel \n");
+  // fprintf(stderr,"F_new:(%f,%f,%f)\n",F_new[0],F_new[1],F_new[2]);
   return 1;
 
   
@@ -428,7 +453,7 @@ int em3(double *sfs,double  **emis,double tole,int maxIter,int len,int verbose){
   double oldLik,lik;
   oldLik = loglike(sfs,emis,len);
   if(verbose){
-    fprintf(stderr,"em3startlik=%f\n",oldLik);
+    fprintf(stderr,"em3startlik=%f (%f,%f,%f)\n",oldLik,sfs[0],sfs[1],sfs[2]);
     fflush(stderr);
   }
 
@@ -442,7 +467,7 @@ int em3(double *sfs,double  **emis,double tole,int maxIter,int len,int verbose){
       emStep1(sfs,emis,tmp,len);
     lik = loglike(tmp,emis,len);
 
-    fprintf(stderr,"[%d] lik=%f diff=%e\n",it,lik,fabs(lik-oldLik));
+    fprintf(stderr,"[%d]:%d (%f,%f,%F) lik=%f diff=%e\n",it,speedy,sfs[0],sfs[1],sfs[2],lik,fabs(lik-oldLik));
     if(std::isnan(lik)||lik<oldLik){
       fprintf(stderr,"Problem llh is now bigger or nan, will go back and use regular em\n");
       fprintf(stderr,"This is offending pars: %f %f %f\n",sfs[0],sfs[1],sfs[2]);
@@ -971,7 +996,7 @@ int main(int argc, char **argv){
   int pair2 =-1;
   int nind =2;
   int doInbreed=0;
-  int swichMaf = 0;
+  int swichMaf = 1;
   int verbose = 0;
   double minMaf =0.05;
   int hasDef = 0;
