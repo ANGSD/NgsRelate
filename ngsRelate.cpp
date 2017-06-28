@@ -257,7 +257,7 @@ int emAccel(double *F,double **emis,double *F_new,int len){
       outofparspace++;
   }
   if(outofparspace){
-    fprintf(stderr,"outofparspace will use second emstep as jump\n");
+    //    fprintf(stderr,"outofparspace will use second emstep as jump\n");
     for(int i=0;i<3;i++)
       F_new[i] = F_em2[i];
     return 1;
@@ -973,6 +973,23 @@ int extract_freq_bim(int argc,char **argv){
   return 0;
 }
 
+int readids(std::vector<char *> &ids,char *fname){
+  FILE *fp = NULL;
+  fp=fopen(fname,"rb");
+  if(fp==NULL){
+    fprintf(stderr,"\t-> Problem reading file: \'%s\'\n",fname);
+    exit(0);
+  }
+  char *buf= new char[LENS];
+  while(fgets(buf,LENS,fp)){
+    char *tmp = strdup(basename(buf));
+    tmp[strlen(tmp)-1]='\0';
+    ids.push_back(tmp);
+
+  }
+  fprintf(stderr,"\t-> Number of file names read:%lu\n",ids.size());
+  fclose(fp);
+}
 
 int main(int argc, char **argv){
   if(argc==1)
@@ -1000,7 +1017,8 @@ int main(int argc, char **argv){
   int verbose = 0;
   double minMaf =0.05;
   int hasDef = 0;
-  while ((n = getopt(argc, argv, "f:i:t:r:g:m:v:s:F:c:e:a:b:n:l:")) >= 0) {
+  std::vector<char *> ids;
+  while ((n = getopt(argc, argv, "f:i:t:r:g:m:v:s:F:c:e:a:b:n:l:z:")) >= 0) {
     switch (n) {
     case 'f': freqname = strdup(optarg); break;
     case 'i': maxIter = atoi(optarg); break;
@@ -1017,14 +1035,19 @@ int main(int argc, char **argv){
     case 'n': {nind = atoi(optarg); hasDef=1; break;}      
     case 'e': errate = atof(optarg); break;      
     case 'l': minMaf = atof(optarg); break;      
+    case 'z': readids(ids,optarg); break;      
     default: {fprintf(stderr,"unknown arg:\n");return 0;}
       print_info(stderr);
     }
   }
+ 
   if(hasDef==0){
     fprintf(stderr,"\t-> -n parameter has not been supplied. Will assume that file contains 2 samples...\n");
 
   }
+ if(ids.size()!=0&&ids.size()!=nind){
+  fprintf(stderr,"\t-> Number of names doesnt match the -n parameter\n");
+}
   srand48(seed);
   if(nind==-1||freqname==NULL||gname==NULL){
     fprintf(stderr,"\t-> Must supply -n -f -g parameters (%d,%s,%s)\n",nind,freqname,gname);
@@ -1145,6 +1168,9 @@ int main(int argc, char **argv){
       //return 0;
       //      fprintf(stdout,"(%d,%d)\t%f\t",a,b,nkeep/(1.0*freq.size()));
       fprintf(stdout,"(%d,%d):%d\t",a,b,nkeep);
+      if(ids.size()){
+	fprintf(stdout,"(%s,%s)\t",ids[a],ids[b]);
+      }
       if(gc){
 	if(gc>1){
 	  callgenotypesHwe(l1,nkeep,errate,newfreq);
