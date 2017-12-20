@@ -1,16 +1,9 @@
 /*
-  ida@binf.ku.dk thorfinn@binf.ku.dk
-  20 june, 2015
-
-  thorfinn@binf.ku.dk
-  ida@binf.ku.dk
-
+  NgsRelateV2
   http://www.popgen.dk/software/
   https://github.com/ANGSD/NgsRelate/
 
-
-  mod for inbreed anders
-  g++ NgsRelateV3.cpp -O3 -lz -o ngsrelate3
+  g++ NgsRelate.cpp -O3 -o ngsrelate -lz -lpthread
 
 */
 
@@ -22,6 +15,8 @@
 #include <cmath>
 #include <cassert>
 #include <map>
+#include <libgen.h>  // basename
+#include <pthread.h> // threading
 
 #define LENS  4096
 int refToInt[256] = {
@@ -45,17 +40,72 @@ int refToInt[256] = {
 //this is as close to the bound we will allow
 float emTole=1e-12;
 double TINY=1e-12;
+double p100000000[9] = {1 - TINY,   TINY / 8.0, TINY / 8.0,
+                        TINY / 8.0, TINY / 8.0, TINY / 8.0,
+                        TINY / 8.0, TINY / 8.0, TINY / 8.0};
+
+double p010000000[9] = {TINY / 8.0, 1 - TINY,   TINY / 8.0,
+                        TINY / 8.0, TINY / 8.0, TINY / 8.0,
+                        TINY / 8.0, TINY / 8.0, TINY / 8.0};
+
+double p001000000[9] = {TINY / 8.0, TINY / 8.0, 1 - TINY,
+                        TINY / 8.0, TINY / 8.0, TINY / 8.0,
+                        TINY / 8.0, TINY / 8.0, TINY / 8.0};
+
+double p000100000[9] = {TINY / 8.0, TINY / 8.0, TINY / 8.0,
+                        1 - TINY,   TINY / 8.0, TINY / 8.0,
+                        TINY / 8.0, TINY / 8.0, TINY / 8.0};
+
+double p000010000[9] = {TINY / 8.0, TINY / 8.0, TINY / 8.0,
+                        TINY / 8.0, 1 - TINY,   TINY / 8.0,
+                        TINY / 8.0, TINY / 8.0, TINY / 8.0};
+
+double p000001000[9] = {TINY / 8.0, TINY / 8.0, TINY / 8.0,
+                        TINY / 8.0, TINY / 8.0, 1 - TINY,
+                        TINY / 8.0, TINY / 8.0, TINY / 8.0};
+
+double p000000100[9] = {TINY / 8.0, TINY / 8.0, TINY / 8.0,
+                        TINY / 8.0, TINY / 8.0, TINY / 8.0,
+                        1 - TINY,   TINY / 8.0, TINY / 8.0};
+
+double p000000010[9] = {TINY / 8.0, TINY / 8.0, TINY / 8.0,
+                        TINY / 8.0, TINY / 8.0, TINY / 8.0,
+                        TINY / 8.0, 1 - TINY,   TINY / 8.0};
+
+double p000000001[9] = {TINY / 8.0, TINY / 8.0, TINY / 8.0,
+                        TINY / 8.0, TINY / 8.0, TINY / 8.0,
+                        TINY / 8.0, TINY / 8.0, 1 - TINY};
+
+
+int num_threads = 2;
+char *freqname=NULL;
+char *gname=NULL;
+int maxIter =200;
+double tole =1e-6;
+int n=-1;
+int seed=100;
+int model =1;
+int gc =0;
+double errate = 0.005;
+int pair1 =-1;
+int pair2 =-1;
+int nind =2;
+int swichMaf = 1;
+int verbose = 0;
+double minMaf =0.05;
+int hasDef = 0;
+std::vector<char *> ids;
 
 
 void stayin(double *post){
-  for(int i=0;i<3;i++){
+  for(int i=0;i<9;i++){
     if(post[i]<emTole)
       post[i] = emTole;
     if(post[i]>(1-emTole))
       post[i] =1- emTole;
   }
 }
-  
+
 
 void normalize(double *tmp,int len){
   double s=0;
@@ -84,125 +134,75 @@ void print(FILE *fp,int x,double *m){
 double loglike(double *p,double **emis,int len){
   //  fprintf(stderr,"%f %f %f\n",p[0],p[1],p[2]);
   double ret =0;
-  
   for(int i=0;i<len;i++){
     double tmp = 0;
-    for(int j=0;j<3;j++)
+    for(int j=0;j<9;j++)
       tmp += p[j]*emis[i][j];
     ret +=log(tmp);
   }
   return ret;
 }
-
-double loglikeInbreed(double *p,double **emis,int len){
-  //  fprintf(stderr,"%f %f %f\n",p[0],p[1],p[2]);
-  double ret =0;
-  
-  for(int i=0;i<len;i++){
-    double tmp = 0;
-    for(int j=0;j<2;j++)
-      tmp += p[j]*emis[i][j];
-    ret +=log(tmp);
-  }
-  return ret;
-}
-
-
-
-void emStep1_inbreed(double *pre,double **emis,double *post,int len){
-  // fprintf(stderr,"%f %f\n",pre[0],pre[1]);
-  double inner[2];
-  for(int x=0;x<2;x++)
-    post[x] =0.0;
-  
-  for(int i=0;i<len;i++){
-    for(int x=0;x<2;x++){
-      inner[x] = pre[x]*emis[i][x];
-      //fprintf(stderr,"%f %f\n",emis[i][0],emis[i][1]);
-    }
-  
-    normalize(inner,2);
-    for(int x=0;x<2;x++)
-      post[x] += inner[x];
-    //   fprintf(stderr,"%f %f %f\n",post[0],post[1],post[2]);
-  }
-  //set bounds
-  normalize(post,2);
-  //  fprintf(stderr,"%f %f %f\n",post[0],post[1],post[2]);
-}
-
 
 void emStep1(double *pre,double **emis,double *post,int len){
-  for(int i=0;i<3;i++){
+  for(int i=0;i<9;i++){
     if(pre[i]<0||pre[i]>1){
-      fprintf(stderr,"Problem with gues in emStep1: pres:(%f,%f,%f)\n",pre[0],pre[1],pre[2]);
+      fprintf(
+          stderr,
+          "Problem with gues in emStep1: pres:(%f,%f,%f,%f,%f,%f,%f,%f,%f)\n",
+          pre[0], pre[1], pre[2], pre[3], pre[4], pre[5], pre[6], pre[7],
+          pre[8]);
       exit(0);
     }
   }
-  //  fprintf(stderr,"%f %f %f\n",pre[0],pre[1],pre[2]);
-  double inner[3];
-  for(int x=0;x<3;x++)
+  double inner[9];
+  for(int x=0;x<9;x++){
     post[x] =0.0;
-  
+  }
   for(int i=0;i<len;i++){
-    for(int x=0;x<3;x++)
+    for(int x=0;x<9;x++){
       inner[x] = pre[x]*emis[i][x];
-  
-   normalize(inner,3);
-   for(int x=0;x<3;x++)
-     post[x] += inner[x];
-   //   fprintf(stderr,"%f %f %f\n",post[0],post[1],post[2]);
+    }
+    normalize(inner,9);
+    for(int x=0;x<9;x++){
+      post[x] += inner[x];
+    }
+
   }
   //set bounds
   // fprintf(stderr,"halli haloo\n");
 #if 0
   stayin(post);
 #endif
-  normalize(post,3);
-  for(int i=0;i<3;i++){
+  normalize(post,9);
+  for(int i=0;i<9;i++){
     if(post[i]<0||post[i]>1){
-      fprintf(stderr,"Proble after normalizgin: pres:(%f,%f,%f) post:(%f,%f,%f)\n",pre[0],pre[1],pre[2],post[0],post[1],post[2]);
+      fprintf(stderr,
+              "Probable after normalizing: pres:(%f,%f,%f,%f,%f,%f,%f,%f,%f) "
+              "post:(%f,%f,%f,%f,%f,%f,%f,%f,%f)\n",
+              pre[0], pre[1], pre[2], pre[3], pre[4], pre[5], pre[6], pre[7],
+              pre[8], post[0], post[1], post[2], post[3], post[4], post[5],
+              post[6], post[7], post[8]);
     }
   }
-  //  fprintf(stderr,"%f %f %f\n",post[0],post[1],post[2]);
 }
 
-void minus(double fst[3],double sec[3],double res[3]){
-  for(int i=0;i<3;i++)
-    res[i] = fst[i]-sec[i];
-}
-void minus2(double fst[2],double sec[2],double res[2]){
-  for(int i=0;i<2;i++)
+void minus(double fst[9],double sec[9],double res[9]){
+  for(int i=0;i<9;i++)
     res[i] = fst[i]-sec[i];
 }
 
-
-double sumSquare(double mat[3]){
+double sumSquare(double mat[9]){
   double tmp=0;
-  for(size_t i=0;i<3;i++){
+  for(size_t i=0;i<9;i++){
     //    fprintf(stderr,"%f \n",mat[i]);
     tmp += mat[i]*mat[i];
   }
-
   return tmp;
 }
-
-double sumSquare2(double mat[2]){
-  double tmp=0;
-  for(size_t i=0;i<2;i++){
-    //    fprintf(stderr,"%f \n",mat[i]);
-    tmp += mat[i]*mat[i];
-  }
-
-  return tmp;
-}
-
-
-
 
 int emAccel(double *F,double **emis,double *F_new,int len){
   //  fprintf(stderr,"calling emaccel \n");
-   double ttol=0.0000001;
+   double ttol=0.000000001;
 
   //  fprintf(stderr,"tol:%f\n",tol);
   //maybe these should be usersettable?
@@ -213,26 +213,25 @@ int emAccel(double *F,double **emis,double *F_new,int len){
   //  double objfnInc=1;
 
 
-  double F_em1[3];
-  double F_diff1[3];
-  double F_em2[3];
-  double F_diff2[3];
-  double F_diff3[3];
-  double F_tmp[3];
+  double F_em1[9];
+  double F_diff1[9];
+  double F_em2[9];
+  double F_diff2[9];
+  double F_diff3[9];
+  double F_tmp[9];
 
-  emStep1(F,emis,F_em1,len);
+  emStep1(F, emis, F_em1, len);
   // stayin(F_em1);
-  minus(F_em1,F,F_diff1);
+  minus(F_em1, F, F_diff1);
   double sr2 = sumSquare(F_diff1);
-  
+
   if(sqrt(sr2)<ttol){
-    //    fprintf(stderr,"sr2 break:%f\n",sr2);
+    // fprintf(stderr,"sr2 break:%f\n",sr2);
     return 0;
-    //break;
   }
-  emStep1(F_em1,emis,F_em2,len);
+  emStep1(F_em1, emis, F_em2, len);
   //  stayin(F_em2);
-  minus(F_em2,F_em1, F_diff2);
+  minus(F_em2, F_em1, F_diff2);
 
   double sq2 = sumSquare(F_diff2);
   if(sqrt(sq2)<ttol){
@@ -243,117 +242,42 @@ int emAccel(double *F,double **emis,double *F_new,int len){
 
 
   minus(F_diff2,F_diff1, F_diff3);
-  
+
   double sv2 = sumSquare(F_diff3);
-  
+
   double alpha = sqrt(sr2/sv2);
   alpha = std::max(stepMin,std::min(stepMax,alpha));
-  for(size_t i=0;i<3;i++)
+  for(size_t i=0;i<9;i++)
     F_new[i] = F[i]+2*alpha*F_diff1[i]+alpha*alpha*F_diff3[i];
   //  fprintf(stderr,"F_new (this the linear jump: (%f,%f,%f)\n",F_new[0],F_new[1],F_new[2]);
   int outofparspace =0;
-  for(int i=0;i<3;i++){
-    if(F_new[i]<0||F_new[i]>1)
+  for(int i=0;i<9;i++){
+    if(F_new[i]<0||F_new[i]>1){
       outofparspace++;
+      // break;
+    }
   }
   if(outofparspace){
-    //    fprintf(stderr,"outofparspace will use second emstep as jump\n");
-    for(int i=0;i<3;i++)
+    // fprintf(stderr,"outofparspace will use second emstep as jump\n");
+    for(int i=0;i<9;i++)
       F_new[i] = F_em2[i];
     return 1;
   }
-    
-  
+
+
   if (fabs(alpha - 1) > 0.01){
     emStep1(F_new,emis,F_tmp,len);
     //    stayin(F_tmp);
-    for(int i=0;i<3;i++)
+    for(int i=0;i<9;i++)
       std::swap(F_new[i],F_tmp[i]);
   }
 
-  //  double lnew = 1;
   if ((alpha - stepMax) > -0.001) {
     stepMax = mstep*stepMax;
   }
-  //  print(stderr,3,F_new);
-  //  fprintf(stderr,"alpha %f stepMax %f\n",alpha,stepMax);
 
-  // fprintf(stderr,"calling emaccel \n");
-  // fprintf(stderr,"F_new:(%f,%f,%f)\n",F_new[0],F_new[1],F_new[2]);
   return 1;
-
-  
 }
-
-
-int emAccel_inbreed(double *F,double **emis,double *F_new,int len){
-  //  fprintf(stderr,"calling emaccel \n");
-  double ttol=0.0000001;
-
-  //  fprintf(stderr,"tol:%f\n",tol);
-  //maybe these should be usersettable?
-  double stepMin =1;
-  double stepMax0 = 1;
-  static double stepMax=stepMax0;
-  double mstep=4;
-  //  double objfnInc=1;
-
-
-  double F_em1[2];
-  double F_diff1[2];
-  double F_em2[2];
-  double F_diff2[2];
-  double F_diff3[2];
-  double F_tmp[2];
-
-  emStep1_inbreed(F,emis,F_em1,len);
-  minus2(F_em1,F,F_diff1);
-  double sr2 = sumSquare2(F_diff1);
-  
-  if(sqrt(sr2)<ttol){
-    //    fprintf(stderr,"sr2 break:%f\n",sr2);
-    return 0;
-    //break;
-  }
-  emStep1_inbreed(F_em1,emis,F_em2,len);
-  minus2(F_em2,F_em1, F_diff2);
-
-  double sq2 = sumSquare2(F_diff2);
-  if(sqrt(sq2)<ttol){
-    //fprintf(stderr,"sq2\n");
-    return 0;
-    //    break;
-  }
-
-
-  minus2(F_diff2,F_diff1, F_diff3);
-  
-  double sv2 = sumSquare2(F_diff3);
-  
-  double alpha = sqrt(sr2/sv2);
-  alpha = std::max(stepMin,std::min(stepMax,alpha));
-  for(size_t i=0;i<2;i++)
-      F_new[i] = F[i]+2*alpha*F_diff1[i]+alpha*alpha*F_diff3[i];
-
-  if (fabs(alpha - 1) > 0.01){
-    emStep1_inbreed(F_new,emis,F_tmp,len);
-    for(int i=0;i<2;i++)
-      std::swap(F_new[i],F_tmp[i]);
-  }
-
-  //  double lnew = 1;
-  if ((alpha - stepMax) > -0.001) {
-    stepMax = mstep*stepMax;
-  }
-  //  print(stderr,3,F_new);
-  //  fprintf(stderr,"alpha %f stepMax %f\n",alpha,stepMax);
-
-  // fprintf(stderr,"calling emaccel \n");
-  return 1;
-
-  
-}
-
 
 
 int em1(double *sfs,double  **emis,double tole,int maxIter,int len,int verbose){
@@ -363,11 +287,11 @@ int em1(double *sfs,double  **emis,double tole,int maxIter,int len,int verbose){
     fprintf(stderr,"startlik=%f %f %f %f\n",oldLik,sfs[0],sfs[1],sfs[2]);
   fflush(stderr);
 
-  double tmp[3];
+  double tmp[9];
   int it;
   for(it=0;it<maxIter;it++) {
     emStep1(sfs,emis,tmp,len);
-    for(int i=0;i<3;i++)
+    for(int i=0;i<9;i++)
       sfs[i]= tmp[i];
     lik = loglike(sfs,emis,len);
 
@@ -375,7 +299,7 @@ int em1(double *sfs,double  **emis,double tole,int maxIter,int len,int verbose){
       fprintf(stderr,"[%d] lik=%f diff=%g\n",it,lik,fabs(lik-oldLik));
 
     if(fabs(lik-oldLik)<tole){
-     
+
       oldLik=lik;
       break;
     }
@@ -383,39 +307,6 @@ int em1(double *sfs,double  **emis,double tole,int maxIter,int len,int verbose){
   }
   return it;
 }
-
-
-int em_inbreed(double *pars,double  **emis,double tole,int maxIter,int len,int model,int verbose){
-  double oldLik,lik;
-  oldLik = loglikeInbreed(pars,emis,len);
-  if(verbose){
-    fprintf(stderr,"startlik=%f %f %f\n",oldLik,pars[0],pars[1]);
-    fflush(stderr);
-  }
-
-  double tmp[2];
-  int it;
-  for(it=0;it<maxIter;it++) {
-    if(model==0)
-      emStep1_inbreed(pars,emis,tmp,len);
-    else
-      emAccel_inbreed(pars,emis,tmp,len);
-    for(int i=0;i<2;i++)
-      pars[i]= tmp[i];
-    lik = loglikeInbreed(pars,emis,len);
-    if(verbose)
-      fprintf(stderr,"[%d] lik=%f diff=%g\n",it,lik,fabs(lik-oldLik));
-
-    if(fabs(lik-oldLik)<tole){
-     
-      oldLik=lik;
-      break;
-    }
-    oldLik=lik;
-  }
-  return it;
-}
-
 
 
 int em2(double *sfs,double  **emis,double tole,int maxIter,int len,int verbose){
@@ -426,12 +317,12 @@ int em2(double *sfs,double  **emis,double tole,int maxIter,int len,int verbose){
     fflush(stderr);
   }
 
-  double tmp[3];
+  double tmp[9];
   int it;
   for(it=0;it<maxIter;it++) {
     emAccel(sfs,emis,tmp,len);
 
-    for(int i=0;i<3;i++)
+    for(int i=0;i<9;i++)
       sfs[i]= tmp[i];
     lik = loglike(sfs,emis,len);
     if(verbose)
@@ -444,7 +335,6 @@ int em2(double *sfs,double  **emis,double tole,int maxIter,int len,int verbose){
     }
     oldLik=lik;
   }
-  
   return it;
 }
 
@@ -457,7 +347,7 @@ int em3(double *sfs,double  **emis,double tole,int maxIter,int len,int verbose){
     fflush(stderr);
   }
 
-  double tmp[3];
+  double tmp[9];
   int it;
   int speedy=1;
   for(it=0;it<maxIter;it++) {
@@ -474,185 +364,234 @@ int em3(double *sfs,double  **emis,double tole,int maxIter,int len,int verbose){
       speedy=0;
       continue;
     }
-    for(int i=0;i<3;i++)
+    for(int i=0;i<9;i++)
       sfs[i]= tmp[i];
-  
+
     if(fabs(lik-oldLik)<tole){
       // fprintf(stderr,"breaking\n");
       oldLik=lik;
       break;
     }
     oldLik=lik;
-    
+
   }
-  
+
   return it;
 }
 
-
-
-
-
-void emission_ngsrelate(double *freq,double **l1,double **l2,double **emis,int len){
+void emission_ngsrelate9(double *freq,double **l1,double **l2,double **emis,int len){
 
   for(int i=0;i<len;i++){
     double freqA=freq[i];
     double freqa=1-freqA;
-      //1 E<-cbind(freqA^4,freqA^3,freqA^2)*l1[,1]*l2[,1];			      // G_real=(AA,AA)
-      emis[i][0] = pow(freqA,4)*l1[i][0]*l2[i][0];
-      emis[i][1] = pow(freqA,3)*l1[i][0]*l2[i][0];
-      emis[i][2] = pow(freqA,2)*l1[i][0]*l2[i][0];
-      //2   E<-E+cbind(2*freqA^3*freqa,1*freqA^2*freqa,0)*l1[,1]*l2[,2] ;		# G_real=(AA,Aa)
-      emis[i][0] += 2*pow(freqA,3)*freqa*l1[i][0]*l2[i][1];
-      emis[i][1] += pow(freqA,2)*freqa*l1[i][0]*l2[i][1];
-      emis[i][2] += 0;
-      //3   E<-E+cbind(1*freqA^2*freqa^2,0,0)*l1[,1]*l2[,3]				# G_real=(AA,aa)
-      emis[i][0] += pow(freqA,2)*pow(freqa,2)*l1[i][0]*l2[i][2];
-      emis[i][1] += 0;
-      emis[i][2] += 0;
-      //4   E<-E+cbind(2*freqA^3*freqa,1*freqA^2*freqa,0)*l1[,2]*l2[,1]			# G_real=(Aa,AA)
-      emis[i][0] += 2*pow(freqA,3)*freqa*l1[i][1]*l2[i][0];
-      emis[i][1] += pow(freqA,2)*freqa*l1[i][1]*l2[i][0];
-      emis[i][2] += 0;
-      //5     E<-E+cbind(4*freqA^2*freqa^2,freqA*freqa,2*freqA*freqa)*l1[,2]*l2[,2]	# G_real=(Aa,Aa)
-      emis[i][0] += 4*pow(freqA,2)*pow(freqa,2)*l1[i][1]*l2[i][1];
-      emis[i][1] += freqA*freqa*l1[i][1]*l2[i][1];
-      emis[i][2] += 2*freqA*freqa *l1[i][1]*l2[i][1];
-      //6  E<-E+cbind(2*freqA*freqa^3,1*freqA*freqa^2,0)*l1[,2]*l2[,3]			# G_real=(Aa,aa)      
-      emis[i][0] += 2*freqA*pow(freqa,3)*l1[i][1]*l2[i][2];
-      emis[i][1] += freqA*pow(freqa,2)*l1[i][1]*l2[i][2];
-      emis[i][2] += 0;
-      //7  E<-E+cbind(1*freqA^2*freqa^2,0,0)*l1[,3]*l2[,1]				# G_real=(aa,AA)
-      emis[i][0] += pow(freqA,2)*pow(freqa,2)*l1[i][2]*l2[i][0];
-      emis[i][1] += 0;
-      emis[i][2] += 0;
-      //8  E<-E+cbind(2*freqA*freqa^3,1*freqA*freqa^2,0)*l1[,3]*l2[,2]		        # G_real=(aa,Aa)
-      emis[i][0] += 2*freqA*pow(freqa,3)*l1[i][2]*l2[i][1];
-      emis[i][1] += freqA*pow(freqa,2)*l1[i][2]*l2[i][1];
-      emis[i][2] += 0;
-      //9  E<-E+cbind(freqa^4,freqa^3,freqa^2)*l1[,3]*l2[,3]				# G_real=(aa,aa)
-      emis[i][0] += pow(freqa,4)*l1[i][2]*l2[i][2];
-      emis[i][1] += pow(freqa,3)*l1[i][2]*l2[i][2];
-      emis[i][2] += pow(freqa,2)*l1[i][2]*l2[i][2];
+    // ##00&00 S1
+    // emis<- cbind(freq0,freq0^2,freq0^2, freq0^3,freq0^2,freq0^3, freq0^2,freq0^3,freq0^4)*gl1[1,]*gl2[1,]
+    //1 E<-cbind(freqA^4,freqA^3,freqA^2)*l1[,1]*l2[,1];
+    // G_real=(AA,AA)
+    emis[i][0] = pow(freqA, 4) * l1[i][0] * l2[i][0];
+    emis[i][1] = pow(freqA, 3) * l1[i][0] * l2[i][0];
+    emis[i][2] = pow(freqA, 2) * l1[i][0] * l2[i][0];
+    emis[i][3] = pow(freqA, 3) * l1[i][0] * l2[i][0];
+    emis[i][4] = pow(freqA, 2) * l1[i][0] * l2[i][0];
+    emis[i][5] = pow(freqA, 3) * l1[i][0] * l2[i][0];
+    emis[i][6] = pow(freqA, 2) * l1[i][0] * l2[i][0];
+    emis[i][7] = pow(freqA, 2) * l1[i][0] * l2[i][0];
+    emis[i][8] = freqA * l1[i][0] * l2[i][0];
 
-      
-      if(i==295&&0)
-	fprintf(stderr,"emis[%d]:freq:%f %f %f %f\n",i,freqa,emis[i][0],emis[i][1],emis[i][2]);
-      //      exit(0);
-    }
+    // ##00&01 S3
+    // emis <- emis + cbind(0,0,freq0*freq1, 2*freq0^2*freq1,0,0,0,freq0^2*freq1,2*freq0^3*freq1)*gl1[1,]*gl2[2,]
+    // 2   E<-E+cbind(2*freqA^3*freqa,1*freqA^2*freqa,0)*l1[,1]*l2[,2] ;		#
+    // G_real=(AA,Aa)
+    emis[i][0] += 2 * pow(freqA, 3) * freqa * l1[i][0] * l2[i][1];
+    emis[i][1] += pow(freqA, 2) * freqa * l1[i][0] * l2[i][1];
+    emis[i][2] += 0;
+    emis[i][3] += 0;
+    emis[i][4] += 0;
+    emis[i][5] += 2 * pow(freqA, 2) * freqa * l1[i][0] * l2[i][1];
+    emis[i][6] += freqA * freqa * l1[i][0] * l2[i][1];
+    emis[i][7] += 0;
+    emis[i][8] += 0;
 
-}
-
-
-
-
-
-
-
-
-
-
-
-void emission_ngsInbreed(double *freq,double **l1,double **emis,int len){
-
-    for(int i=0;i<len;i++){
-    double freqA=freq[i];
-    double freqa=1-freqA;
-    // G_real=(AA)
-    emis[i][0] = pow(freqA,2)*l1[i][0];
-    emis[i][1] = freqA*l1[i][0];
-
-    // G_real=(Aa)
-    emis[i][0] += 2*freqa*freqA*l1[i][1];
+    // ##00&11 S2
+    // E<-E+cbind(1*freqA^2*freqa^2,0,0)*l1[,1]*l2[,3]				#
+    // G_real=(AA,aa)
+    emis[i][0] += pow(freqA, 2) * pow(freqa, 2) * l1[i][0] * l2[i][2];
     emis[i][1] += 0;
+    emis[i][2] += 0;
+    emis[i][3] += pow(freqA, 2) * freqa * l1[i][0] * l2[i][2];
+    emis[i][4] += 0;
+    emis[i][5] += freqA * pow(freqa, 2) * l1[i][0] * l2[i][2];
+    emis[i][6] += 0;
+    emis[i][7] += freqA * freqa * l1[i][0] * l2[i][2];
+    emis[i][8] += 0;
 
-    // G_real=(aa)
-    emis[i][0] += pow(freqa,2)*l1[i][2];
-    emis[i][1] += freqa*l1[i][0];
+    // ##01&00 S5
+    // E<-E+cbind(2*freqA^3*freqa,1*freqA^2*freqa,0)*l1[,2]*l2[,1]			#
+    // G_real=(Aa,AA)
+    emis[i][0] += 2 * pow(freqA, 3) * freqa * l1[i][1] * l2[i][0];
+    emis[i][1] += pow(freqA, 2) * freqa * l1[i][1] * l2[i][0];
+    emis[i][2] += 0;
+    emis[i][3] += 2 * pow(freqA, 2) * freqa * l1[i][1] * l2[i][0];
+    emis[i][4] += freqA * freqa * l1[i][1] * l2[i][0];
+    emis[i][5] += 0;
+    emis[i][6] += 0;
+    emis[i][7] += 0;
+    emis[i][8] += 0;
 
-    //if(i==295&&0)
-    //    fprintf(stderr,"emis[%d]:freq:%f %f %f\n",i,freqa,emis[i][0],emis[i][1]);
-      //      exit(0);
+    // ##01&01 S7
+    // emis <- emis + cbind(0,0,0, 0,0,0,
+    // 2*freq0*freq1,freq1*freq0,4*freq1^2*freq0^2)*gl1[2,]*gl2[2,]
+    // 5
+    // E<-E+cbind(4*freqA^2*freqa^2,freqA*freqa,2*freqA*freqa)*l1[,2]*l2[,2]
+    // G_real=(Aa,Aa)
+    emis[i][0] += 4 * pow(freqA, 2) * pow(freqa, 2) * l1[i][1] * l2[i][1];
+    emis[i][1] += freqA * freqa * l1[i][1] * l2[i][1];
+    emis[i][2] += 2 * freqA * freqa * l1[i][1] * l2[i][1];
+    emis[i][3] += 0;
+    emis[i][4] += 0;
+    emis[i][5] += 0;
+    emis[i][6] += 0;
+    emis[i][7] += 0;
+    emis[i][8] += 0;
+
+    // ##01&11 S5
+    // emis <- emis + cbind(0,0,0, 0,freq0*freq1,2*freq1^2*freq0,
+    // 0,freq1^2*freq0,2*freq1^3*freq0)*gl1[2,]*gl2[3,]
+    // 6  E<-E+cbind(2*freqA*freqa^3,1*freqA*freqa^2,0)*l1[,2]*l2[,3]
+    // G_real=(Aa,aa)
+    emis[i][0] += 2 * freqA * pow(freqa, 3) * l1[i][1] * l2[i][2];
+    emis[i][1] += freqA * pow(freqa, 2) * l1[i][1] * l2[i][2];
+    emis[i][2] += 0;
+    emis[i][3] += 2 * freqA * pow(freqa, 2) * l1[i][1] * l2[i][2];
+    emis[i][4] += freqA * freqa * l1[i][1] * l2[i][2];
+    emis[i][5] += 0;
+    emis[i][6] += 0;
+    emis[i][7] += 0;
+    emis[i][8] += 0;
+
+    // ##11&00
+    // emis <- emis + cbind(0,freq0*freq1,0,    freq0^2*freq1,0,freq1^2*freq0,
+    // 0,0,freq1^2*freq0^2)*gl1[3,]*gl2[1,]
+    // 7  E<-E+cbind(1*freqA^2*freqa^2,0,0)*l1[,3]*l2[,1]
+    // G_real=(aa,AA)
+    emis[i][0] += pow(freqA, 2) * pow(freqa, 2) * l1[i][2] * l2[i][0];
+    emis[i][1] += 0;
+    emis[i][2] += 0;
+    emis[i][3] += freqA * pow(freqa, 2) * l1[i][2] * l2[i][0];
+    emis[i][4] += 0;
+    emis[i][5] += pow(freqA, 2) * freqa * l1[i][2] * l2[i][0];
+    emis[i][6] += 0;
+    emis[i][7] += freqA * freqa * l1[i][2] * l2[i][0];
+    emis[i][8] += 0;
+
+    // ##11&01 S3
+    // emis <- emis + cbind(0,0,freq0*freq1, 2*freq1^2*freq0,0,0,
+    // 0,freq1^2*freq0,2*freq1^3*freq0)*gl1[3,]*gl2[2,]
+    // 8  E<-E+cbind(2*freqA*freqa^3,1*freqA*freqa^2,0)*l1[,3]*l2[,2]
+    // # G_real=(aa,Aa)
+    emis[i][0] += 2 * freqA * pow(freqa, 3) * l1[i][2] * l2[i][1];
+    emis[i][1] += freqA * pow(freqa, 2) * l1[i][2] * l2[i][1];
+    emis[i][2] += 0;
+    emis[i][3] += 0;
+    emis[i][4] += 0;
+    emis[i][5] += 2 * freqA * pow(freqa, 2) * l1[i][2] * l2[i][1];
+    emis[i][6] += freqA * freqa * l1[i][2] * l2[i][1];
+    emis[i][7] += 0;
+    emis[i][8] += 0;
+
+    // ##11&11 S1
+    // emis <- emis + cbind(freq1,freq1^2,freq1^2, freq1^3,freq1^2,freq1^3,
+    // freq1^2,freq1^3,freq1^4)*gl1[3,]*gl2[3,]
+    // 9  E<-E+cbind(freqa^4,freqa^3,freqa^2)*l1[,3]*l2[,3]
+    // G_real=(aa,aa)
+    emis[i][0] += pow(freqa, 4) * l1[i][2] * l2[i][2];
+    emis[i][1] += pow(freqa, 3) * l1[i][2] * l2[i][2];
+    emis[i][2] += pow(freqa, 2) * l1[i][2] * l2[i][2];
+    emis[i][3] += pow(freqa, 3) * l1[i][2] * l2[i][2];
+    emis[i][4] += pow(freqa, 2) * l1[i][2] * l2[i][2];
+    emis[i][5] += pow(freqa, 3) * l1[i][2] * l2[i][2];
+    emis[i][6] += pow(freqa, 2) * l1[i][2] * l2[i][2];
+    emis[i][7] += pow(freqa, 2) * l1[i][2] * l2[i][2];
+    emis[i][8] += freqa * l1[i][2] * l2[i][2];
+
+    if (i == 295 && 0)
+      fprintf(stderr, "emis[%d]:freq:%f %f %f %f\n", i, freqa, emis[i][0],
+              emis[i][1], emis[i][2]);
+    //      exit(0);
     }
 
 }
 
+double **getGL(const char *fname, int sites, int nInd) {
+  gzFile gz = Z_NULL;
+  if (((gz = gzopen(fname, "rb"))) == Z_NULL) {
+    fprintf(stderr, "\t-> Problem opening file: \'%s\'\n", fname);
+    exit(0);
+  }
 
+  double **ret = new double *[sites + 10];
 
-
-
-
-
- double **getGL(const char *fname,int sites, int nInd){
-   gzFile gz=Z_NULL;
-   if(((gz=gzopen(fname,"rb")))==Z_NULL){
-     fprintf(stderr,"\t-> Problem opening file: \'%s\'\n",fname);
-     exit(0);
-   }
-   
-
-   double **ret=new double*[sites+10];
-   
-   int i=0;
-   while(1){
-     //   for(int i=0;i<sites;i++){
-     ret[i] = new double[3*nInd];
-     unsigned nbit = gzread(gz,ret[i],sizeof(double)*nInd*3);
-     if(nbit==0)
-       break;
-     if(sizeof(double)*nInd*3!=nbit){
-       fprintf(stderr,"\t-> Problem reading full chunk\n");
-       exit(0);
-     }
-     for(int g =0;g<3*nInd;g++)
-       ret[i][g] = exp(ret[i][g]);
+  int i = 0;
+  while (1) {
+    //   for(int i=0;i<sites;i++){
+    ret[i] = new double[3 * nInd];
+    unsigned nbit = gzread(gz, ret[i], sizeof(double) * nInd * 3);
+    if (nbit == 0)
+      break;
+    if (sizeof(double) * nInd * 3 != nbit) {
+      fprintf(stderr, "\t-> Problem reading full chunk\n");
+      exit(0);
+    }
+    for (int g = 0; g < 3 * nInd; g++)
+      ret[i][g] = exp(ret[i][g]);
 #if 0
-     for(int g=0;g<nInd;g++){
-       double ts = 0;
-       for(int gg=0;gg<3;gg++)
-	 ts += ret[i][g*3+gg];
-       for(int gg=0;gg<3;gg++)
-	 ret[i][g*3+gg] /= ts;
-
-     }
+    for(int g=0;g<nInd;g++){
+      double ts = 0;
+      for(int gg=0;gg<3;gg++)
+        ts += ret[i][g*3+gg];
+      for(int gg=0;gg<3;gg++)
+        ret[i][g*3+gg] /= ts;
+    }
 #endif
-     i++;
-     if(i>sites){
-       fprintf(stderr,"\t-> Too many sites in glf file. Looks outof sync, or make sure you supplied correct number of individuals (-n)\n");
-       exit(0);
-     }
-   }
-   if(i!=sites){
-     fprintf(stderr,"nsites: %d assumed but %d read\n",sites,i);
-     exit(0);
-   }
-   gzclose(gz);
-   return ret;
+    i++;
+    if (i > sites) {
+      fprintf(stderr, "\t-> Too many sites in glf file. Looks outof sync, or "
+                      "make sure you supplied correct number of individuals "
+                      "(-n)\n");
+      exit(0);
+    }
+  }
+  if (i != sites) {
+    fprintf(stderr, "nsites: %d assumed but %d read\n", sites, i);
+    exit(0);
+  }
+  gzclose(gz);
+  return ret;
+}
+
+std::vector<double> getDouble(const char *fname) {
+  gzFile gz = Z_NULL;
+  if (((gz = gzopen(fname, "rb"))) == Z_NULL) {
+    fprintf(stderr, "Problem opening file:%s\n", fname);
+    exit(0);
+  }
+  char *buf = new char[10000];
+  std::vector<double> ret;
+  while (gzgets(gz, buf, 10000)) {
+    ret.push_back(atof(strtok(buf, "\n\t\r ")));
+    char *tok = NULL;
+    while (((tok = strtok(NULL, "\n\t\r ")))) {
+      ret.push_back(1 - atof(tok));
+    }
+  }
+  fprintf(stderr, "\t-> Frequency file: \'%s\' contain %lu number of sites\n",
+          fname, ret.size());
+  gzclose(gz);
+  delete[] buf;
+  return ret;
  }
 
 
- std::vector<double> getDouble(const char *fname) {
-   gzFile gz=Z_NULL;
-   if(((gz=gzopen(fname,"rb")))==Z_NULL){
-     fprintf(stderr,"Problem opening file:%s\n",fname);
-     exit(0);
-   }
-   char *buf = new char[10000];
-   std::vector<double> ret;
-   while(gzgets(gz,buf,10000)){
-     ret.push_back(atof(strtok(buf,"\n\t\r ")));
-     char *tok=NULL;
-     while(((tok=strtok(NULL,"\n\t\r ")))){
-       ret.push_back(1-atof(tok));
-
-     }
-
-   }
-   fprintf(stderr,"\t-> Frequency file: \'%s\' contain %lu number of sites\n",fname,ret.size());
-   gzclose(gz);
-   delete [] buf;
-   return ret;
- }
 
 void print_info(FILE *fp){
   fprintf(fp, "\n");
@@ -667,7 +606,6 @@ void print_info(FILE *fp){
   fprintf(fp, "   -c <INT>            Should call genotypes instead?\n");
   fprintf(fp, "   -s <INT>            Should you swich the freq with 1-freq?\n");
   fprintf(fp, "   -v <INT>            Verbose. print like per iteration\n");
-  fprintf(fp, "   -F <INT>            Estimate inbreeding instead of relatedness\n");
   fprintf(fp, "   -e <INT>            Errorrates when calling genotypes?\n");
   fprintf(fp, "   -a <INT>            First individual used for analysis? (zero offset)\n");
   fprintf(fp, "   -b <INT>            Second individual used for analysis? (zero offset)\n");
@@ -693,7 +631,7 @@ void callgenotypesEps(double **gls,int len,double eps){
     for(int i=1;i<3;i++){
       //      fprintf(stderr,"%d %d | %f %f\n",s,i,gls[s][i],gls[s][whmax]);
       if(gls[s][i]>gls[s][whmax])
-	whmax=i;
+        whmax=i;
     }
     //    fprintf(stdout,"i\t%d\n",whmax);
     if(whmax==0){
@@ -706,7 +644,7 @@ void callgenotypesEps(double **gls,int len,double eps){
     }else{
       fprintf(stderr,"never happens\n");
     }
-      
+
   }
 
 }
@@ -723,7 +661,7 @@ void callgenotypesHwe(double **gls,int len,double eps,double *freq){
     for(int i=1;i<3;i++){
       //      fprintf(stderr,"%d %d | %f %f\n",s,i,gls[s][i],gls[s][whmax]);
       if(gls[s][i]>gls[s][whmax])
-	whmax=i;
+        whmax=i;
     }
     //    fprintf(stdout,"i\t%d\n",whmax);
     for(int i=1;i<3;i++)
@@ -782,7 +720,7 @@ posMap getBim(char *bname,char *fname){
   gz = gzopen(fname,"rb");
   assert(gz!=Z_NULL);
   gzgets(gz,buf,LENS);//header
-  
+
   rsMap rMap;
   while(  gzgets(gz,buf,LENS)){
     strtok(buf,"\t\n ");
@@ -823,7 +761,7 @@ posMap getBim(char *bname,char *fname){
       //exit(0);
     }
     pm[gp] = rit->second;
-    
+
   }
   fprintf(stderr,"nsites:%lu read from plink.bim file\n",pm.size());
 
@@ -859,7 +797,7 @@ int extract_freq(int argc,char **argv){
   }
   if(*argv&& strcasecmp(*argv,"-rmTrans")!=0)
     fprintf(stderr,"\t-> Unrecognized parameter supplied: \'%s\', only -rmTrans is implemented\n",*argv);
-    
+
   fprintf(stderr,"\t-> .mafs.gz file:\'%s\' .glf.pos.gz file:\'%s\' \n",mfile,gfile);
   //exit(0);
   assert(mfile &&gfile);
@@ -869,7 +807,7 @@ int extract_freq(int argc,char **argv){
   gz = gzopen(mfile,"rb");
   assert(gz!=Z_NULL);
   gzgets(gz,buf,LENS);//header
-  
+
   posMap pm;
   while(  gzgets(gz,buf,LENS)){
     gpos gp;
@@ -888,9 +826,9 @@ int extract_freq(int argc,char **argv){
     double freq = atof(strtok(NULL,"\t\n "));
     if(rmTrans==1){
       if((A1==0&&A2==2)||(A1==2&&A2==0))
-	freq=0;
+        freq=0;
       if((A1==1&&A2==3)||(A1==3&&A2==1))
-	freq=0;
+        freq=0;
     }
 
     datum d;
@@ -923,7 +861,7 @@ int extract_freq(int argc,char **argv){
       fprintf(stderr,"\t-> Problem with majorminor types for position %s:%d will set freq to zero and thereby discard the site\n",gp.chr,gp.pos);
       fprintf(stdout,"%f\n",0.0);
     }
-    
+
   }
   fprintf(stderr,"\t-> number of lines in output: %d\n",linenr);
   return 0;
@@ -969,12 +907,12 @@ int extract_freq_bim(int argc,char **argv){
     else
       fprintf(stdout,"%f\n",it->second.freq);
   }
-  
-  
+
+
   return 0;
 }
 
-int readids(std::vector<char *> &ids,char *fname){
+void readids(std::vector<char *> &ids,char *fname){
   FILE *fp = NULL;
   fp=fopen(fname,"rb");
   if(fp==NULL){
@@ -992,6 +930,134 @@ int readids(std::vector<char *> &ids,char *fname){
   fclose(fp);
 }
 
+
+struct worker_args {
+  int thread_id;
+  int nkeep;
+  int a,b;
+  double **gls;
+  std::vector<double> freq;
+  int niter;
+  double ll;
+  int best;
+  double pars[9];
+};
+
+void * do_work(void *threadarg){
+  // https://www.tutorialspoint.com/cplusplus/cpp_multithreading.htm
+  struct worker_args * td;
+  td = ( worker_args * ) threadarg;
+#if 0
+  fprintf(stderr,"ID:%d THREAD:%d\n",td->id, td->thread_id);
+#endif
+
+  // input param - done
+  // a,b, freq, gls,
+
+  // init all this in each thread
+  double **l1, **l2;
+  l1 = l2 = NULL;
+  double *newfreq = NULL;
+  l1 = new double *[td->freq.size()];
+  l2 = new double *[td->freq.size()];
+  newfreq = new double[td->freq.size()];
+  double **emis = new double *[td->freq.size()];
+
+  // td->pars[0] = td->gls[td->thread_id + 0][0];
+  // td->pars[1] = td->gls[td->thread_id + 1][0];
+  // td->pars[2] = td->gls[td->thread_id + 2][0];
+  // td->pars[3] = td->gls[td->thread_id + 3][0];
+  // td->pars[4] = td->gls[td->thread_id + 4][0];
+  // td->pars[5] = td->gls[td->thread_id + 5][0];
+  // td->pars[6] = td->gls[td->thread_id + 6][0];
+  // // td->pars[7] = td->gls[td->thread_id+7][0];
+  // td->pars[8] = td->gls[td->thread_id + 8][0];
+
+  for (size_t i = 0; i < td->freq.size(); i++) {
+    l1[i] = new double[3];
+    l2[i] = new double[3];
+    emis[i] = new double[9];
+  }
+
+  for (size_t i = 0; i < td->freq.size(); i++) {
+    // copy data into l1, this might be overwritten at next iteration if,
+    // if either is missing or freq<minmaf
+    for (int j = 0; j < 3; j++) {
+      l1[td->nkeep][j] = td->gls[i][td->a * 3 + j];
+      l2[td->nkeep][j] = td->gls[i][td->b * 3 + j];
+    }
+
+    // removing missing data
+    if (l1[td->nkeep][0] == l1[td->nkeep][1] &&
+        l1[td->nkeep][0] == l1[td->nkeep][2])
+      continue;
+    if (l2[td->nkeep][0] == l2[td->nkeep][1] &&
+        l2[td->nkeep][0] == l2[td->nkeep][2])
+      continue;
+    // removing minor allele frequencies
+    if (td->freq[i] < minMaf || (1 - td->freq[i]) < minMaf)
+      continue;
+
+    newfreq[td->nkeep] = td->freq[i];
+
+    td->nkeep++;
+  }
+
+  if (gc) {
+    if (gc > 1) {
+      callgenotypesHwe(l1, td->nkeep, errate, newfreq);
+      callgenotypesHwe(l2, td->nkeep, errate, newfreq);
+    }
+
+    if (gc > 0) {
+      callgenotypesEps(l1, td->nkeep, errate);
+      callgenotypesEps(l2, td->nkeep, errate);
+    }
+  }
+
+  emission_ngsrelate9(newfreq, l1, l2, emis, td->nkeep);
+  if (model == 0)
+    td->niter = em1(td->pars, emis, tole, maxIter, td->nkeep, verbose);
+  else if (model == 1)
+    td->niter = em2(td->pars, emis, tole, maxIter, td->nkeep, verbose);
+  else // below might not work
+    td->niter = em3(td->pars, emis, tole, maxIter, td->nkeep, verbose);
+
+  double l100000000 = loglike(p100000000, emis, td->nkeep);
+  double l010000000 = loglike(p010000000, emis, td->nkeep);
+  double l001000000 = loglike(p001000000, emis, td->nkeep);
+  double l000100000 = loglike(p000100000, emis, td->nkeep);
+  double l000010000 = loglike(p000010000, emis, td->nkeep);
+  double l000001000 = loglike(p000001000, emis, td->nkeep);
+  double l000000100 = loglike(p000000100, emis, td->nkeep);
+  double l000000010 = loglike(p000000010, emis, td->nkeep);
+  double l000000001 = loglike(p000000001, emis, td->nkeep);
+  double lopt = loglike(td->pars, emis, td->nkeep);
+
+  td->ll = lopt;
+
+  double likes[10] = {l100000000, l010000000, l001000000, l000100000,
+                      l000010000, l000001000, l000000100, l000000010,
+                      l000000001, lopt};
+
+  for (int i = 1; i < 10; i++) {
+        if (likes[i] > likes[td->best])
+          td->best = i;
+  }
+
+    // end of work
+  for (size_t i = 0; i < td->freq.size(); i++) {
+    delete[] l1[i];
+    delete[] l2[i];
+    delete[] emis[i];
+  }
+  delete[] l1;
+  delete[] l2;
+  delete[] emis;
+  pthread_exit(NULL);
+}
+
+
 int main(int argc, char **argv){
   if(argc==1)
     print_info(stderr);
@@ -1000,258 +1066,159 @@ int main(int argc, char **argv){
     return extract_freq_bim(--argc,++argv);
   if(strcasecmp(argv[1],"extract_freq")==0)
     return extract_freq(--argc,++argv);
-  
-  char *freqname=NULL;
-  char *gname=NULL;
-  int maxIter =100;
-  double tole =1e-6;
-  int n=-1;
-  int seed=100;
-  int model =1;
-  int gc =0;
-  double errate = 0.005;
-  int pair1 =-1;
-  int pair2 =-1;
-  int nind =2;
-  int doInbreed=0;
-  int swichMaf = 1;
-  int verbose = 0;
-  double minMaf =0.05;
-  int hasDef = 0;
-  std::vector<char *> ids;
-  while ((n = getopt(argc, argv, "f:i:t:r:g:m:v:s:F:c:e:a:b:n:l:z:")) >= 0) {
+
+
+  while ((n = getopt(argc, argv, "f:i:t:r:g:m:v:s:F:c:e:a:b:n:l:z:p:")) >= 0) {
     switch (n) {
     case 'f': freqname = strdup(optarg); break;
     case 'i': maxIter = atoi(optarg); break;
     case 't': tole = atof(optarg); break;
     case 'r': seed = atoi(optarg); break;
     case 'g': gname = strdup(optarg); break;
-    case 'm': model = atoi(optarg); break;      
-    case 'v': verbose = atoi(optarg); break;      
-    case 's': swichMaf = atoi(optarg); break;      
-    case 'F': doInbreed = atoi(optarg); break;      
-    case 'c': gc = atoi(optarg); break;      
-    case 'a': pair1 = atoi(optarg); break;      
-    case 'b': pair2 = atoi(optarg); break;      
-    case 'n': {nind = atoi(optarg); hasDef=1; break;}      
-    case 'e': errate = atof(optarg); break;      
-    case 'l': minMaf = atof(optarg); break;      
-    case 'z': readids(ids,optarg); break;      
+    case 'm': model = atoi(optarg); break;
+    case 'v': verbose = atoi(optarg); break;
+    case 's': swichMaf = atoi(optarg); break;
+    case 'c': gc = atoi(optarg); break;
+    case 'a': pair1 = atoi(optarg); break;
+    case 'b': pair2 = atoi(optarg); break;
+    case 'n': {nind = atoi(optarg); hasDef=1; break;}
+    case 'p': num_threads = atoi(optarg);break;
+    case 'e': errate = atof(optarg); break;
+    case 'l': minMaf = atof(optarg); break;
+    case 'z': readids(ids,optarg); break;
     default: {fprintf(stderr,"unknown arg:\n");return 0;}
       print_info(stderr);
     }
   }
- 
-  if(hasDef==0){
-    fprintf(stderr,"\t-> -n parameter has not been supplied. Will assume that file contains 2 samples...\n");
 
+  if (hasDef == 0) {
+    fprintf(stderr, "\t-> -n parameter has not been supplied. Will assume that "
+                    "file contains 2 samples...\n");
   }
- if(ids.size()!=0&&ids.size()!=nind){
-  fprintf(stderr,"\t-> Number of names doesnt match the -n parameter\n");
-}
+  if (ids.size() != 0 && ids.size() != nind) {
+    fprintf(stderr, "\t-> Number of names doesnt match the -n parameter\n");
+  }
   srand48(seed);
-  if(nind==-1||freqname==NULL||gname==NULL){
-    fprintf(stderr,"\t-> Must supply -n -f -g parameters (%d,%s,%s)\n",nind,freqname,gname);
+  if (nind == -1 || freqname == NULL || gname == NULL) {
+    fprintf(stderr, "\t-> Must supply -n -f -g parameters (%d,%s,%s)\n", nind,
+            freqname, gname);
     return 0;
   }
+
+  pthread_t threads[num_threads];
+
   std::vector<double> freq = getDouble(freqname);
-  if(swichMaf){
-    fprintf(stderr,"\t-> switching frequencies\n");
-    for(size_t i=0;i<freq.size();i++)
+  double total_sites = (1.0 * freq.size());
+  if (swichMaf) {
+    fprintf(stderr, "\t-> switching frequencies\n");
+    for (size_t i = 0; i < freq.size(); i++)
       freq[i] = 1 - freq[i];
   }
- 
-  double **gls = getGL(gname,freq.size(),nind);
+
+  double **gls = getGL(gname, freq.size(), nind);
 #if 0
   print(stdout,freq.size(),3*nind,gls);
   exit(0);
 #endif
-   double **l1,**l2;l1=l2=NULL;
-   double *newfreq = NULL;
-  l1=new double*[freq.size()];
-  l2=new double*[freq.size()];
-  newfreq =new double[freq.size()];
-  double **emis=new double*[freq.size()];
-
-  for(size_t i=0;i<freq.size();i++){
-    l1[i] = new double[3];
-    l2[i] = new double[3];
-    emis[i] = new double[3];
+  if (ids.size()){
+    fprintf(stdout,
+            "a\tb\tida\tidb\tnSites\ts9\ts8\ts7\ts6\ts5\ts4\ts3\ts2\ts1\tloglh\tnIter\tcoverage\n");
+  } else {
+    fprintf(stdout, "a\tb\tnSites\ts9\ts8\ts7\ts6\ts5\ts4\ts3\ts2\ts1\tloglh\tnIter\tcoverage\n");
   }
-  if(doInbreed)
-    fprintf(stdout,"Pair\tZ=0\tZ=1\tloglh\tnIter\tcoverage\n");
-  else{
-    if(ids.size())
-      fprintf(stdout,"a\tb\tida\tidb\tnSites\tk0\tk1\tk2\tloglh\tnIter\tcoverage\n");
-    else
-      fprintf(stdout,"a\tb\tnSites\tk0\tk1\tk2\tloglh\tnIter\tcoverage\n");
-  }
-      //fprintf(stdout,"Pair\tk0\tk1\tk2\tloglh\tnIter\tcoverage\n");
-  //    
-  if(doInbreed){
-    for(int a=0;a<nind;a++){
-      int nkeep=0;
 
-      for(size_t i=0;i<freq.size();i++){
-	for(int j=0;j<3;j++)
-	  l1[nkeep][j] = gls[i][a*3+j];
-	if(l1[nkeep][0]==l1[nkeep][1]&&l1[nkeep][0]==l1[nkeep][2])
-	  continue;
-	if(freq[i]<minMaf||(1-freq[i])<minMaf)
-	  continue;
-	newfreq[nkeep]=freq[i];
-	nkeep++;
+  int comparison_ids = 0;
+  std::vector<worker_args> all_args;
+  for (int a = 0; a < nind; a++) {
+    for (int b = a + 1; b < nind; b++) {
+      if (pair1 != -1)
+        a = pair1;
+      if (pair2 != -1)
+        b = pair2;
+
+      worker_args td_args;
+      td_args.a=a;
+      td_args.b=b;
+      td_args.nkeep=0;
+      td_args.best=0;
+      td_args.freq=freq;
+      td_args.gls=gls;
+      td_args.ll=0;
+
+      double parval = 0.0, parsum = 0.0;
+      for (int i = 0; i < 9; i++) {
+        parval = drand48();
+        td_args.pars[i] = parval;
+        parsum += parval;
       }
-      fprintf(stdout,"(%d,%d):%d\t",a,a,nkeep);
-      //call genotypes
-      if(gc){
-	if(gc>1)
-	  callgenotypesHwe(l1,nkeep,errate,newfreq);
-	if(gc>0)
-	  callgenotypesEps(l1,nkeep,errate);
+      for (int i = 0; i < 9; i++) {
+        td_args.pars[i] /= parsum;
       }
 
-      emission_ngsInbreed(newfreq,l1,emis,nkeep);
-      double pars[2];
-      pars[0]=drand48();
-      pars[1]=1-pars[0];
-
-      int niter;
-      
-      niter=em_inbreed(pars,emis,tole,maxIter,nkeep,model,verbose);
-      double lopt= loglikeInbreed(pars,emis,nkeep);
-      double p10[2]={1-TINY,TINY};
-      double p01[2]={TINY,1-TINY};
-      double l01= loglikeInbreed(p01,emis,nkeep);
-      double l10= loglikeInbreed(p10,emis,nkeep);
-      double likes[3] ={l10,l01,lopt};
-      int best = 0;
-      for(int i=1;i<3;i++){
-	if(likes[i]>likes[best])
-	  best=i;
+      all_args.push_back(td_args);
+      comparison_ids++;
+      if (pair1 != -1 || pair2 != -1) {
+        //	fprintf(stderr,"BREAKING\n");
+        break;
       }
-      //      fprintf(stdout,"%f\t%f\t%f\t%d\t",l10,l01,lopt,best);
-      if(best==0)
-	fprintf(stdout,"%f\t%f\t%f\t%d\t%f\n",p10[0],p10[1],l10,-1,(1.0*nkeep)/(1.0*freq.size()));
-      if(best==1)
-	fprintf(stdout,"%f\t%f\t%f\t%d\t%f\n",p01[0],p01[1],l01,-1,(1.0*nkeep)/(1.0*freq.size()));
-      if(best==2)
-	fprintf(stdout,"%f\t%f\t%f\t%d\t%f\n",pars[0],pars[1],lopt,niter,(1.0*nkeep)/(1.0*freq.size()));
-
-      fflush(stdout);
-    }  
-  }
-  else{
-  for(int a=0;a<nind;a++){
-    for(int b=a+1;b<nind;b++){
-      //      fprintf(stderr,"a:%d b:%d pair1:%d pair2:%d\n",a,b,pair1,pair2);
-      int nkeep=0;
-      if(pair1!=-1)
-	a=pair1;
-      if(pair2!=-1)
-	b=pair2;
-
-      for(size_t i=0;i<freq.size();i++){
-	//copoy data into l1, this might be overwritten at next iteration if, if either is missing or freq<minmaf
-	for(int j=0;j<3;j++){
-	  l1[nkeep][j] = gls[i][a*3+j];
-	  l2[nkeep][j] = gls[i][b*3+j];
-	}
-	
-	if(l1[nkeep][0]==l1[nkeep][1]&&l1[nkeep][0]==l1[nkeep][2])
-	  continue;
-	if(l2[nkeep][0]==l2[nkeep][1]&&l2[nkeep][0]==l2[nkeep][2])
-	  continue;
-	if(freq[i]<minMaf||(1-freq[i])<minMaf)
-	  continue;
-	
-	newfreq[nkeep]=freq[i];
-	
-	nkeep++;
-	
-      }
-      //print(stdout,freq.size(),6,gls);
-      //return 0;
-      //      fprintf(stdout,"(%d,%d)\t%f\t",a,b,nkeep/(1.0*freq.size()));
-      //fprintf(stdout,"(%d,%d):%d\t",a,b,nkeep);
-      
-      if(ids.size()){
-	fprintf(stdout,"%d\t%d\t%s\t%s\t%d\t",a,b,ids[a],ids[b],nkeep);
-      }else{
-	fprintf(stdout,"%d\t%d\t%d\t",a,b,nkeep);
-      }
-      if(gc){
-	if(gc>1){
-	  callgenotypesHwe(l1,nkeep,errate,newfreq);
-	  callgenotypesHwe(l2,nkeep,errate,newfreq);
-	}
-
-	if(gc>0){
-	  callgenotypesEps(l1,nkeep,errate);
-	  callgenotypesEps(l2,nkeep,errate);
-	}
-      }
-      emission_ngsrelate(newfreq,l1,l2,emis,nkeep);
-      //      print(stdout,freq.size(),3,emis);return 0;
-      double pars[3];
-      pars[0] = drand48();
-      pars[1] = drand48()*(1-pars[0]);
-      pars[2] = 1-pars[0]-pars[1];
-      //      fprintf(stdout,"loglike:%f\t",loglike(pars,emis,nkeep));return 0;
-      int niter;
-      if(model==0)
-	niter=em1(pars,emis,tole,maxIter,nkeep,verbose);
-      else if(model==1)
-	niter=em2(pars,emis,tole,maxIter,nkeep,verbose);
-      else//below might not work
-	niter=em3(pars,emis,tole,maxIter,nkeep,verbose);
-      
-      double p100[3]={1-TINY,TINY/2.0,TINY/2.0};
-      double p010[3]={TINY/2.0,1-TINY,TINY/2.0};
-      double p001[3]={TINY/2.0,TINY/2.0,1-TINY};
-      double l100=loglike(p100,emis,nkeep);
-      double l010=loglike(p010,emis,nkeep);
-      double l001=loglike(p001,emis,nkeep);
-      double lopt= loglike(pars,emis,nkeep);
-      //  fprintf(stderr,"%f %f %f\n",l100,l010,l001);
-      
-      double likes[4] = {l100,l010,l001,lopt};
-      int best = 0;
-      for(int i=1;i<4;i++){
-	if(likes[i]>likes[best])
-	  best=i;
-      }
-      // fprintf(stderr,"100:%f 010:%f 001:%f lopt:%f\n",l100,l010,l001,lopt);
-      if(best==3)
-	fprintf(stdout,"%f\t%f\t%f\t%f\t%d\t%f\n",pars[0],pars[1],pars[2],lopt,niter,(1.0*nkeep)/(1.0*freq.size()));
-      if(best==0)
-	fprintf(stdout,"%f\t%f\t%f\t%f\t%d\t%f\n",p100[0],p100[1],p100[2],l100,-1,(1.0*nkeep)/(1.0*freq.size()));
-      if(best==1)
-	fprintf(stdout,"%f\t%f\t%f\t%f\t%d\t%f\n",p010[0],p010[1],p010[2],l010,-1,(1.0*nkeep)/(1.0*freq.size()));
-      if(best==2)
-	fprintf(stdout,"%f\t%f\t%f\t%f\t%d\t%f\n",p001[0],p001[1],p001[2],l001,-1,(1.0*nkeep)/(1.0*freq.size()));
-      fflush(stdout); 
-      if(pair1!=-1||pair2!=-1){
-	//	fprintf(stderr,"BREAKING\n");
-	break;
-      }
-    }
-    if(pair1!=-1||pair2!=-1){
+    } // end ind b
+    if (pair1 != -1 || pair2 != -1) {
       //	fprintf(stderr,"BREAKING\n");
-	break;
+      break;
     }
+  } // end ind b
+
+
+
+  int cnt=0;
+  while(cnt<comparison_ids){
+    int nTimes;
+    if(comparison_ids-cnt-num_threads>=0)
+      nTimes = num_threads;
+    else
+      nTimes = comparison_ids-cnt;
+#if 0
+    for(int i=0;1 && i<nTimes;i++){
+      fprintf(stderr,"cnt:%d i:%d\n",cnt+i,i);
+    }
+#endif
+    for(int i=0;i<nTimes;i++){
+      all_args[cnt+i].thread_id = i;
+      pthread_create(&threads[i],NULL,do_work,&all_args[cnt+i]);
+    }
+    for(int i=0;i<nTimes;i++){
+      pthread_join(threads[i], NULL);
+    }
+    cnt+=nTimes;
+
   }
+
+  for (int i=0; i<comparison_ids; i++){
+    if (ids.size()) {
+      fprintf(stdout, "%d\t%d\t%s\t%s\t%d", all_args[i].a, all_args[i].b, ids[all_args[i].a], ids[all_args[i].b], all_args[i].nkeep);
+    } else {
+      fprintf(stdout, "%d\t%d\t%d", all_args[i].a, all_args[i].b, all_args[i].nkeep);
+    }
+
+    if (all_args[i].best == 9) {
+      for (int j = 0; j<9; j++){
+        fprintf(stdout, "\t%f", all_args[i].pars[j]);
+      }
+      fprintf(stdout, "\t%f\t%d\t%f\n", all_args[i].ll, all_args[i].niter, (1.0 * all_args[i].nkeep) / total_sites);
+    } else {
+      fprintf(stdout,
+              "\t BAD:  Best: %d; Iter: %d; Sites: "
+              "%f; lopt: %f",
+              all_args[i].best, -1, (1.0 * all_args[i].nkeep) / (1.0 * freq.size()),
+              all_args[i].ll);
+    }
+
   }
-for(size_t i=0;i<freq.size();i++){
-  delete [] gls[i];
-  delete [] l1[i];
-    delete [] l2[i];
-    delete [] emis[i];
+  fflush(stdout);
+  for (size_t i = 0; i < freq.size(); i++) {
+    delete[] gls[i];
   }
-  delete [] gls;
-  delete [] l1;
-  delete [] l2;
-  delete [] emis;
+  delete[] gls;
   free(freqname);
   free(gname);
   return 0;
