@@ -81,7 +81,7 @@ int num_threads = 4;
 char *freqname=NULL;
 char *gname=NULL;
 int maxIter =2000;
-double tole =1e-7;
+double tole =1e-9;
 int n=-1;
 int seed=100;
 int model =1;
@@ -94,7 +94,7 @@ int switchMaf = 0;
 int verbose = 0;
 double minMaf =0.05;
 int hasDef = 0;
-double ttol=0.00000001;
+double ttol=1e-9;
 std::vector<char *> ids;
 
 
@@ -939,6 +939,7 @@ struct worker_args {
   int niter;
   double ll;
   int best;
+  double bestll;
   double pars[9];
 };
 
@@ -1031,10 +1032,13 @@ void * do_work(void *threadarg){
   double likes[10] = {l100000000, l010000000, l001000000, l000100000,
                       l000010000, l000001000, l000000100, l000000010,
                       l000000001, lopt};
-
+  td->best = 0;
+  td->bestll = likes[0];
   for (int i = 1; i < 10; i++) {
-        if (likes[i] > likes[td->best])
-          td->best = i;
+    if (likes[i] > likes[td->best]){
+      td->best = i;
+      td->bestll = likes[i];
+    }
   }
 
   // end of work. Teardown
@@ -1046,6 +1050,7 @@ void * do_work(void *threadarg){
   delete[] l1;
   delete[] l2;
   delete[] emis;
+  delete[] newfreq;
   pthread_exit(NULL);
 }
 
@@ -1133,6 +1138,7 @@ int main(int argc, char **argv){
       td_args.b=b;
       td_args.nkeep=0;
       td_args.best=0;
+      td_args.bestll=0.0;
       td_args.freq=&freq;
       td_args.gls=gls;
       td_args.ll=0;
@@ -1178,11 +1184,12 @@ int main(int argc, char **argv){
       all_args[cnt+i].thread_id = i;
       pthread_create(&threads[i],NULL,do_work,&all_args[cnt+i]);
     }
+
     for(int i=0;i<nTimes;i++){
       pthread_join(threads[i], NULL);
     }
     cnt+=nTimes;
-
+    fprintf(stderr, "\t-> Processed %d out of %d\r", cnt, comparison_ids);
   }
 
   for (int i=0; i<comparison_ids; i++){
@@ -1198,11 +1205,12 @@ int main(int argc, char **argv){
       }
       fprintf(stdout, "\t%f\t%d\t%f\n", all_args[i].ll, all_args[i].niter, (1.0 * all_args[i].nkeep) / total_sites);
     } else {
+      for (int j = 0; j<9; j++){
+        fprintf(stdout, "\t%f", all_args[i].pars[j]);
+      }
       fprintf(stdout,
-              "\t BAD:  Best: %d; Iter: %d; Sites: "
-              "%f; lopt: %f",
-              all_args[i].best, -1, (1.0 * all_args[i].nkeep) / (1.0 * freq.size()),
-              all_args[i].ll);
+              "\t%f;s%d_%f\t%d\t%f\n", all_args[i].ll, 9-all_args[i].best, all_args[i].bestll, -1, (1.0 * all_args[i].nkeep) / total_sites
+              );
     }
 
   }
