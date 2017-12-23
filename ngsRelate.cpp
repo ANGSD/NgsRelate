@@ -1257,5 +1257,6 @@ int main(int argc, char **argv){
   delete[] gls;
   free(freqname);
   free(gname);
+  free(htsfile);
   return 0;
 }

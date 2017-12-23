@@ -274,6 +274,7 @@ int getgls(char*fname,std::vector<double *> &mygl, std::vector<double> &freqs,in
   free(gt);
   free(dp);
   free(seqnames);
+  free(pl);
   bcf_hdr_destroy(hdr);
   bcf_close(inf);
   bcf_destroy(rec);
