@@ -145,6 +145,8 @@ int getgls(char*fname,std::vector<double *> &mygl, std::vector<double> &freqs,in
   int ngl_arr = 0;
   int ngl     = 0;
   int *gl     = NULL;
+
+  
   // open VCF/BCF file
   //    * use '-' for stdin
   //    * bcf_open will open bcf and vcf files
@@ -205,45 +207,55 @@ int getgls(char*fname,std::vector<double *> &mygl, std::vector<double> &freqs,in
     // so we can't check for it.  As it turns out, all homozygous
     // good quality calls for alt allele have GQ values, so it doesn't matter
     // here, but it's important to keep in mind.
+    int af1_arr =0;
+    int *af1 = NULL;
+    int naf1 = bcf_get_format_float(hdr, rec, "AF1", &af1, &af1_arr);
+    //    fprintf(stderr,"af1_ar:%d naf1:%d\n",af1_arr,naf1);
     ngq = bcf_get_format_int32(hdr, rec, "GQ", &gq, &ngq_arr);
     ndp = bcf_get_format_int32(hdr, rec, "DP", &dp, &ndp_arr);
     ngt = bcf_get_format_int32(hdr, rec, "GT", &gt, &ngt_arr);
     npl = bcf_get_format_int32(hdr, rec, "PL", &pl, &npl_arr);
+    //    fprintf(stderr,"npl:%f npl_arry:%d\n",npl,npl_arr);
     ngl = bcf_get_format_int32(hdr, rec, "GL", &gl, &ngl_arr);
-    //fprintf(stderr,"rec->pos:%d ngq: %d ndp:%d ngt:%d npl:%d ngl:%d\n",rec->pos,ngq,ndp,ngt,npl,ngl);
+    //fprintf(stderr,"rec->pos:%d ngq: %d ndp:%d ngt:%d npl:%d ngl:%d rec->n_allele:%d\n",rec->pos,ngq,ndp,ngt,npl,ngl,rec->n_allele);
+
     //if multiple alt alleles then n_allele>3. We only care about diallelic ref/alt alleless
     //		if(rec->n_allele==4) fprintf(stdout,"\n%s\n",rec->d.allele[2]);
-    if(rec->n_allele==3) {
+    //ok this is a bit messed up. apparantly sometime the allele is <*> sometimes not.
+    // just use the first two alleles now and discard the rest of the alleles.
+    if(rec->n_allele>3||rec->n_allele==1)//last case shouldt happen
+      continue;
+
+    int offs = rec->n_allele==2?3:6;
       
       
-      
-      // fprintf(stdout,"ngq:%d ndp:%d ngt:%d npl:%d ngl:%d\n",ngq,ndp,ngt,npl,ngl);
-      //lets only deal with pl for now.
-      double *tmp = new double[3*nsamples];
-      int keepInd=0;
-      char keep[nsamples];
-      //  memset(keep,'0',nsamples);
-      for(int n=0;n<nsamples;n++){
-	for(int nn=0;nn<3;nn++){
-	  tmp[n*3+nn] = pl2ln[pl[n*6+nn]];
-	  //  fprintf(stderr,"%d\n",pl[n*6+nn]);
-	}
-	double *ary= tmp+n*3;
-	if(ary[0]==ary[1]&&ary[0]==ary[2])
-	  keep[n]=0;
-	else{
-	  keep[n]=1;
-	  keepInd++;
-	}
-	
+    // fprintf(stdout,"ngq:%d ndp:%d ngt:%d npl:%d ngl:%d offs:%d\n",ngq,ndp,ngt,npl,ngl,offs);
+    //lets only deal with pl for now.
+    double *tmp = new double[3*nsamples];
+    int keepInd=0;
+    char keep[nsamples];
+    //  memset(keep,'0',nsamples);
+    for(int n=0;n<nsamples;n++){
+      for(int nn=0;nn<3;nn++){
+	tmp[n*3+nn] = pl2ln[pl[n*offs+nn]];
+	//  fprintf(stderr,"%d\n",pl[n*6+nn]);
       }
-      double freq = emFrequency(tmp,nsamples,50,0.05,keep,keepInd);
-      //      fprintf(stderr,"%d %f\n",keepInd,freq);
-      //exit(0);
-      //filtering
-      if(keepInd>minind&&freq>=minfreq) {
+      double *ary= tmp+n*3;
+      if(ary[0]==ary[1]&&ary[0]==ary[2])
+	keep[n]=0;
+      else{
+	keep[n]=1;
+	keepInd++;
+	}
+      
+    }
+    double freq = emFrequency(tmp,nsamples,50,0.05,keep,keepInd);
+    //    fprintf(stdout,"%d %f\n",keepInd,freq);
+    //exit(0);
+    //filtering
+    if(keepInd>minind&&freq>=minfreq) {
 #ifdef __WITH_MAIN__
-	fprintf(stdout,"%s\t%i\t%s\t%s\tqual:%f n_info:%d n_allele:%d n_fmt:%d n_sample:%d n_samplws_with_data:%d freq:%f",
+      fprintf(stdout,"%s\t%i\t%s\t%s\tqual:%f n_info:%d n_allele:%d n_fmt:%d n_sample:%d n_samplws_with_data:%d freq:%f",
 	      seqnames[rec->rid],
 	      rec->pos+1,
 	      rec->d.allele[0],
@@ -256,18 +268,15 @@ int getgls(char*fname,std::vector<double *> &mygl, std::vector<double> &freqs,in
 	      keepInd,
 	      freq
 	      );
-	for(int i=0;i<3*nsamples;i++)
-	  fprintf(stdout," %f",tmp[i]);
-	fprintf(stdout,"\n");
+      for(int i=0;i<3*nsamples;i++)
+	fprintf(stdout," %f",tmp[i]);
+      fprintf(stdout,"\n");
 #endif
-	mygl.push_back(tmp);
-	freqs.push_back(freq);
-	//	fprintf(stderr,"pushhh\n");
-      }else
-	delete [] tmp;
-    }
-    
-    
+      mygl.push_back(tmp);
+      freqs.push_back(freq);
+      //	fprintf(stderr,"pushhh\n");
+    }else
+      delete [] tmp;
   }
   fprintf(stderr, "Read %i records %i of which were SNPs number of sites with data:%lu\n", n, nsnp,mygl.size());
   free(gq);
@@ -299,7 +308,7 @@ int main(int argc, char **argv) {
   }
   std::vector<double *> gls;
   std::vector<double> freqs;
-  int nsites = getgls(argv[1],gls,freqs,2,0.05);
+  int nsites = getgls(argv[1],gls,freqs,2,0.04);
   return 0;
 }
 

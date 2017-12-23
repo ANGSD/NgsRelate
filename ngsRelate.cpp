@@ -1127,7 +1127,7 @@ int main(int argc, char **argv){
 #ifdef __WITH_BCF__
   if(htsfile){
     std::vector<double *> tmpgl;
-    nind=getgls(htsfile,tmpgl,freq,2,0.05);
+    nind=getgls(htsfile,tmpgl,freq,1,0.05);
     gls=new double *[tmpgl.size()];
     for(int i=0;i<tmpgl.size();i++)
       gls[i] = tmpgl[i];
