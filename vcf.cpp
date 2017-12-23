@@ -109,8 +109,13 @@ double emFrequency(double *loglike,int numInds, int iter,double start,char *keep
 }
 
 
-size_t getgls(int argc,char**argv,std::vector<double *> &mygl, std::vector<double> &freqs,int minind,double minfreq){
-
+int getgls(char*fname,std::vector<double *> &mygl, std::vector<double> &freqs,int minind,double minfreq){
+  fprintf(stderr,"[getgls] fname:%s minind:%d minfreq:%f\n",fname,minind,minfreq);
+  for(int i=0;i<256;i++){
+    pl2ln[i] = log(pow(10.0,-0.1*i));
+    //    fprintf(stderr,"%d) %f %f\n",i,exp(pl2ln[i]),pl2ln[i]);
+  }
+  //  return 0;
   // counters
   int n    = 0;  // total number of records in file
   int nsnp = 0;  // number of SNP records in file
@@ -146,7 +151,7 @@ size_t getgls(int argc,char**argv,std::vector<double *> &mygl, std::vector<doubl
   //    * bcf_open is a macro that expands to hts_open
   //    * returns NULL when file could not be opened
   //    * by default also writes message to stderr if file could not be found
-  htsFile * inf = bcf_open(argv[1], "r");
+  htsFile * inf = bcf_open(fname, "r");
   if (inf == NULL) {
     fprintf(stderr,"bcf_open is null:");
     exit(0);
@@ -155,7 +160,7 @@ size_t getgls(int argc,char**argv,std::vector<double *> &mygl, std::vector<doubl
   // read header
   bcf_hdr_t *hdr = bcf_hdr_read(inf);
   nsamples = bcf_hdr_nsamples(hdr);
-  fprintf(stderr, "File %s contains %i samples\n", argv[1], nsamples);
+  fprintf(stderr, "\t-> File %s contains %i samples\n", fname, nsamples);
   // report names of all the sequences in the VCF file
   const char **seqnames = NULL;
   // bcf_hdr_seqnames returns a newly allocated array of pointers to the seq names
@@ -221,7 +226,7 @@ size_t getgls(int argc,char**argv,std::vector<double *> &mygl, std::vector<doubl
       for(int n=0;n<nsamples;n++){
 	for(int nn=0;nn<3;nn++){
 	  tmp[n*3+nn] = pl2ln[pl[n*6+nn]];
-	  // fprintf(stderr,"%d\n",pl[n*6+nn]);
+	  //  fprintf(stderr,"%d\n",pl[n*6+nn]);
 	}
 	double *ary= tmp+n*3;
 	if(ary[0]==ary[1]&&ary[0]==ary[2])
@@ -233,9 +238,10 @@ size_t getgls(int argc,char**argv,std::vector<double *> &mygl, std::vector<doubl
 	
       }
       double freq = emFrequency(tmp,nsamples,50,0.05,keep,keepInd);
-      // // fprintf(stdout,"%d %f\n",keepInd,freq);
+      //      fprintf(stderr,"%d %f\n",keepInd,freq);
+      //exit(0);
       //filtering
-      if(keepInd>minind&&freq>=minfreq){
+      if(keepInd>minind&&freq>=minfreq) {
 #ifdef __WITH_MAIN__
 	fprintf(stdout,"%s\t%i\t%s\t%s\tqual:%f n_info:%d n_allele:%d n_fmt:%d n_sample:%d n_samplws_with_data:%d freq:%f",
 	      seqnames[rec->rid],
@@ -256,7 +262,9 @@ size_t getgls(int argc,char**argv,std::vector<double *> &mygl, std::vector<doubl
 #endif
 	mygl.push_back(tmp);
 	freqs.push_back(freq);
-      }
+	//	fprintf(stderr,"pushhh\n");
+      }else
+	delete [] tmp;
     }
     
     
@@ -269,7 +277,7 @@ size_t getgls(int argc,char**argv,std::vector<double *> &mygl, std::vector<doubl
   bcf_hdr_destroy(hdr);
   bcf_close(inf);
   bcf_destroy(rec);
-  return mygl.size();
+  return nsamples;
  error2:
   free(seqnames);
  error1:
@@ -281,10 +289,7 @@ size_t getgls(int argc,char**argv,std::vector<double *> &mygl, std::vector<doubl
 #ifdef __WITH_MAIN__
 
 int main(int argc, char **argv) {
-  for(int i=0;i<256;i++){
-    pl2ln[i] = log(pow(10.0,-0.1*i));
-    //    fprintf(stderr,"%d) %f %f\n",i,exp(pl2ln[i]),pl2ln[i]);
-  }
+  
  
 
   if (argc != 2) {
@@ -293,7 +298,7 @@ int main(int argc, char **argv) {
   }
   std::vector<double *> gls;
   std::vector<double> freqs;
-  int nsites = getgls(argc,argv,gls,freqs,2,0.05);
+  int nsites = getgls(argv[1],gls,freqs,2,0.05);
   return 0;
 }
 
