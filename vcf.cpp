@@ -115,45 +115,30 @@ int getgls(char*fname,std::vector<double *> &mygl, std::vector<double> &freqs,in
     pl2ln[i] = log(pow(10.0,-0.1*i));
     //    fprintf(stderr,"%d) %f %f\n",i,exp(pl2ln[i]),pl2ln[i]);
   }
-  //  return 0;
+ 
   // counters
   int n    = 0;  // total number of records in file
   int nsnp = 0;  // number of SNP records in file
   int nseq = 0;  // number of sequences
   int nsamples = 0;
-  // filter data for each call
-  // quality data for each call
-  int ngq_arr = 0;
-  int ngq     = 0;
-  int *gq     = NULL;
-  // coverage data for each call
-  int ndp_arr = 0;
-  int ndp     = 0;
-  int *dp     = NULL;
-  // genotype data for each call
-  // genotype arrays are twice as large as
-  // the other arrays as there are two values for each sample
-  int ngt_arr = 0;
-  int ngt     = 0;
-  int *gt     = NULL;
-  // coverage data for each call
+
+  // pl data for each call
   int npl_arr = 0;
   int npl     = 0;
   int *pl     = NULL;
   
-  // coverage data for each call
+  // gl data for each call
   int ngl_arr = 0;
   int ngl     = 0;
-  int *gl     = NULL;
+  float *gl     = NULL;
+
+  // af1/af data for each call
+  int naf_arr = 0;
+  int naf     = 0;
+  float *af     = NULL;
 
   
-  // open VCF/BCF file
-  //    * use '-' for stdin
-  //    * bcf_open will open bcf and vcf files
-  //    * bcf_open is a macro that expands to hts_open
-  //    * returns NULL when file could not be opened
-  //    * by default also writes message to stderr if file could not be found
-  htsFile * inf = bcf_open(fname, "r");
+  htsFile * inf = hts_open(fname, "r");
   if (inf == NULL) {
     fprintf(stderr,"bcf_open is null:");
     exit(0);
@@ -163,14 +148,9 @@ int getgls(char*fname,std::vector<double *> &mygl, std::vector<double> &freqs,in
   bcf_hdr_t *hdr = bcf_hdr_read(inf);
   nsamples = bcf_hdr_nsamples(hdr);
   fprintf(stderr, "\t-> File %s contains %i samples\n", fname, nsamples);
-  // report names of all the sequences in the VCF file
   const char **seqnames = NULL;
-  // bcf_hdr_seqnames returns a newly allocated array of pointers to the seq names
-  // caller has to deallocate the array, but not the seqnames themselves; the number
-  // of sequences is stored in the int pointer passed in as the second argument.
-  // The id in each record can be used to index into the array to obtain the sequence
-  // name
-  seqnames = bcf_hdr_seqnames(hdr, &nseq);
+#if 0
+   seqnames = bcf_hdr_seqnames(hdr, &nseq);
   if (seqnames == NULL) {
     fprintf(stderr," error1\n");
     exit(0);
@@ -181,13 +161,13 @@ int getgls(char*fname,std::vector<double *> &mygl, std::vector<double> &freqs,in
     fprintf(stderr, "  [%2i] %s (bcf_hdr_id2name -> %s)\n", i, seqnames[i],
 	    bcf_hdr_id2name(hdr, i));
   }
-  
-  // limit the VCF data to the sample name passed in
+#endif
   
   // struc for storing each record
   bcf1_t *rec = bcf_init();
   if (rec == NULL) {
-    goto error2;
+    fprintf(stderr,"\t-> problem making bcf1_t\n");
+    exit(0);
   }
   
   while (bcf_read(inf, hdr, rec) == 0) {
@@ -196,28 +176,13 @@ int getgls(char*fname,std::vector<double *> &mygl, std::vector<double> &freqs,in
       continue;
     nsnp++;
     
-    // the bcf_get_format_int32 function does not appear to reallocate
-    // the array it returns for each of the samples on each call. Just
-    // needs to be freed in the end. First call to bcf_get_format_*
-    // takes care of calling bcf_unpack, which fills the `d` member
-    // of bcf1_t
-    
-    // GQ can be missing (".") in this VCF file; The htslib version
-    // used right now does not return a negative value in that case,
-    // so we can't check for it.  As it turns out, all homozygous
-    // good quality calls for alt allele have GQ values, so it doesn't matter
-    // here, but it's important to keep in mind.
-    int af1_arr =0;
-    int *af1 = NULL;
-    int naf1 = bcf_get_format_float(hdr, rec, "AF1", &af1, &af1_arr);
-    //    fprintf(stderr,"af1_ar:%d naf1:%d\n",af1_arr,naf1);
-    ngq = bcf_get_format_int32(hdr, rec, "GQ", &gq, &ngq_arr);
-    ndp = bcf_get_format_int32(hdr, rec, "DP", &dp, &ndp_arr);
-    ngt = bcf_get_format_int32(hdr, rec, "GT", &gt, &ngt_arr);
+#if 0
+    ngl = bcf_get_format_float(hdr, rec, "GL", &gl, &ngl_arr);
+#endif
     npl = bcf_get_format_int32(hdr, rec, "PL", &pl, &npl_arr);
-    //    fprintf(stderr,"npl:%f npl_arry:%d\n",npl,npl_arr);
-    ngl = bcf_get_format_int32(hdr, rec, "GL", &gl, &ngl_arr);
-    //fprintf(stderr,"rec->pos:%d ngq: %d ndp:%d ngt:%d npl:%d ngl:%d rec->n_allele:%d\n",rec->pos,ngq,ndp,ngt,npl,ngl,rec->n_allele);
+    
+    naf = bcf_get_info_float(hdr, rec, "AF1", &af, &naf_arr);
+    //    fprintf(stderr,"rec->pos:%d npl:%d ngl:%d naf:%d rec->n_allele:%d af[0]:%f\n",rec->pos,npl,ngl,naf,rec->n_allele,af[0]);
 
     //if multiple alt alleles then n_allele>3. We only care about diallelic ref/alt alleless
     //		if(rec->n_allele==4) fprintf(stdout,"\n%s\n",rec->d.allele[2]);
@@ -228,8 +193,6 @@ int getgls(char*fname,std::vector<double *> &mygl, std::vector<double> &freqs,in
 
     int offs = rec->n_allele==2?3:6;
       
-      
-    // fprintf(stdout,"ngq:%d ndp:%d ngt:%d npl:%d ngl:%d offs:%d\n",ngq,ndp,ngt,npl,ngl,offs);
     //lets only deal with pl for now.
     double *tmp = new double[3*nsamples];
     int keepInd=0;
@@ -237,8 +200,9 @@ int getgls(char*fname,std::vector<double *> &mygl, std::vector<double> &freqs,in
     //  memset(keep,'0',nsamples);
     for(int n=0;n<nsamples;n++){
       for(int nn=0;nn<3;nn++){
+	//fprintf(stderr,"%d\n",pl[n*offs+nn]);
 	tmp[n*3+nn] = pl2ln[pl[n*offs+nn]];
-	//  fprintf(stderr,"%d\n",pl[n*6+nn]);
+	// 
       }
       double *ary= tmp+n*3;
       if(ary[0]==ary[1]&&ary[0]==ary[2])
@@ -249,7 +213,12 @@ int getgls(char*fname,std::vector<double *> &mygl, std::vector<double> &freqs,in
 	}
       
     }
-    double freq = emFrequency(tmp,nsamples,50,0.05,keep,keepInd);
+    double freq;
+    if(naf==1)
+      freq = af[0];
+    else
+      freq= emFrequency(tmp,nsamples,50,0.05,keep,keepInd);
+    // fprintf(stdout,"%f %f\n",af[0],freq);;
     //    fprintf(stdout,"%d %f\n",keepInd,freq);
     //exit(0);
     //filtering
@@ -279,21 +248,12 @@ int getgls(char*fname,std::vector<double *> &mygl, std::vector<double> &freqs,in
       delete [] tmp;
   }
   fprintf(stderr, "Read %i records %i of which were SNPs number of sites with data:%lu\n", n, nsnp,mygl.size());
-  free(gq);
-  free(gt);
-  free(dp);
-  free(seqnames);
-  free(pl);
+   free(pl);
   bcf_hdr_destroy(hdr);
   bcf_close(inf);
   bcf_destroy(rec);
   return nsamples;
- error2:
-  free(seqnames);
- error1:
-  bcf_close(inf);
-  bcf_hdr_destroy(hdr);
-  return 0;
+ 
 }
 
 #ifdef __WITH_MAIN__
