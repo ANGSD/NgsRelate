@@ -80,7 +80,7 @@ double p000000001[9] = {TINY / 8.0, TINY / 8.0, TINY / 8.0,
 int num_threads = 4;
 char *freqname=NULL;
 char *gname=NULL;
-int maxIter =2000;
+int maxIter =5000;
 double tole =1e-9;
 int n=-1;
 int seed=100;
@@ -388,14 +388,10 @@ int em3(double *sfs,double  **emis, int len){
 void emission_ngsrelate9(double *freq,double **l1,double **l2,double **emis,int len){
 
   for(int i=0;i<len;i++){
-    // double freqA=freq[i];
-    // double freqa=1-freqA;
     double freqa=freq[i];
     double freqA=1-freqa;
 
-    // ##00&00 S1
-    // emis<- cbind(freq0,freq0^2,freq0^2, freq0^3,freq0^2,freq0^3, freq0^2,freq0^3,freq0^4)*gl1[1,]*gl2[1,]
-    //1 E<-cbind(freqA^4,freqA^3,freqA^2)*l1[,1]*l2[,1];
+    // ##00&00
     // G_real=(AA,AA)
     emis[i][0] = pow(freqA, 4) * l1[i][0] * l2[i][0];
     emis[i][1] = pow(freqA, 3) * l1[i][0] * l2[i][0];
@@ -407,111 +403,7 @@ void emission_ngsrelate9(double *freq,double **l1,double **l2,double **emis,int 
     emis[i][7] = pow(freqA, 2) * l1[i][0] * l2[i][0];
     emis[i][8] = freqA * l1[i][0] * l2[i][0];
 
-    // ##00&01 S3
-    // emis <- emis + cbind(0,0,freq0*freq1, 2*freq0^2*freq1,0,0,0,freq0^2*freq1,2*freq0^3*freq1)*gl1[1,]*gl2[2,]
-    // 2   E<-E+cbind(2*freqA^3*freqa,1*freqA^2*freqa,0)*l1[,1]*l2[,2] ;		#
-    // G_real=(AA,Aa)
-    emis[i][0] += 2 * pow(freqA, 3) * freqa * l1[i][0] * l2[i][1];
-    emis[i][1] += pow(freqA, 2) * freqa * l1[i][0] * l2[i][1];
-    emis[i][2] += 0;
-    emis[i][3] += 0;
-    emis[i][4] += 0;
-    emis[i][5] += 2 * pow(freqA, 2) * freqa * l1[i][0] * l2[i][1];
-    emis[i][6] += freqA * freqa * l1[i][0] * l2[i][1];
-    emis[i][7] += 0;
-    emis[i][8] += 0;
-
-    // ##00&11 S2
-    // E<-E+cbind(1*freqA^2*freqa^2,0,0)*l1[,1]*l2[,3]				#
-    // G_real=(AA,aa)
-    emis[i][0] += pow(freqA, 2) * pow(freqa, 2) * l1[i][0] * l2[i][2];
-    emis[i][1] += 0;
-    emis[i][2] += 0;
-    emis[i][3] += pow(freqA, 2) * freqa * l1[i][0] * l2[i][2];
-    emis[i][4] += 0;
-    emis[i][5] += freqA * pow(freqa, 2) * l1[i][0] * l2[i][2];
-    emis[i][6] += 0;
-    emis[i][7] += freqA * freqa * l1[i][0] * l2[i][2];
-    emis[i][8] += 0;
-
-    // ##01&00 S5
-    // E<-E+cbind(2*freqA^3*freqa,1*freqA^2*freqa,0)*l1[,2]*l2[,1]			#
-    // G_real=(Aa,AA)
-    emis[i][0] += 2 * pow(freqA, 3) * freqa * l1[i][1] * l2[i][0];
-    emis[i][1] += pow(freqA, 2) * freqa * l1[i][1] * l2[i][0];
-    emis[i][2] += 0;
-    emis[i][3] += 2 * pow(freqA, 2) * freqa * l1[i][1] * l2[i][0];
-    emis[i][4] += freqA * freqa * l1[i][1] * l2[i][0];
-    emis[i][5] += 0;
-    emis[i][6] += 0;
-    emis[i][7] += 0;
-    emis[i][8] += 0;
-
-    // ##01&01 S7
-    // emis <- emis + cbind(0,0,0, 0,0,0,
-    // 2*freq0*freq1,freq1*freq0,4*freq1^2*freq0^2)*gl1[2,]*gl2[2,]
-    // 5
-    // E<-E+cbind(4*freqA^2*freqa^2,freqA*freqa,2*freqA*freqa)*l1[,2]*l2[,2]
-    // G_real=(Aa,Aa)
-    emis[i][0] += 4 * pow(freqA, 2) * pow(freqa, 2) * l1[i][1] * l2[i][1];
-    emis[i][1] += freqA * freqa * l1[i][1] * l2[i][1];
-    emis[i][2] += 2 * freqA * freqa * l1[i][1] * l2[i][1];
-    emis[i][3] += 0;
-    emis[i][4] += 0;
-    emis[i][5] += 0;
-    emis[i][6] += 0;
-    emis[i][7] += 0;
-    emis[i][8] += 0;
-
-    // ##01&11 S5
-    // emis <- emis + cbind(0,0,0, 0,freq0*freq1,2*freq1^2*freq0,
-    // 0,freq1^2*freq0,2*freq1^3*freq0)*gl1[2,]*gl2[3,]
-    // 6  E<-E+cbind(2*freqA*freqa^3,1*freqA*freqa^2,0)*l1[,2]*l2[,3]
-    // G_real=(Aa,aa)
-    emis[i][0] += 2 * freqA * pow(freqa, 3) * l1[i][1] * l2[i][2];
-    emis[i][1] += freqA * pow(freqa, 2) * l1[i][1] * l2[i][2];
-    emis[i][2] += 0;
-    emis[i][3] += 2 * freqA * pow(freqa, 2) * l1[i][1] * l2[i][2];
-    emis[i][4] += freqA * freqa * l1[i][1] * l2[i][2];
-    emis[i][5] += 0;
-    emis[i][6] += 0;
-    emis[i][7] += 0;
-    emis[i][8] += 0;
-
-    // ##11&00
-    // emis <- emis + cbind(0,freq0*freq1,0,    freq0^2*freq1,0,freq1^2*freq0,
-    // 0,0,freq1^2*freq0^2)*gl1[3,]*gl2[1,]
-    // 7  E<-E+cbind(1*freqA^2*freqa^2,0,0)*l1[,3]*l2[,1]
-    // G_real=(aa,AA)
-    emis[i][0] += pow(freqA, 2) * pow(freqa, 2) * l1[i][2] * l2[i][0];
-    emis[i][1] += 0;
-    emis[i][2] += 0;
-    emis[i][3] += freqA * pow(freqa, 2) * l1[i][2] * l2[i][0];
-    emis[i][4] += 0;
-    emis[i][5] += pow(freqA, 2) * freqa * l1[i][2] * l2[i][0];
-    emis[i][6] += 0;
-    emis[i][7] += freqA * freqa * l1[i][2] * l2[i][0];
-    emis[i][8] += 0;
-
-    // ##11&01 S3
-    // emis <- emis + cbind(0,0,freq0*freq1, 2*freq1^2*freq0,0,0,
-    // 0,freq1^2*freq0,2*freq1^3*freq0)*gl1[3,]*gl2[2,]
-    // 8  E<-E+cbind(2*freqA*freqa^3,1*freqA*freqa^2,0)*l1[,3]*l2[,2]
-    // # G_real=(aa,Aa)
-    emis[i][0] += 2 * freqA * pow(freqa, 3) * l1[i][2] * l2[i][1];
-    emis[i][1] += freqA * pow(freqa, 2) * l1[i][2] * l2[i][1];
-    emis[i][2] += 0;
-    emis[i][3] += 0;
-    emis[i][4] += 0;
-    emis[i][5] += 2 * freqA * pow(freqa, 2) * l1[i][2] * l2[i][1];
-    emis[i][6] += freqA * freqa * l1[i][2] * l2[i][1];
-    emis[i][7] += 0;
-    emis[i][8] += 0;
-
-    // ##11&11 S1
-    // emis <- emis + cbind(freq1,freq1^2,freq1^2, freq1^3,freq1^2,freq1^3,
-    // freq1^2,freq1^3,freq1^4)*gl1[3,]*gl2[3,]
-    // 9  E<-E+cbind(freqa^4,freqa^3,freqa^2)*l1[,3]*l2[,3]
+    // ##11&11
     // G_real=(aa,aa)
     emis[i][0] += pow(freqa, 4) * l1[i][2] * l2[i][2];
     emis[i][1] += pow(freqa, 3) * l1[i][2] * l2[i][2];
@@ -523,6 +415,89 @@ void emission_ngsrelate9(double *freq,double **l1,double **l2,double **emis,int 
     emis[i][7] += pow(freqa, 2) * l1[i][2] * l2[i][2];
     emis[i][8] += freqa * l1[i][2] * l2[i][2];
 
+    // ##00&11
+    // G_real=(AA,aa)
+    emis[i][0] += pow(freqA, 2) * pow(freqa, 2) * l1[i][0] * l2[i][2];
+    emis[i][1] += 0;
+    emis[i][2] += 0;
+    emis[i][3] += pow(freqA, 2) * freqa * l1[i][0] * l2[i][2];
+    emis[i][4] += 0;
+    emis[i][5] += freqA * pow(freqa,2) * l1[i][0] * l2[i][2];
+    emis[i][6] += 0;
+    emis[i][7] += freqA * freqa * l1[i][0] * l2[i][2];
+    emis[i][8] += 0;
+
+    // ##11&00
+    // G_real=(aa,AA)
+    emis[i][0] += pow(freqA, 2) * pow(freqa, 2) * l1[i][2] * l2[i][0];
+    emis[i][1] += 0;
+    emis[i][2] += 0;
+    emis[i][3] += freqA * pow(freqa, 2) * l1[i][2] * l2[i][0];
+    emis[i][4] += 0;
+    emis[i][5] += pow(freqA, 2) * freqa * l1[i][2] * l2[i][0];
+    emis[i][6] += 0;
+    emis[i][7] += freqA * freqa * l1[i][2] * l2[i][0];
+    emis[i][8] += 0;
+
+    // ##00&01
+    // G_real=(AA,Aa)
+    emis[i][0] += 2 * pow(freqA, 3) * freqa * l1[i][0] * l2[i][1];
+    emis[i][1] += pow(freqA, 2) * freqa * l1[i][0] * l2[i][1];
+    emis[i][2] += 0;
+    emis[i][3] += 0;
+    emis[i][4] += 0;
+    emis[i][5] += 2 * pow(freqA, 2) * freqa * l1[i][0] * l2[i][1];
+    emis[i][6] += freqA * freqa * l1[i][0] * l2[i][1];
+    emis[i][7] += 0;
+    emis[i][8] += 0;
+
+    // ##11&01
+    // # G_real=(aa,Aa)
+    emis[i][0] += 2 * freqA * pow(freqa, 3) * l1[i][2] * l2[i][1];
+    emis[i][1] += freqA * pow(freqa, 2) * l1[i][2] * l2[i][1];
+    emis[i][2] += 0;
+    emis[i][3] += 0;
+    emis[i][4] += 0;
+    emis[i][5] += 2 * freqA * pow(freqa, 2) * l1[i][2] * l2[i][1];
+    emis[i][6] += freqA * freqa * l1[i][2] * l2[i][1];
+    emis[i][7] += 0;
+    emis[i][8] += 0;
+
+    // ##01&00
+    // G_real=(Aa,AA)
+    emis[i][0] += 2 * pow(freqA, 3) * freqa * l1[i][1] * l2[i][0];
+    emis[i][1] += pow(freqA, 2) * freqa * l1[i][1] * l2[i][0];
+    emis[i][2] += 0;
+    emis[i][3] += 2 * pow(freqA, 2) * freqa * l1[i][1] * l2[i][0];
+    emis[i][4] += freqA * freqa * l1[i][1] * l2[i][0];
+    emis[i][5] += 0;
+    emis[i][6] += 0;
+    emis[i][7] += 0;
+    emis[i][8] += 0;
+
+    // ##01&11
+    // G_real=(Aa,aa)
+    emis[i][0] += 2 * freqA * pow(freqa, 3) * l1[i][1] * l2[i][2];
+    emis[i][1] += freqA * pow(freqa, 2) * l1[i][1] * l2[i][2];
+    emis[i][2] += 0;
+    emis[i][3] += 2 * freqA * pow(freqa, 2) * l1[i][1] * l2[i][2];
+    emis[i][4] += freqA * freqa * l1[i][1] * l2[i][2];
+    emis[i][5] += 0;
+    emis[i][6] += 0;
+    emis[i][7] += 0;
+    emis[i][8] += 0;
+
+    // ##01&01 S7
+    // G_real=(Aa,Aa)
+    emis[i][0] += 4 * pow(freqA, 2) * pow(freqa, 2) * l1[i][1] * l2[i][1];
+    emis[i][1] += freqA * freqa * (freqA + freqa) * l1[i][1] * l2[i][1];
+    emis[i][2] += 2 * freqA * freqa * l1[i][1] * l2[i][1];
+    emis[i][3] += 0;
+    emis[i][4] += 0;
+    emis[i][5] += 0;
+    emis[i][6] += 0;
+    emis[i][7] += 0;
+    emis[i][8] += 0;
   }
 }
 
@@ -1009,12 +984,6 @@ void * do_work(void *threadarg){
     td->niter = em2(td->pars, emis, td->nkeep);
   else // below might not work
     td->niter = em3(td->pars, emis, td->nkeep);
-  // if (model == 0)
-  //   td->niter = em1(td->pars, emis, tole, maxIter, td->nkeep, verbose);
-  // else if (model == 1)
-  //   td->niter = em2(td->pars, emis, tole, maxIter, td->nkeep, verbose);
-  // else // below might not work
-  //   td->niter = em3(td->pars, emis, tole, maxIter, td->nkeep, verbose);
 
   double l100000000 = loglike(p100000000, emis, td->nkeep);
   double l010000000 = loglike(p010000000, emis, td->nkeep);
@@ -1040,6 +1009,13 @@ void * do_work(void *threadarg){
       td->bestll = likes[i];
     }
   }
+
+  // double newpars[9] = {0.0625, 0.3125, 0.21875,
+  //                      0.03125, 0.125, 0.03125,
+  //                      0.125, 0.03125, 0.0625};
+
+  // double newlopt = loglike(newpars, emis, td->nkeep);
+  // fprintf(stdout, "%f is the likelihood of the correct estimates\n", newlopt);
 
   // end of work. Teardown
   for (size_t i = 0; i < td->freq->size(); i++) {
@@ -1181,39 +1157,44 @@ int main(int argc, char **argv){
     }
 #endif
     for(int i=0;i<nTimes;i++){
-      all_args[cnt+i].thread_id = i;
+      all_args[cnt + i].thread_id = i;
       pthread_create(&threads[i],NULL,do_work,&all_args[cnt+i]);
     }
 
     for(int i=0;i<nTimes;i++){
       pthread_join(threads[i], NULL);
+
+      // printing results for threads[i]
+      if (ids.size()) {
+        fprintf(stdout, "%d\t%d\t%s\t%s\t%d", all_args[cnt + i].a,
+                all_args[cnt + i].b, ids[all_args[cnt + i].a],
+                ids[all_args[cnt + i].b], all_args[cnt + i].nkeep);
+      } else {
+        fprintf(stdout, "%d\t%d\t%d", all_args[cnt + i].a, all_args[cnt + i].b,
+                all_args[cnt + i].nkeep);
+      }
+
+      if (all_args[cnt + i].best == 9) {
+        for (int j = 0; j < 9; j++) {
+          fprintf(stdout, "\t%f", all_args[cnt + i].pars[j]);
+        }
+        fprintf(stdout, "\t%f\t%d\t%f\n", all_args[cnt + i].ll,
+                all_args[cnt + i].niter,
+                (1.0 * all_args[cnt + i].nkeep) / total_sites);
+      } else {
+        for (int j = 0; j < 9; j++) {
+          fprintf(stdout, "\t%f", all_args[cnt + i].pars[j]);
+        }
+        fprintf(stdout, "\t%f;s%d_%f\t%d\t%f\n", all_args[cnt + i].ll,
+                9 - all_args[cnt + i].best, all_args[cnt + i].bestll, -1,
+                (1.0 * all_args[cnt + i].nkeep) / total_sites);
+      }
+
     }
-    cnt+=nTimes;
+    cnt += nTimes;
     fprintf(stderr, "\t-> Processed %d out of %d\r", cnt, comparison_ids);
   }
 
-  for (int i=0; i<comparison_ids; i++){
-    if (ids.size()) {
-      fprintf(stdout, "%d\t%d\t%s\t%s\t%d", all_args[i].a, all_args[i].b, ids[all_args[i].a], ids[all_args[i].b], all_args[i].nkeep);
-    } else {
-      fprintf(stdout, "%d\t%d\t%d", all_args[i].a, all_args[i].b, all_args[i].nkeep);
-    }
-
-    if (all_args[i].best == 9) {
-      for (int j = 0; j<9; j++){
-        fprintf(stdout, "\t%f", all_args[i].pars[j]);
-      }
-      fprintf(stdout, "\t%f\t%d\t%f\n", all_args[i].ll, all_args[i].niter, (1.0 * all_args[i].nkeep) / total_sites);
-    } else {
-      for (int j = 0; j<9; j++){
-        fprintf(stdout, "\t%f", all_args[i].pars[j]);
-      }
-      fprintf(stdout,
-              "\t%f;s%d_%f\t%d\t%f\n", all_args[i].ll, 9-all_args[i].best, all_args[i].bestll, -1, (1.0 * all_args[i].nkeep) / total_sites
-              );
-    }
-
-  }
   fflush(stdout);
   for (size_t i = 0; i < freq.size(); i++) {
     delete[] gls[i];
