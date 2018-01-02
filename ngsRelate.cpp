@@ -17,6 +17,9 @@
 #include <map>
 #include <libgen.h>  // basename
 #include <pthread.h> // threading
+#ifdef __WITH_BCF__
+#include "vcf.h"
+#endif
 
 #define LENS  4096
 int refToInt[256] = {
@@ -548,15 +551,15 @@ double **getGL(const char *fname, int sites, int nInd) {
   return ret;
 }
 
-std::vector<double> getDouble(const char *fname) {
+size_t getDouble(const char *fname,std::vector<double> &ret) {
+  assert(ret.size()==0);
   gzFile gz = Z_NULL;
   if (((gz = gzopen(fname, "r"))) == Z_NULL) {
-    fprintf(stderr, "Problem opening file:%s\n", fname);
+    fprintf(stderr, "[%s]\t-> Problem opening file:%s\n",__FUNCTION__, fname);
     exit(0);
   }
   int nbytes=10000;
   char *buf = new char[nbytes];
-  std::vector<double> ret;
   while (gzgets(gz, buf, nbytes)) {
     // reads line by line
     ret.push_back(atof(buf));
@@ -565,7 +568,7 @@ std::vector<double> getDouble(const char *fname) {
           fname, ret.size());
   gzclose(gz);
   delete[] buf;
-  return ret;
+  return ret.size();
 }
 
 
@@ -591,6 +594,7 @@ void print_info(FILE *fp){
   fprintf(fp, "\n");
   fprintf(fp,"Or\n ./ngsrelate extract_freq_bim pos.glf.gz plink.bim plink.freq\n");
   fprintf(fp,"Or\n ./ngsrelate extract_freq .mafs.gz .pos.glf.gz [-rmTrans]\n");
+  fprintf(fp,"Or\n ./ngsrelate -h my.bcf [DEVELOPMENT]\n");
   exit(0);
 }
 
@@ -1040,8 +1044,8 @@ int main(int argc, char **argv){
   if(strcasecmp(argv[1],"extract_freq")==0)
     return extract_freq(--argc,++argv);
 
-
-  while ((n = getopt(argc, argv, "f:i:t:r:g:m:v:s:F:c:e:a:b:n:l:z:p:")) >= 0) {
+  char *htsfile=NULL;
+  while ((n = getopt(argc, argv, "f:i:t:r:g:m:v:s:F:c:e:a:b:n:l:z:p:h:")) >= 0) {
     switch (n) {
     case 'f': freqname = strdup(optarg); break;
     case 'i': maxIter = atoi(optarg); break;
@@ -1058,29 +1062,61 @@ int main(int argc, char **argv){
     case 'p': num_threads = atoi(optarg);break;
     case 'e': errate = atof(optarg); break;
     case 'l': minMaf = atof(optarg); break;
+    case 'h': htsfile = strdup(optarg); break;
     case 'z': readids(ids,optarg); break;
     default: {fprintf(stderr,"unknown arg:\n");return 0;}
       print_info(stderr);
     }
   }
+#ifndef __WITH_BCF__
+  if(htsfile){
+    fprintf(stderr,"\t-> Must compile with -D__WITH_BCF__ for using htsfiles\n");
+    return 0;
+  }
+#endif
+    
 
-  if (hasDef == 0) {
-    fprintf(stderr, "\t-> -n parameter has not been supplied. Will assume that "
-                    "file contains 2 samples...\n");
+  if (hasDef == 0&&htsfile==NULL) {
+  fprintf(stderr, "\t-> -n parameter has not been supplied. Will assume that "
+    "file contains 2 samples...\n");
   }
   if (ids.size() != 0 && ids.size() != nind) {
     fprintf(stderr, "\t-> Number of names doesnt match the -n parameter\n");
   }
   srand48(seed);
-  if (nind == -1 || freqname == NULL || gname == NULL) {
-    fprintf(stderr, "\t-> Must supply -n -f -g parameters (%d,%s,%s)\n", nind,
+  if ((nind == -1 || freqname == NULL || gname == NULL)&&htsfile==NULL) {
+    fprintf(stderr, "\t-> Must supply -n -f -g parameters (%d,%s,%s) OR -h file.bcf\n", nind,
             freqname, gname);
     return 0;
   }
 
   pthread_t threads[num_threads];
 
-  std::vector<double> freq = getDouble(freqname);
+  std::vector<double> freq;
+  double **gls=NULL;
+
+
+  if(htsfile==NULL){
+    getDouble(freqname,freq);
+    gls = getGL(gname, freq.size(), nind);
+  }
+#ifdef __WITH_BCF__
+  if(htsfile){
+    std::vector<double *> tmpgl;
+    nind=getgls(htsfile,tmpgl,freq,2,0.05);
+    gls=new double *[tmpgl.size()];
+    for(int i=0;i<tmpgl.size();i++)
+      gls[i] = tmpgl[i];
+  }
+  fprintf(stderr,"\t\t-> NIND:%d\n",nind);
+  for(int i=0;0&&i<freq.size();i++){
+    fprintf(stdout,"%f",freq[i]);
+    for(int ii=0;ii<3*nind;ii++)
+      fprintf(stdout,"\t%f",gls[i][ii]);
+    fprintf(stdout, "\n");
+  }
+  // exit(0);
+#endif
   double total_sites = (1.0 * freq.size());
   if (switchMaf) {
     fprintf(stderr, "\t-> switching frequencies\n");
@@ -1088,7 +1124,7 @@ int main(int argc, char **argv){
       freq[i] = 1 - freq[i];
   }
 
-  double **gls = getGL(gname, freq.size(), nind);
+
 #if 0
   print(stdout,freq.size(),3*nind,gls);
   exit(0);
@@ -1202,5 +1238,6 @@ int main(int argc, char **argv){
   delete[] gls;
   free(freqname);
   free(gname);
+  free(htsfile);
   return 0;
 }
