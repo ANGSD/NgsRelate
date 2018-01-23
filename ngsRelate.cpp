@@ -41,8 +41,7 @@ int refToInt[256] = {
   4,4,4,4,4,4,4,4,4,4,4,4,4,4,4,4//255
 };
 //this is as close to the bound we will allow
-float emTole=1e-12;
-double TINY=1e-12;
+double TINY=1e-6;
 double p100000000[9] = {1 - TINY,   TINY / 8.0, TINY / 8.0,
                         TINY / 8.0, TINY / 8.0, TINY / 8.0,
                         TINY / 8.0, TINY / 8.0, TINY / 8.0};
@@ -84,7 +83,7 @@ int num_threads = 4;
 char *freqname=NULL;
 char *gname=NULL;
 int maxIter =5000;
-double tole =1e-9;
+double tole =1e-6;
 int n=-1;
 int seed=100;
 int model =1;
@@ -97,9 +96,10 @@ int switchMaf = 0;
 int verbose = 0;
 double minMaf =0.05;
 int hasDef = 0;
-double ttol=1e-9;
+double ttol=1e-6;
 std::vector<char *> ids;
 
+float emTole=1e-12;
 
 void stayin(double *post){
   for(int i=0;i<9;i++){
@@ -110,6 +110,9 @@ void stayin(double *post){
   }
 }
 
+double access_genotype(double **gls, const int & site, const int & indi, const int & geno){
+  return gls[site][indi * 3 + geno];
+}
 
 void normalize(double *tmp,int len){
   double s=0;
@@ -136,7 +139,6 @@ void print(FILE *fp,int x,double *m){
 }
 
 double loglike(double *p,double **emis,int len){
-  //  fprintf(stderr,"%f %f %f\n",p[0],p[1],p[2]);
   double ret =0;
   for(int i=0;i<len;i++){
     double tmp = 0;
@@ -190,24 +192,22 @@ void emStep1(double *pre,double **emis,double *post,int len){
   }
 }
 
-void minus(double fst[9],double sec[9],double res[9]){
+void minus(double * fst,double * sec,double * res){
   for(int i=0;i<9;i++)
     res[i] = fst[i]-sec[i];
 }
 
-double sumSquare(double mat[9]){
+double sumSquare(double * mat){
   double tmp=0;
   for(size_t i=0;i<9;i++){
-    //    fprintf(stderr,"%f \n",mat[i]);
     tmp += mat[i]*mat[i];
   }
   return tmp;
 }
 
 int emAccel(double *F,double **emis,double *F_new,int len, int & niter){
-  //  fprintf(stderr,"calling emaccel \n");
-  //  fprintf(stderr,"tol:%f\n",tol);
-  //maybe these should be usersettable?
+  //  maybe these should be usersettable?
+
   double stepMin =1;
   double stepMax0 = 1;
   static double stepMax=stepMax0;
@@ -224,25 +224,28 @@ int emAccel(double *F,double **emis,double *F_new,int len, int & niter){
   niter++;
   emStep1(F, emis, F_em1, len);
   // stayin(F_em1);
+  
   minus(F_em1, F, F_diff1);
-  double sr2 = sumSquare(F_diff1);
 
+  // for (int ix=0; ix<9;ix++)
+  //   fprintf(stderr,"F_diff1: %d: %lf, %lf, %lf\n",ix,F_diff1[ix], F_em1[ix], F[ix]);
+
+  double sr2 = sumSquare(F_diff1);
+  
   if(sqrt(sr2)<ttol){
-    // fprintf(stderr,"sr2 break:%f\n",sr2);
+    // fprintf(stderr,"sr2 break: %e\n", sqrt(sr2));
     return 0;
   }
   niter++;
   emStep1(F_em1, emis, F_em2, len);
-  //  stayin(F_em2);
   minus(F_em2, F_em1, F_diff2);
 
   double sq2 = sumSquare(F_diff2);
-  if(sqrt(sq2)<ttol){
-    //fprintf(stderr,"sq2\n");
-    return 0;
-    //    break;
-  }
 
+  if(sqrt(sq2)<ttol){
+    // fprintf(stderr,"sq2 break: %e\n", sqrt(sq2));
+    return 0;
+  }
 
   minus(F_diff2,F_diff1, F_diff3);
 
@@ -250,9 +253,12 @@ int emAccel(double *F,double **emis,double *F_new,int len, int & niter){
 
   double alpha = sqrt(sr2/sv2);
   alpha = std::max(stepMin,std::min(stepMax,alpha));
-  for(size_t i=0;i<9;i++)
+  for(size_t i=0;i<9;i++){
     F_new[i] = F[i]+2*alpha*F_diff1[i]+alpha*alpha*F_diff3[i];
-  //  fprintf(stderr,"F_new (this the linear jump: (%f,%f,%f)\n",F_new[0],F_new[1],F_new[2]);
+  }
+  
+  // fprintf(stderr,"%d: F_new (this the linear jump: (%f,%f,%f,%f,%f,%f,%f,%f,%f)\n", niter,F_new[0],F_new[1],F_new[2],F_new[3],F_new[4],F_new[5],F_new[6],F_new[7],F_new[8]);
+  
   int outofparspace =0;
   for(int i=0;i<9;i++){
     if(F_new[i]<0||F_new[i]>1){
@@ -261,17 +267,14 @@ int emAccel(double *F,double **emis,double *F_new,int len, int & niter){
     }
   }
   if(outofparspace){
-    // fprintf(stderr,"outofparspace will use second emstep as jump\n");
+    fprintf(stderr,"outofparspace will use second emstep as jump\n");
     for(int i=0;i<9;i++)
       F_new[i] = F_em2[i];
-    return 1;
   }
-
 
   if (fabs(alpha - 1) > 0.01){
     niter++;
     emStep1(F_new,emis,F_tmp,len);
-    //    stayin(F_tmp);
     for(int i=0;i<9;i++)
       std::swap(F_new[i],F_tmp[i]);
   }
@@ -289,7 +292,7 @@ int em1(double *sfs,double  **emis, int len){
   double oldLik,lik;
   oldLik = loglike(sfs,emis,len);
   if(verbose)
-    fprintf(stderr,"startlik=%f %f %f %f\n",oldLik,sfs[0],sfs[1],sfs[2]);
+    fprintf(stderr,"startlik=%f est: %f %f %f %f %f %f %f %f %f\n",oldLik,sfs[0],sfs[1],sfs[2],sfs[3],sfs[4],sfs[5],sfs[6],sfs[7],sfs[8]);
   fflush(stderr);
 
   double tmp[9];
@@ -384,124 +387,195 @@ int em3(double *sfs,double  **emis, int len){
     oldLik=lik;
 
   }
-
   return it;
 }
 
-void emission_ngsrelate9(double *freq,double **l1,double **l2,double **emis,int len){
+// https://www.daniweb.com/programming/software-development/code/217332/round-double-to-n-decimal-places
+void round_nplaces(double &value, const uint32_t &to)
+{
+    uint32_t places = 1, whole = *(&value);
+    for(uint32_t i = 0; i < to; i++) places *= 10;
+    value -= whole; //leave decimals
+    value *= places;  //0.1234 -> 123.4
+    value  = round(value);//123.4 -> 123
+    value /= places;  //123 -> .123
+    value += whole; //bring the whole value back
+}
 
-  for(int i=0;i<len;i++){
-    double freqa=freq[i];
+void emission_ngsrelate9(std::vector<double> * freq, double **gls, double **emis, int *keeplist, int & nkeep, int & ind1, int & ind2 ){
+  // access_genotype(td->gls, i, td->a, 0);
+  int i;
+  for(int x=0;x<nkeep;x++){
+    i = keeplist[x];
+    double freqa=freq->at(i);  // alternative allele frequency
     double freqA=1-freqa;
-
+    
+    // i == freqA == freq0
+    // j == freqa == freq1
+    // emis<- cbind(freq0,freq0^2,freq0^2, freq0^3,freq0^2,freq0^3, freq0^2,freq0^3,freq0^4)*gl1[1,]*gl2[1,]
     // ##00&00
     // G_real=(AA,AA)
-    emis[i][0] = pow(freqA, 4) * l1[i][0] * l2[i][0];
-    emis[i][1] = pow(freqA, 3) * l1[i][0] * l2[i][0];
-    emis[i][2] = pow(freqA, 2) * l1[i][0] * l2[i][0];
-    emis[i][3] = pow(freqA, 3) * l1[i][0] * l2[i][0];
-    emis[i][4] = pow(freqA, 2) * l1[i][0] * l2[i][0];
-    emis[i][5] = pow(freqA, 3) * l1[i][0] * l2[i][0];
-    emis[i][6] = pow(freqA, 2) * l1[i][0] * l2[i][0];
-    emis[i][7] = pow(freqA, 2) * l1[i][0] * l2[i][0];
-    emis[i][8] = freqA * l1[i][0] * l2[i][0];
+    double AAAA = access_genotype(gls, i, ind1, 0) * access_genotype(gls, i, ind2, 0);
+    emis[x][0] = pow(freqA, 4) * AAAA;
+    emis[x][1] = pow(freqA, 3) * AAAA;
+    emis[x][2] = pow(freqA, 2) * AAAA;
+    emis[x][3] = pow(freqA, 3) * AAAA;
+    emis[x][4] = pow(freqA, 2) * AAAA;
+    emis[x][5] = pow(freqA, 3) * AAAA;
+    emis[x][6] = pow(freqA, 2) * AAAA;
+    emis[x][7] = pow(freqA, 2) * AAAA;
+    emis[x][8] = freqA * AAAA;
 
+    // emis <- emis + cbind(freq1,freq1^2,freq1^2, freq1^3,freq1^2,freq1^3, freq1^2,freq1^3,freq1^4)*gl1[3,]*gl2[3,]
     // ##11&11
     // G_real=(aa,aa)
-    emis[i][0] += pow(freqa, 4) * l1[i][2] * l2[i][2];
-    emis[i][1] += pow(freqa, 3) * l1[i][2] * l2[i][2];
-    emis[i][2] += pow(freqa, 2) * l1[i][2] * l2[i][2];
-    emis[i][3] += pow(freqa, 3) * l1[i][2] * l2[i][2];
-    emis[i][4] += pow(freqa, 2) * l1[i][2] * l2[i][2];
-    emis[i][5] += pow(freqa, 3) * l1[i][2] * l2[i][2];
-    emis[i][6] += pow(freqa, 2) * l1[i][2] * l2[i][2];
-    emis[i][7] += pow(freqa, 2) * l1[i][2] * l2[i][2];
-    emis[i][8] += freqa * l1[i][2] * l2[i][2];
+    double aaaa = access_genotype(gls, i, ind1, 2) * access_genotype(gls, i, ind2, 2);
+    emis[x][0] += pow(freqa, 4) * aaaa;
+    emis[x][1] += pow(freqa, 3) * aaaa;
+    emis[x][2] += pow(freqa, 2) * aaaa;
+    emis[x][3] += pow(freqa, 3) * aaaa;
+    emis[x][4] += pow(freqa, 2) * aaaa;
+    emis[x][5] += pow(freqa, 3) * aaaa;
+    emis[x][6] += pow(freqa, 2) * aaaa;
+    emis[x][7] += pow(freqa, 2) * aaaa;
+    emis[x][8] += freqa * aaaa;
 
+    // emis <- emis + cbind(0,freq0*freq1,0,    freq0*freq1^2,0,freq0^2*freq1  ,0,0,freq1^2*freq0^2)*gl1[1,]*gl2[3,]
     // ##00&11
     // G_real=(AA,aa)
-    emis[i][0] += pow(freqA, 2) * pow(freqa, 2) * l1[i][0] * l2[i][2];
-    emis[i][1] += 0;
-    emis[i][2] += 0;
-    emis[i][3] += pow(freqA, 2) * freqa * l1[i][0] * l2[i][2];
-    emis[i][4] += 0;
-    emis[i][5] += freqA * pow(freqa,2) * l1[i][0] * l2[i][2];
-    emis[i][6] += 0;
-    emis[i][7] += freqA * freqa * l1[i][0] * l2[i][2];
-    emis[i][8] += 0;
+    double AAaa = access_genotype(gls, i, ind1, 0) * access_genotype(gls, i, ind2, 2);
+    emis[x][0] += pow(freqA, 2) * pow(freqa, 2) * AAaa;
+    emis[x][1] += 0;
+    emis[x][2] += 0;
+    emis[x][3] += pow(freqA, 2) * freqa * AAaa;
+    emis[x][4] += 0;
+    emis[x][5] += freqA * pow(freqa,2) * AAaa;
+    emis[x][6] += 0;
+    emis[x][7] += freqA * freqa * AAaa;
+    emis[x][8] += 0;
 
+    // emis <- emis + cbind(0,freq0*freq1,0,    freq0^2*freq1,0,freq1^2*freq0,  0,0,freq1^2*freq0^2)*gl1[3,]*gl2[1,]
     // ##11&00
     // G_real=(aa,AA)
-    emis[i][0] += pow(freqA, 2) * pow(freqa, 2) * l1[i][2] * l2[i][0];
-    emis[i][1] += 0;
-    emis[i][2] += 0;
-    emis[i][3] += freqA * pow(freqa, 2) * l1[i][2] * l2[i][0];
-    emis[i][4] += 0;
-    emis[i][5] += pow(freqA, 2) * freqa * l1[i][2] * l2[i][0];
-    emis[i][6] += 0;
-    emis[i][7] += freqA * freqa * l1[i][2] * l2[i][0];
-    emis[i][8] += 0;
+    double aaAA = access_genotype(gls, i, ind1, 2) * access_genotype(gls, i, ind2, 0);
+    emis[x][0] += pow(freqA, 2) * pow(freqa, 2) * aaAA;
+    emis[x][1] += 0;
+    emis[x][2] += 0;
+    emis[x][3] += freqA * pow(freqa, 2) * aaAA;
+    emis[x][4] += 0;
+    emis[x][5] += pow(freqA, 2) * freqa * aaAA;
+    emis[x][6] += 0;
+    emis[x][7] += freqA * freqa * aaAA;
+    emis[x][8] += 0;
 
+    // emis <- emis + cbind(0,0,freq0*freq1, 2*freq0^2*freq1,0,0, 0,freq0^2*freq1,2*freq0^3*freq1)*gl1[1,]*gl2[2,]
     // ##00&01
     // G_real=(AA,Aa)
-    emis[i][0] += 2 * pow(freqA, 3) * freqa * l1[i][0] * l2[i][1];
-    emis[i][1] += pow(freqA, 2) * freqa * l1[i][0] * l2[i][1];
-    emis[i][2] += 0;
-    emis[i][3] += 0;
-    emis[i][4] += 0;
-    emis[i][5] += 2 * pow(freqA, 2) * freqa * l1[i][0] * l2[i][1];
-    emis[i][6] += freqA * freqa * l1[i][0] * l2[i][1];
-    emis[i][7] += 0;
-    emis[i][8] += 0;
+    double AAAa = access_genotype(gls, i, ind1, 0) * access_genotype(gls, i, ind2, 1);
+    emis[x][0] += 2 * pow(freqA, 3) * freqa * AAAa;
+    emis[x][1] += pow(freqA, 2) * freqa * AAAa;
+    emis[x][2] += 0;
+    emis[x][3] += 0;
+    emis[x][4] += 0;
+    emis[x][5] += 2 * pow(freqA, 2) * freqa * AAAa;
+    emis[x][6] += freqA * freqa * AAAa;
+    emis[x][7] += 0;
+    emis[x][8] += 0;
 
+    // emis <- emis + cbind(0,0,freq0*freq1, 2*freq1^2*freq0,0,0, 0,freq1^2*freq0,2*freq1^3*freq0)*gl1[3,]*gl2[2,]
     // ##11&01
     // # G_real=(aa,Aa)
-    emis[i][0] += 2 * freqA * pow(freqa, 3) * l1[i][2] * l2[i][1];
-    emis[i][1] += freqA * pow(freqa, 2) * l1[i][2] * l2[i][1];
-    emis[i][2] += 0;
-    emis[i][3] += 0;
-    emis[i][4] += 0;
-    emis[i][5] += 2 * freqA * pow(freqa, 2) * l1[i][2] * l2[i][1];
-    emis[i][6] += freqA * freqa * l1[i][2] * l2[i][1];
-    emis[i][7] += 0;
-    emis[i][8] += 0;
+    double aaAa = access_genotype(gls, i, ind1, 2) * access_genotype(gls, i, ind2, 1);
+    emis[x][0] += 2 * freqA * pow(freqa, 3) * aaAa;
+    emis[x][1] += freqA * pow(freqa, 2) * aaAa;
+    emis[x][2] += 0;
+    emis[x][3] += 0;
+    emis[x][4] += 0;
+    emis[x][5] += 2 * freqA * pow(freqa, 2) * aaAa;
+    emis[x][6] += freqA * freqa * aaAa;
+    emis[x][7] += 0;
+    emis[x][8] += 0;
 
+    // emis <- emis + cbind(0,0,0, 0,freq0*freq1,2*freq0^2*freq1, 0,freq0^2*freq1,2*freq0^3*freq1)*gl1[2,]*gl2[1,]
     // ##01&00
     // G_real=(Aa,AA)
-    emis[i][0] += 2 * pow(freqA, 3) * freqa * l1[i][1] * l2[i][0];
-    emis[i][1] += pow(freqA, 2) * freqa * l1[i][1] * l2[i][0];
-    emis[i][2] += 0;
-    emis[i][3] += 2 * pow(freqA, 2) * freqa * l1[i][1] * l2[i][0];
-    emis[i][4] += freqA * freqa * l1[i][1] * l2[i][0];
-    emis[i][5] += 0;
-    emis[i][6] += 0;
-    emis[i][7] += 0;
-    emis[i][8] += 0;
+    double AaAA = access_genotype(gls, i, ind1, 1) * access_genotype(gls, i, ind2, 0);
+    emis[x][0] += 2 * pow(freqA, 3) * freqa * AaAA;
+    emis[x][1] += pow(freqA, 2) * freqa * AaAA;
+    emis[x][2] += 0;
+    emis[x][3] += 2 * pow(freqA, 2) * freqa * AaAA;
+    emis[x][4] += freqA * freqa * AaAA;
+    emis[x][5] += 0;
+    emis[x][6] += 0;
+    emis[x][7] += 0;
+    emis[x][8] += 0;
 
+    // emis <- emis + cbind(0,0,0, 0,freq0*freq1,2*freq1^2*freq0, 0,freq1^2*freq0,2*freq1^3*freq0)*gl1[2,]*gl2[3,]
     // ##01&11
     // G_real=(Aa,aa)
-    emis[i][0] += 2 * freqA * pow(freqa, 3) * l1[i][1] * l2[i][2];
-    emis[i][1] += freqA * pow(freqa, 2) * l1[i][1] * l2[i][2];
-    emis[i][2] += 0;
-    emis[i][3] += 2 * freqA * pow(freqa, 2) * l1[i][1] * l2[i][2];
-    emis[i][4] += freqA * freqa * l1[i][1] * l2[i][2];
-    emis[i][5] += 0;
-    emis[i][6] += 0;
-    emis[i][7] += 0;
-    emis[i][8] += 0;
+    double Aaaa = access_genotype(gls, i, ind1, 1) * access_genotype(gls, i, ind2, 2);
+    emis[x][0] += 2 * freqA * pow(freqa, 3) * Aaaa;
+    emis[x][1] += freqA * pow(freqa, 2) * Aaaa;
+    emis[x][2] += 0;
+    emis[x][3] += 2 * freqA * pow(freqa, 2) * Aaaa;
+    emis[x][4] += freqA * freqa * Aaaa;
+    emis[x][5] += 0;
+    emis[x][6] += 0;
+    emis[x][7] += 0;
+    emis[x][8] += 0;
 
+    // emis <- emis + cbind(0,0,0, 0,0,0, 2*freq0*freq1,freq1*freq0,4*freq1^2*freq0^2)*gl1[2,]*gl2[2,]
     // ##01&01 S7
     // G_real=(Aa,Aa)
-    emis[i][0] += 4 * pow(freqA, 2) * pow(freqa, 2) * l1[i][1] * l2[i][1];
-    emis[i][1] += freqA * freqa * (freqA + freqa) * l1[i][1] * l2[i][1];
-    emis[i][2] += 2 * freqA * freqa * l1[i][1] * l2[i][1];
-    emis[i][3] += 0;
-    emis[i][4] += 0;
-    emis[i][5] += 0;
-    emis[i][6] += 0;
-    emis[i][7] += 0;
-    emis[i][8] += 0;
+    double AaAa = access_genotype(gls, i, ind1, 1) * access_genotype(gls, i, ind2, 1);
+    emis[x][0] += 4 * pow(freqA, 2) * pow(freqa, 2) * AaAa;
+    emis[x][1] += freqA * freqa * AaAa;
+    emis[x][2] += 2 * freqA * freqa * AaAa;
+    emis[x][3] += 0;
+    emis[x][4] += 0;
+    emis[x][5] += 0;
+    emis[x][6] += 0;
+    emis[x][7] += 0;
+    emis[x][8] += 0;
+
+    int decimals=5;
+    round_nplaces(emis[x][0], decimals);
+    round_nplaces(emis[x][1], decimals);
+    round_nplaces(emis[x][2], decimals);
+    round_nplaces(emis[x][3], decimals);
+    round_nplaces(emis[x][4], decimals);
+    round_nplaces(emis[x][5], decimals);
+    round_nplaces(emis[x][6], decimals);
+    round_nplaces(emis[x][7], decimals);
+    round_nplaces(emis[x][8], decimals);    
   }
+
+  
+#if 0
+  // this is just to test compare the emission matrix of the first x snps.
+  // https://overiq.com/c-programming/101/fwrite-function-in-c/
+  FILE *fp;
+  fp = fopen("new.txt", "wb");
+  if(fp == NULL){
+    printf("Error opening file\n");
+    exit(1);
+  }
+  for(int i=0;i<nkeep;i++){
+    for(int x=0;x<9;x++){
+      fwrite(&emis[i][x], sizeof(double), 1, fp);
+    }
+  }
+  fclose(fp);
+  
+  // for(int i=0;i<nkeep;i++){
+  //   fprintf(stdout, "%f", emis[i][0]);
+  //   for (int x=1;x<9;x++){
+  //     fprintf(stdout, "\t%f", emis[i][x]);
+  //   }
+  //   fprintf(stdout, "\n");
+  // }
+  exit(0);
+#endif
 }
 
 double **getGL(const char *fname, int sites, int nInd) {
@@ -931,44 +1005,40 @@ void * do_work(void *threadarg){
 #endif
 
   // init all in each thread
-  double **l1, **l2;
-  l1 = l2 = NULL;
-  double *newfreq = NULL;
-  l1 = new double *[td->freq->size()];
-  l2 = new double *[td->freq->size()];
-  newfreq = new double[td->freq->size()];
-  double **emis = new double *[td->freq->size()];
-
-  for (size_t i = 0; i < td->freq->size(); i++) {
-    l1[i] = new double[3];
-    l2[i] = new double[3];
-    emis[i] = new double[9];
-  }
-
+  int *keeplist = new int [td->freq->size()];
+  
   for (size_t i = 0; i < td->freq->size(); i++) {
     // copy data into l1, this might be overwritten at next iteration if,
     // if either is missing or freq<minmaf
-    for (int j = 0; j < 3; j++) {
-      l1[td->nkeep][j] = td->gls[i][td->a * 3 + j];
-      l2[td->nkeep][j] = td->gls[i][td->b * 3 + j];
+    // for (int j = 0; j < 3; j++) {
+    //   l1[td->nkeep][j] = td->gls[i][td->a * 3 + j];
+    //   l2[td->nkeep][j] = td->gls[i][td->b * 3 + j];
+    // }
+    // removing missing data
+    if (access_genotype(td->gls, i, td->a, 0) == access_genotype(td->gls, i, td->a, 1) && 
+        access_genotype(td->gls, i, td->a, 0) == access_genotype(td->gls, i, td->a, 2)){
+      continue;
+    }
+    if (access_genotype(td->gls, i, td->b, 0) == access_genotype(td->gls, i, td->b, 1) && 
+        access_genotype(td->gls, i, td->b, 0) == access_genotype(td->gls, i, td->b, 2)){
+      continue;
     }
 
-    // removing missing data
-    if (l1[td->nkeep][0] == l1[td->nkeep][1] &&
-        l1[td->nkeep][0] == l1[td->nkeep][2])
-      continue;
-    if (l2[td->nkeep][0] == l2[td->nkeep][1] &&
-        l2[td->nkeep][0] == l2[td->nkeep][2])
-      continue;
     // removing minor allele frequencies
     if (td->freq->at(i) < minMaf || (1 - td->freq->at(i)) < minMaf)
       continue;
 
-    newfreq[td->nkeep] = td->freq->at(i);
-
+    keeplist[td->nkeep] = i;
     td->nkeep++;
   }
+  // fprintf(stderr, "\t-> keeping %d sites for downstream analyses", td->nkeep++);
+  double **emis = new double *[td->nkeep];
+  
+  for (int i = 0; i < td->nkeep; i++) {
+    emis[i] = new double[9];
+  }
 
+#if 0   // l1 + l2 -> gls not fixed yet
   if (gc) {
     if (gc > 1) {
       callgenotypesHwe(l1, td->nkeep, errate, newfreq);
@@ -980,8 +1050,9 @@ void * do_work(void *threadarg){
       callgenotypesEps(l2, td->nkeep, errate);
     }
   }
+#endif
 
-  emission_ngsrelate9(newfreq, l1, l2, emis, td->nkeep);
+  emission_ngsrelate9(td->freq, td->gls, emis, keeplist, td->nkeep, td->a, td->b);
   if (model == 0)
     td->niter = em1(td->pars, emis, td->nkeep);
   else if (model == 1)
@@ -1022,15 +1093,10 @@ void * do_work(void *threadarg){
   // fprintf(stdout, "%f is the likelihood of the correct estimates\n", newlopt);
 
   // end of work. Teardown
-  for (size_t i = 0; i < td->freq->size(); i++) {
-    delete[] l1[i];
-    delete[] l2[i];
+  for (size_t i = 0; i < td->nkeep; i++) {
     delete[] emis[i];
   }
-  delete[] l1;
-  delete[] l2;
   delete[] emis;
-  delete[] newfreq;
   pthread_exit(NULL);
 }
 
@@ -1117,6 +1183,7 @@ int main(int argc, char **argv){
   }
   // exit(0);
 #endif
+
   double total_sites = (1.0 * freq.size());
   if (switchMaf) {
     fprintf(stderr, "\t-> switching frequencies\n");
@@ -1131,9 +1198,9 @@ int main(int argc, char **argv){
 #endif
   if (ids.size()){
     fprintf(stdout,
-            "a\tb\tida\tidb\tnSites\ts9\ts8\ts7\ts6\ts5\ts4\ts3\ts2\ts1\tloglh\tnIter\tcoverage\n");
+            "a\tb\tida\tidb\tnSites\ts9\ts8\ts7\ts6\ts5\ts4\ts3\ts2\ts1\trab\tFa\tFb\ttheta\tloglh\tnIter\tcoverage\n");
   } else {
-    fprintf(stdout, "a\tb\tnSites\ts9\ts8\ts7\ts6\ts5\ts4\ts3\ts2\ts1\tloglh\tnIter\tcoverage\n");
+    fprintf(stdout, "a\tb\tnSites\ts9\ts8\ts7\ts6\ts5\ts4\ts3\ts2\ts1\trab\tFa\tFb\ttheta\tloglh\tnIter\tcoverage\n");
   }
 
   int comparison_ids = 0;
@@ -1163,6 +1230,7 @@ int main(int argc, char **argv){
       }
       for (int i = 0; i < 9; i++) {
         td_args.pars[i] /= parsum;
+        // fprintf(stderr, "par: %d, %f\n", i, td_args.pars[i]);
       }
 
       all_args.push_back(td_args);
@@ -1196,7 +1264,7 @@ int main(int argc, char **argv){
       all_args[cnt + i].thread_id = i;
       pthread_create(&threads[i],NULL,do_work,&all_args[cnt+i]);
     }
-
+    
     for(int i=0;i<nTimes;i++){
       pthread_join(threads[i], NULL);
 
@@ -1209,11 +1277,27 @@ int main(int argc, char **argv){
         fprintf(stdout, "%d\t%d\t%d", all_args[cnt + i].a, all_args[cnt + i].b,
                 all_args[cnt + i].nkeep);
       }
-
+      
       if (all_args[cnt + i].best == 9) {
         for (int j = 0; j < 9; j++) {
           fprintf(stdout, "\t%f", all_args[cnt + i].pars[j]);
         }
+        double rab = (all_args[cnt + i].pars[8]+all_args[cnt + i].pars[2]) +
+          (0.75 * all_args[cnt + i].pars[6]+all_args[cnt + i].pars[4]) +
+          all_args[cnt + i].pars[1]*0.5;
+        fprintf(stdout, "\t%f", rab);
+        // Fa
+        // sum(x[1]+x[2],x[3],x[4])
+        double Fa = all_args[cnt + i].pars[8]+all_args[cnt + i].pars[7]+all_args[cnt + i].pars[6]+all_args[cnt + i].pars[5];
+        fprintf(stdout, "\t%f", Fa);
+        // Fb
+        // sum(x[1],x[2],x[5],x[6])
+        double Fb = all_args[cnt + i].pars[8]+all_args[cnt + i].pars[7]+all_args[cnt + i].pars[4]+all_args[cnt + i].pars[3];
+        fprintf(stdout, "\t%f", Fb);
+        // theta, coancestry / kinship coefficient
+        double theta = all_args[cnt + i].pars[8]+0.5*(all_args[cnt + i].pars[6]+all_args[cnt + i].pars[4]+all_args[cnt + i].pars[2]) + 0.25 * all_args[cnt + i].pars[1];
+        fprintf(stdout, "\t%f", theta);
+
         fprintf(stdout, "\t%f\t%d\t%f\n", all_args[cnt + i].ll,
                 all_args[cnt + i].niter,
                 (1.0 * all_args[cnt + i].nkeep) / total_sites);
@@ -1221,9 +1305,40 @@ int main(int argc, char **argv){
         for (int j = 0; j < 9; j++) {
           fprintf(stdout, "\t%f", all_args[cnt + i].pars[j]);
         }
+        // 1 = 8;
+        // 2 = 7;
+        // 3 = 6;
+        // 4 = 5;        
+        // 5 = 4;
+        // 6 = 3;
+        // 7 = 2;
+        // 8 = 1;
+        // 9 = 0;
+        // rab
+        // whatisrxy <- function(x)
+        // return(x[1]+x[7]+3/4*(x[3]+x[5])+x[8]*0.5)
+        double rab = (all_args[cnt + i].pars[8]+all_args[cnt + i].pars[2]) +
+          (0.75 * all_args[cnt + i].pars[6]+all_args[cnt + i].pars[4]) +
+          all_args[cnt + i].pars[1]*0.5;
+        fprintf(stdout, "\t%f", rab);
+        // Fa
+        // sum(x[1]+x[2],x[3],x[4])
+        double Fa = all_args[cnt + i].pars[8]+all_args[cnt + i].pars[7]+all_args[cnt + i].pars[6]+all_args[cnt + i].pars[5];
+        fprintf(stdout, "\t%f", Fa);
+        // Fb
+        // sum(x[1],x[2],x[5],x[6])
+        double Fb = all_args[cnt + i].pars[8]+all_args[cnt + i].pars[7]+all_args[cnt + i].pars[4]+all_args[cnt + i].pars[3];
+        fprintf(stdout, "\t%f", Fb);
+        // theta, coancestry / kinship coefficient
+
+        double theta = all_args[cnt + i].pars[8]+ 0.5*(all_args[cnt + i].pars[6]+all_args[cnt + i].pars[4]+all_args[cnt + i].pars[2]) +
+          0.25 * all_args[cnt + i].pars[1];
+        fprintf(stdout, "\t%f", theta);
+        
         fprintf(stdout, "\t%f;s%d_%f\t%d\t%f\n", all_args[cnt + i].ll,
                 9 - all_args[cnt + i].best, all_args[cnt + i].bestll, -1,
                 (1.0 * all_args[cnt + i].nkeep) / total_sites);
+        
       }
 
     }
