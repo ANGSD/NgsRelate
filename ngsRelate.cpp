@@ -78,6 +78,8 @@ double p000000001[9] = {TINY / 8.0, TINY / 8.0, TINY / 8.0,
                         TINY / 8.0, TINY / 8.0, TINY / 8.0,
                         TINY / 8.0, TINY / 8.0, 1 - TINY};
 
+double p10[2]={1-TINY,TINY};
+double p01[2]={TINY,1-TINY};
 
 int num_threads = 4;
 char *freqname=NULL;
@@ -92,6 +94,7 @@ double errate = 0.005;
 int pair1 =-1;
 int pair2 =-1;
 int nind =2;
+int do_inbred=0;
 int switchMaf = 0;
 int verbose = 0;
 double minMaf =0.05;
@@ -149,6 +152,46 @@ double loglike(double *p,double **emis,int len){
   return ret;
 }
 
+// megatest
+
+double loglike_inbred(double *p,double **emis,int len){
+  //  fprintf(stderr,"%f %f %f\n",p[0],p[1],p[2]);
+  double ret =0;
+  
+  for(int i=0;i<len;i++){
+    double tmp = 0;
+    for(int j=0;j<2;j++)
+      tmp += p[j]*emis[i][j];
+    ret +=log(tmp);
+  }
+  return ret;
+}
+
+
+
+void emStep1_inbred(double *pre,double **emis,double *post,int len){
+  // fprintf(stderr,"%f %f\n",pre[0],pre[1]);
+  double inner[2];
+  for(int x=0;x<2;x++)
+    post[x] =0.0;
+  
+  for(int i=0;i<len;i++){
+    for(int x=0;x<2;x++){
+      inner[x] = pre[x]*emis[i][x];
+      //fprintf(stderr,"%f %f\n",emis[i][0],emis[i][1]);
+    }
+  
+    normalize(inner,2);
+    for(int x=0;x<2;x++)
+      post[x] += inner[x];
+    //   fprintf(stderr,"%f %f %f\n",post[0],post[1],post[2]);
+  }
+  //set bounds
+  normalize(post,2);
+  //  fprintf(stderr,"%f %f %f\n",post[0],post[1],post[2]);
+}
+
+
 void emStep1(double *pre,double **emis,double *post,int len){
   for(int i=0;i<9;i++){
     if(pre[i]<0||pre[i]>1){
@@ -196,12 +239,25 @@ void minus(double * fst,double * sec,double * res){
   for(int i=0;i<9;i++)
     res[i] = fst[i]-sec[i];
 }
+void minus2(double fst[2],double sec[2],double res[2]){
+  for(int i=0;i<2;i++)
+    res[i] = fst[i]-sec[i];
+}
 
 double sumSquare(double * mat){
   double tmp=0;
   for(size_t i=0;i<9;i++){
     tmp += mat[i]*mat[i];
   }
+  return tmp;
+}
+double sumSquare2(double mat[2]){
+  double tmp=0;
+  for(size_t i=0;i<2;i++){
+    //    fprintf(stderr,"%f \n",mat[i]);
+    tmp += mat[i]*mat[i];
+  }
+
   return tmp;
 }
 
@@ -287,6 +343,74 @@ int emAccel(double *F,double **emis,double *F_new,int len, int & niter){
 }
 
 
+int emAccel_inbred(double *F,double **emis,double *F_new,int len){
+  //  fprintf(stderr,"calling emaccel \n");
+  double ttol=0.0000001;
+
+  //  fprintf(stderr,"tol:%f\n",tol);
+  //maybe these should be usersettable?
+  double stepMin =1;
+  double stepMax0 = 1;
+  static double stepMax=stepMax0;
+  double mstep=4;
+  //  double objfnInc=1;
+
+
+  double F_em1[2];
+  double F_diff1[2];
+  double F_em2[2];
+  double F_diff2[2];
+  double F_diff3[2];
+  double F_tmp[2];
+
+  emStep1_inbred(F,emis,F_em1,len);
+  minus2(F_em1,F,F_diff1);
+  double sr2 = sumSquare2(F_diff1);
+  
+  if(sqrt(sr2)<ttol){
+    //    fprintf(stderr,"sr2 break:%f\n",sr2);
+    return 0;
+    //break;
+  }
+  emStep1_inbred(F_em1,emis,F_em2,len);
+  minus2(F_em2,F_em1, F_diff2);
+
+  double sq2 = sumSquare2(F_diff2);
+  if(sqrt(sq2)<ttol){
+    //fprintf(stderr,"sq2\n");
+    return 0;
+    //    break;
+  }
+
+
+  minus2(F_diff2,F_diff1, F_diff3);
+  
+  double sv2 = sumSquare2(F_diff3);
+  
+  double alpha = sqrt(sr2/sv2);
+  alpha = std::max(stepMin,std::min(stepMax,alpha));
+  for(size_t i=0;i<2;i++)
+      F_new[i] = F[i]+2*alpha*F_diff1[i]+alpha*alpha*F_diff3[i];
+
+  if (fabs(alpha - 1) > 0.01){
+    emStep1_inbred(F_new,emis,F_tmp,len);
+    for(int i=0;i<2;i++)
+      std::swap(F_new[i],F_tmp[i]);
+  }
+
+  //  double lnew = 1;
+  if ((alpha - stepMax) > -0.001) {
+    stepMax = mstep*stepMax;
+  }
+  //  print(stderr,3,F_new);
+  //  fprintf(stderr,"alpha %f stepMax %f\n",alpha,stepMax);
+
+  // fprintf(stderr,"calling emaccel \n");
+  return 1;
+ 
+}
+
+
 int em1(double *sfs,double  **emis, int len){
   int niter = 0;
   double oldLik,lik;
@@ -315,6 +439,38 @@ int em1(double *sfs,double  **emis, int len){
     oldLik=lik;
   }
   return niter;
+}
+
+//   niter=em_inbred(pars,emis,tole,maxIter,nkeep,model,verbose);
+int em_inbred(double *pars,double  **emis,double tole,int maxIter,int len,int model,int verbose){
+  double oldLik,lik;
+  oldLik = loglike_inbred(pars,emis,len);
+  if(verbose){
+    fprintf(stderr,"startlik=%f %f %f\n",oldLik,pars[0],pars[1]);
+    fflush(stderr);
+  }
+
+  double tmp[2];
+  int it;
+  for(it=0;it<maxIter;it++) {
+    if(model==0)
+      emStep1_inbred(pars,emis,tmp,len);
+    else
+      emAccel_inbred(pars,emis,tmp,len);
+    for(int i=0;i<2;i++)
+      pars[i]= tmp[i];
+    lik = loglike_inbred(pars,emis,len);
+    if(verbose)
+      fprintf(stderr,"[%d] lik=%f diff=%g\n",it,lik,fabs(lik-oldLik));
+
+    if(fabs(lik-oldLik)<tole){
+     
+      oldLik=lik;
+      break;
+    }
+    oldLik=lik;
+  }
+  return it;
 }
 
 
@@ -388,18 +544,6 @@ int em3(double *sfs,double  **emis, int len){
 
   }
   return it;
-}
-
-// https://www.daniweb.com/programming/software-development/code/217332/round-double-to-n-decimal-places
-void round_nplaces(double &value, const uint32_t &to)
-{
-    uint32_t places = 1, whole = *(&value);
-    for(uint32_t i = 0; i < to; i++) places *= 10;
-    value -= whole; //leave decimals
-    value *= places;  //0.1234 -> 123.4
-    value  = round(value);//123.4 -> 123
-    value /= places;  //123 -> .123
-    value += whole; //bring the whole value back
 }
 
 void emission_ngsrelate9(std::vector<double> * freq, double **gls, double **emis, int *keeplist, int & nkeep, int & ind1, int & ind2 ){
@@ -538,16 +682,6 @@ void emission_ngsrelate9(std::vector<double> * freq, double **gls, double **emis
     emis[x][7] += 0;
     emis[x][8] += 0;
 
-    int decimals=5;
-    round_nplaces(emis[x][0], decimals);
-    round_nplaces(emis[x][1], decimals);
-    round_nplaces(emis[x][2], decimals);
-    round_nplaces(emis[x][3], decimals);
-    round_nplaces(emis[x][4], decimals);
-    round_nplaces(emis[x][5], decimals);
-    round_nplaces(emis[x][6], decimals);
-    round_nplaces(emis[x][7], decimals);
-    round_nplaces(emis[x][8], decimals);    
   }
 
   
@@ -577,6 +711,41 @@ void emission_ngsrelate9(std::vector<double> * freq, double **gls, double **emis
   exit(0);
 #endif
 }
+
+void emission_ngs_inbred(std::vector<double> * freq, double **gls, double **emis, int *keeplist, int & nkeep, int & ind1){
+  int i;
+  double AA, Aa, aa, freqa, freqA;
+  for(int x=0;x<nkeep;x++){
+    i = keeplist[x];
+    freqa=freq->at(i);  // alternative allele frequency
+    freqA=1-freqa;
+    // i might have to flip it: this was the old approach in ngsRelate:
+    // double freqA=freq[i];
+    // double freqa=1-freqA;
+
+    AA = access_genotype(gls, i, ind1, 0);
+    Aa = access_genotype(gls, i, ind1, 1);
+    aa = access_genotype(gls, i, ind1, 2);
+
+    // G_real=(AA)
+    emis[i][0] = pow(freqA,2)*AA;
+    emis[i][1] = freqA*AA;
+
+    // G_real=(Aa)
+    emis[i][0] += 2*freqa*freqA*Aa;
+    emis[i][1] += 0;
+
+    // G_real=(aa)
+    emis[i][0] += pow(freqa,2)*aa;
+    emis[i][1] += freqa*aa;
+
+    //if(i==295&&0)
+    //    fprintf(stderr,"emis[%d]:freq:%f %f %f\n",i,freqa,emis[i][0],emis[i][1]);
+      //      exit(0);
+    }
+
+}
+
 
 double **getGL(const char *fname, int sites, int nInd) {
   gzFile gz = Z_NULL;
@@ -658,6 +827,7 @@ void print_info(FILE *fp){
   fprintf(fp, "   -g gfile            Name of genotypellh file\n");
   fprintf(fp, "   -c <INT>            Should call genotypes instead?\n");
   fprintf(fp, "   -s <INT>            Should you swich the freq with 1-freq?\n");
+  fprintf(fp, "   -F <INT>            Estimate inbreeding instead of the nine jacquard coefficients\n");
   fprintf(fp, "   -v <INT>            Verbose. print like per iteration\n");
   fprintf(fp, "   -e <INT>            Errorrates when calling genotypes?\n");
   fprintf(fp, "   -a <INT>            First individual used for analysis? (zero offset)\n");
@@ -708,7 +878,7 @@ void callgenotypesHwe(double **gls,int len,double eps,double *freq){
 
   for(int s=0;s<len;s++){
     gls[s][0] = gls[s][0]*freq[s]*freq[s];
-    gls[s][1] = 2*gls[0][1]*(1-freq[s])*freq[s];
+    gls[s][1] = 2*gls[s][1]*(1-freq[s])*freq[s];
     gls[s][2] = gls[s][2]*(1-freq[s])*(1-freq[s]);
 
     int whmax=0;
@@ -984,17 +1154,23 @@ void readids(std::vector<char *> &ids,char *fname){
 }
 
 struct worker_args {
-  int thread_id;
-  int nkeep;
-  int a,b;
+  int thread_id, nkeep, a,b, niter, best;
   double **gls;
   std::vector<double> * freq;
-  int niter;
-  double ll;
-  int best;
-  double bestll;
+  double ll, bestll;
   double pars[9];
+  worker_args(int & id_a, int & id_b, std::vector<double> * f, double ** gls_arg ){
+    a=id_a;
+    b=id_b;
+    nkeep=0;
+    best=0;
+    bestll=0.0;
+    bestll=0.0;    
+    freq = f;
+    gls=gls_arg;
+  }
 };
+
 
 void * do_work(void *threadarg){
   // https://www.tutorialspoint.com/cplusplus/cpp_multithreading.htm
@@ -1006,15 +1182,8 @@ void * do_work(void *threadarg){
 
   // init all in each thread
   int *keeplist = new int [td->freq->size()];
-  
   for (size_t i = 0; i < td->freq->size(); i++) {
-    // copy data into l1, this might be overwritten at next iteration if,
-    // if either is missing or freq<minmaf
-    // for (int j = 0; j < 3; j++) {
-    //   l1[td->nkeep][j] = td->gls[i][td->a * 3 + j];
-    //   l2[td->nkeep][j] = td->gls[i][td->b * 3 + j];
-    // }
-    // removing missing data
+    // skip missing data
     if (access_genotype(td->gls, i, td->a, 0) == access_genotype(td->gls, i, td->a, 1) && 
         access_genotype(td->gls, i, td->a, 0) == access_genotype(td->gls, i, td->a, 2)){
       continue;
@@ -1093,7 +1262,68 @@ void * do_work(void *threadarg){
   // fprintf(stdout, "%f is the likelihood of the correct estimates\n", newlopt);
 
   // end of work. Teardown
-  for (size_t i = 0; i < td->nkeep; i++) {
+  for (int i = 0; i < td->nkeep; i++) {
+    delete[] emis[i];
+  }
+  delete[] emis;
+  pthread_exit(NULL);
+}
+
+void * do_work_inbred(void *threadarg){
+  // https://www.tutorialspoint.com/cplusplus/cpp_multithreading.htm
+  struct worker_args * td;
+  td = ( worker_args * ) threadarg;
+#if 0
+  fprintf(stderr,"ID:%d THREAD:%d\n",td->id, td->thread_id);
+#endif
+
+  // init all in each thread
+  int *keeplist = new int [td->freq->size()];
+  for (size_t i = 0; i < td->freq->size(); i++) {
+    // skip missing data
+    if (access_genotype(td->gls, i, td->a, 0) == access_genotype(td->gls, i, td->a, 1) && 
+        access_genotype(td->gls, i, td->a, 0) == access_genotype(td->gls, i, td->a, 2)){
+      continue;
+    }
+    // removing minor allele frequencies
+    if (td->freq->at(i) < minMaf)
+      continue;
+
+    keeplist[td->nkeep] = i;
+    td->nkeep++;
+  }
+  // fprintf(stderr, "\t-> keeping %d sites for downstream analyses", td->nkeep++);
+  double **emis = new double *[td->nkeep];
+  for (int i = 0; i < td->nkeep; i++) {
+    emis[i] = new double[2];
+  }
+  
+#if 0   // l1 + l2 -> gls not fixed yet
+  if (gc) {
+    if (gc > 1) {
+      callgenotypesHwe(l1, td->nkeep, errate, newfreq);
+    }
+    
+    if (gc > 0) {
+      callgenotypesEps(l1, td->nkeep, errate);
+    }
+  }
+#endif
+  emission_ngs_inbred(td->freq,td->gls, emis, keeplist, td->nkeep, td->a);
+  td->niter=em_inbred(td->pars,emis,tole,maxIter,td->nkeep,model,verbose);
+  td->ll = loglike_inbred(td->pars,emis,td->nkeep);
+  double l01= loglike_inbred(p01,emis,td->nkeep);
+  double l10= loglike_inbred(p10,emis,td->nkeep);
+  double likes[3] ={l10,l01,td->ll};
+  td->best = 0;
+  td->bestll = likes[0];
+  for(int i=1;i<3;i++){
+    if(likes[i]>likes[td->best]){
+      td->best=i;
+      td->bestll = likes[i];
+    }
+  }
+  for (int i = 0; i < td->nkeep; i++) {
     delete[] emis[i];
   }
   delete[] emis;
@@ -1121,6 +1351,7 @@ int main(int argc, char **argv){
     case 'm': model = atoi(optarg); break;
     case 'v': verbose = atoi(optarg); break;
     case 's': switchMaf = atoi(optarg); break;
+    case 'F': do_inbred = atoi(optarg); break;
     case 'c': gc = atoi(optarg); break;
     case 'a': pair1 = atoi(optarg); break;
     case 'b': pair2 = atoi(optarg); break;
@@ -1196,156 +1427,192 @@ int main(int argc, char **argv){
   print(stdout,freq.size(),3*nind,gls);
   exit(0);
 #endif
-  if (ids.size()){
-    fprintf(stdout,
-            "a\tb\tida\tidb\tnSites\ts9\ts8\ts7\ts6\ts5\ts4\ts3\ts2\ts1\trab\tFa\tFb\ttheta\tloglh\tnIter\tcoverage\n");
-  } else {
-    fprintf(stdout, "a\tb\tnSites\ts9\ts8\ts7\ts6\ts5\ts4\ts3\ts2\ts1\trab\tFa\tFb\ttheta\tloglh\tnIter\tcoverage\n");
-  }
-
-  int comparison_ids = 0;
-  std::vector<worker_args> all_args;
-  for (int a = 0; a < nind; a++) {
-    for (int b = a + 1; b < nind; b++) {
+  if(do_inbred){
+    fprintf(stdout,"Pair\tZ=0\tZ=1\tloglh\tnIter\tcoverage\n");
+    int comparison_ids_inbred = 0;
+    std::vector<worker_args> all_args_inbred;
+    int fake_person = -1;
+    for(int a=0;a<nind;a++){
       if (pair1 != -1)
         a = pair1;
-      if (pair2 != -1)
-        b = pair2;
-
-      worker_args td_args;
-      td_args.a=a;
-      td_args.b=b;
-      td_args.nkeep=0;
-      td_args.best=0;
-      td_args.bestll=0.0;
-      td_args.freq=&freq;
-      td_args.gls=gls;
-      td_args.ll=0;
-
-      double parval = 0.0, parsum = 0.0;
-      for (int i = 0; i < 9; i++) {
-        parval = drand48();
-        td_args.pars[i] = parval;
-        parsum += parval;
+      worker_args td_args_inbred(a, fake_person, &freq, gls );        
+      td_args_inbred.pars[0]=drand48();
+      td_args_inbred.pars[1]=1-td_args_inbred.pars[0];
+      all_args_inbred.push_back(td_args_inbred);
+      comparison_ids_inbred++;
+      if (pair1 != -1){
+        //	fprintf(stderr,"BREAKING\n");
+        break;
       }
-      for (int i = 0; i < 9; i++) {
-        td_args.pars[i] /= parsum;
-        // fprintf(stderr, "par: %d, %f\n", i, td_args.pars[i]);
+    } // end ind b
+    int cnt_inbred=0;
+    while(cnt_inbred<comparison_ids_inbred){
+      int nTimes_inbred;
+      if(comparison_ids_inbred-cnt_inbred-num_threads>=0)
+        nTimes_inbred = num_threads;
+      else
+        nTimes_inbred = comparison_ids_inbred-cnt_inbred;
+#if 0
+      for(int i=0;1 && i<nTimes_inbred;i++){
+        fprintf(stderr,"cnt:%d i:%d\n",cnt_inbred+i,i);
       }
+#endif
+      for(int i=0;i<nTimes_inbred;i++){
+        all_args_inbred[cnt_inbred + i].thread_id = i;
+        pthread_create(&threads[i],NULL,do_work_inbred,&all_args_inbred[cnt_inbred+i]);
+      }
+      for(int i=0;i<nTimes_inbred;i++){
+        pthread_join(threads[i], NULL);
+        worker_args * td_out = &all_args_inbred[cnt_inbred + i];
+        if(td_out->best==0)
+          fprintf(stdout,"%f\t%f\t%f\t%d\t%f\n",p10[0],p10[1],td_out->bestll,-1,((double)td_out->nkeep)/((double)freq.size()));
+        if(td_out->best==1)
+          fprintf(stdout,"%f\t%f\t%f\t%d\t%f\n",p01[0],p01[1],td_out->bestll,-1,((double)td_out->nkeep)/((double)freq.size()));
+        if(td_out->best==2)
+          fprintf(stdout,"%f\t%f\t%f\t%d\t%f\n",td_out->pars[0],td_out->pars[1],td_out->bestll,td_out->niter,((double)td_out->nkeep)/((double)freq.size()));
+      fflush(stdout);
+      }
+    }
+  } else {
+    if (ids.size()){
+      fprintf(stdout,
+              "a\tb\tida\tidb\tnSites\ts9\ts8\ts7\ts6\ts5\ts4\ts3\ts2\ts1\trab\tFa\tFb\ttheta\tloglh\tnIter\tcoverage\n");
+    } else {
+      fprintf(stdout, "a\tb\tnSites\ts9\ts8\ts7\ts6\ts5\ts4\ts3\ts2\ts1\trab\tFa\tFb\ttheta\tloglh\tnIter\tcoverage\n");
+    }
+    int comparison_ids = 0;
+    std::vector<worker_args> all_args;
+    for (int a = 0; a < nind; a++) {
+      for (int b = a + 1; b < nind; b++) {
+        if (pair1 != -1)
+          a = pair1;
+        if (pair2 != -1)
+          b = pair2;
 
-      all_args.push_back(td_args);
-      comparison_ids++;
+        worker_args td_args(a, b, &freq, gls );        
+        
+        double parval = 0.0, parsum = 0.0;
+        for (int i = 0; i < 9; i++) {
+          parval = drand48();
+          td_args.pars[i] = parval;
+          parsum += parval;
+        }
+        for (int i = 0; i < 9; i++) {
+          td_args.pars[i] /= parsum;
+          // fprintf(stderr, "par: %d, %f\n", i, td_args.pars[i]);
+        }
+        
+        all_args.push_back(td_args);
+        comparison_ids++;
+        if (pair1 != -1 || pair2 != -1) {
+          //	fprintf(stderr,"BREAKING\n");
+          break;
+        }
+      } // end ind b
       if (pair1 != -1 || pair2 != -1) {
         //	fprintf(stderr,"BREAKING\n");
         break;
       }
     } // end ind b
-    if (pair1 != -1 || pair2 != -1) {
-      //	fprintf(stderr,"BREAKING\n");
-      break;
-    }
-  } // end ind b
-
-
-
-  int cnt=0;
-  while(cnt<comparison_ids){
-    int nTimes;
-    if(comparison_ids-cnt-num_threads>=0)
-      nTimes = num_threads;
-    else
-      nTimes = comparison_ids-cnt;
-#if 0
-    for(int i=0;1 && i<nTimes;i++){
-      fprintf(stderr,"cnt:%d i:%d\n",cnt+i,i);
-    }
-#endif
-    for(int i=0;i<nTimes;i++){
-      all_args[cnt + i].thread_id = i;
-      pthread_create(&threads[i],NULL,do_work,&all_args[cnt+i]);
-    }
     
-    for(int i=0;i<nTimes;i++){
-      pthread_join(threads[i], NULL);
-
-      // printing results for threads[i]
-      if (ids.size()) {
-        fprintf(stdout, "%d\t%d\t%s\t%s\t%d", all_args[cnt + i].a,
-                all_args[cnt + i].b, ids[all_args[cnt + i].a],
-                ids[all_args[cnt + i].b], all_args[cnt + i].nkeep);
-      } else {
-        fprintf(stdout, "%d\t%d\t%d", all_args[cnt + i].a, all_args[cnt + i].b,
-                all_args[cnt + i].nkeep);
+    int cnt=0;
+    while(cnt<comparison_ids){
+      int nTimes;
+      if(comparison_ids-cnt-num_threads>=0)
+        nTimes = num_threads;
+      else
+        nTimes = comparison_ids-cnt;
+#if 0
+      for(int i=0;1 && i<nTimes;i++){
+        fprintf(stderr,"cnt:%d i:%d\n",cnt+i,i);
+      }
+#endif
+      for(int i=0;i<nTimes;i++){
+        all_args[cnt + i].thread_id = i;
+        pthread_create(&threads[i],NULL,do_work,&all_args[cnt+i]);
       }
       
-      if (all_args[cnt + i].best == 9) {
-        for (int j = 0; j < 9; j++) {
-          fprintf(stdout, "\t%f", all_args[cnt + i].pars[j]);
+      for(int i=0;i<nTimes;i++){
+        pthread_join(threads[i], NULL);
+        worker_args * td_out = &all_args[cnt + i];
+        // printing results for threads[i]
+        if (ids.size()) {
+          fprintf(stdout, "%d\t%d\t%s\t%s\t%d", td_out->a,
+                  td_out->b, ids[td_out->a],
+                  ids[td_out->b], td_out->nkeep);
+        } else {
+          fprintf(stdout, "%d\t%d\t%d", td_out->a, td_out->b,
+                  td_out->nkeep);
         }
-        double rab = (all_args[cnt + i].pars[8]+all_args[cnt + i].pars[2]) +
-          (0.75 * all_args[cnt + i].pars[6]+all_args[cnt + i].pars[4]) +
-          all_args[cnt + i].pars[1]*0.5;
-        fprintf(stdout, "\t%f", rab);
-        // Fa
-        // sum(x[1]+x[2],x[3],x[4])
-        double Fa = all_args[cnt + i].pars[8]+all_args[cnt + i].pars[7]+all_args[cnt + i].pars[6]+all_args[cnt + i].pars[5];
-        fprintf(stdout, "\t%f", Fa);
-        // Fb
-        // sum(x[1],x[2],x[5],x[6])
-        double Fb = all_args[cnt + i].pars[8]+all_args[cnt + i].pars[7]+all_args[cnt + i].pars[4]+all_args[cnt + i].pars[3];
-        fprintf(stdout, "\t%f", Fb);
-        // theta, coancestry / kinship coefficient
-        double theta = all_args[cnt + i].pars[8]+0.5*(all_args[cnt + i].pars[6]+all_args[cnt + i].pars[4]+all_args[cnt + i].pars[2]) + 0.25 * all_args[cnt + i].pars[1];
-        fprintf(stdout, "\t%f", theta);
-
-        fprintf(stdout, "\t%f\t%d\t%f\n", all_args[cnt + i].ll,
-                all_args[cnt + i].niter,
-                (1.0 * all_args[cnt + i].nkeep) / total_sites);
-      } else {
-        for (int j = 0; j < 9; j++) {
-          fprintf(stdout, "\t%f", all_args[cnt + i].pars[j]);
-        }
-        // 1 = 8;
-        // 2 = 7;
-        // 3 = 6;
-        // 4 = 5;        
-        // 5 = 4;
-        // 6 = 3;
-        // 7 = 2;
-        // 8 = 1;
-        // 9 = 0;
-        // rab
-        // whatisrxy <- function(x)
-        // return(x[1]+x[7]+3/4*(x[3]+x[5])+x[8]*0.5)
-        double rab = (all_args[cnt + i].pars[8]+all_args[cnt + i].pars[2]) +
-          (0.75 * all_args[cnt + i].pars[6]+all_args[cnt + i].pars[4]) +
-          all_args[cnt + i].pars[1]*0.5;
-        fprintf(stdout, "\t%f", rab);
-        // Fa
-        // sum(x[1]+x[2],x[3],x[4])
-        double Fa = all_args[cnt + i].pars[8]+all_args[cnt + i].pars[7]+all_args[cnt + i].pars[6]+all_args[cnt + i].pars[5];
-        fprintf(stdout, "\t%f", Fa);
-        // Fb
-        // sum(x[1],x[2],x[5],x[6])
-        double Fb = all_args[cnt + i].pars[8]+all_args[cnt + i].pars[7]+all_args[cnt + i].pars[4]+all_args[cnt + i].pars[3];
-        fprintf(stdout, "\t%f", Fb);
-        // theta, coancestry / kinship coefficient
-
-        double theta = all_args[cnt + i].pars[8]+ 0.5*(all_args[cnt + i].pars[6]+all_args[cnt + i].pars[4]+all_args[cnt + i].pars[2]) +
-          0.25 * all_args[cnt + i].pars[1];
-        fprintf(stdout, "\t%f", theta);
         
-        fprintf(stdout, "\t%f;s%d_%f\t%d\t%f\n", all_args[cnt + i].ll,
-                9 - all_args[cnt + i].best, all_args[cnt + i].bestll, -1,
-                (1.0 * all_args[cnt + i].nkeep) / total_sites);
+        if (td_out->best == 9) {
+          for (int j = 0; j < 9; j++) {
+            fprintf(stdout, "\t%f", td_out->pars[j]);
+          }
+          double rab = (td_out->pars[8]+td_out->pars[2]) +
+            (0.75 * td_out->pars[6]+td_out->pars[4]) +
+            td_out->pars[1]*0.5;
+          fprintf(stdout, "\t%f", rab);
+          // Fa
+          // sum(x[1]+x[2],x[3],x[4])
+          double Fa = td_out->pars[8]+td_out->pars[7]+td_out->pars[6]+td_out->pars[5];
+          fprintf(stdout, "\t%f", Fa);
+          // Fb
+          // sum(x[1],x[2],x[5],x[6])
+          double Fb = td_out->pars[8]+td_out->pars[7]+td_out->pars[4]+td_out->pars[3];
+          fprintf(stdout, "\t%f", Fb);
+          // theta, coancestry / kinship coefficient
+          double theta = td_out->pars[8]+0.5*(td_out->pars[6]+td_out->pars[4]+td_out->pars[2]) + 0.25 * td_out->pars[1];
+          fprintf(stdout, "\t%f", theta);
+          
+          fprintf(stdout, "\t%f\t%d\t%f\n", td_out->ll,
+                  td_out->niter,
+                  (1.0 * td_out->nkeep) / total_sites);
+        } else {
+          for (int j = 0; j < 9; j++) {
+            fprintf(stdout, "\t%f", td_out->pars[j]);
+          }
+          // 1 = 8;
+          // 2 = 7;
+          // 3 = 6;
+          // 4 = 5;        
+          // 5 = 4;
+          // 6 = 3;
+          // 7 = 2;
+          // 8 = 1;
+          // 9 = 0;
+          // rab
+          // whatisrxy <- function(x)
+          // return(x[1]+x[7]+3/4*(x[3]+x[5])+x[8]*0.5)
+          double rab = (td_out->pars[8]+td_out->pars[2]) +
+            (0.75 * td_out->pars[6]+td_out->pars[4]) +
+            td_out->pars[1]*0.5;
+          fprintf(stdout, "\t%f", rab);
+          // Fa
+          // sum(x[1]+x[2],x[3],x[4])
+          double Fa = td_out->pars[8]+td_out->pars[7]+td_out->pars[6]+td_out->pars[5];
+          fprintf(stdout, "\t%f", Fa);
+          // Fb
+          // sum(x[1],x[2],x[5],x[6])
+          double Fb = td_out->pars[8]+td_out->pars[7]+td_out->pars[4]+td_out->pars[3];
+          fprintf(stdout, "\t%f", Fb);
+          // theta, coancestry / kinship coefficient
+          
+          double theta = td_out->pars[8]+ 0.5*(td_out->pars[6]+td_out->pars[4]+td_out->pars[2]) +
+            0.25 * td_out->pars[1];
+          fprintf(stdout, "\t%f", theta);
+          
+          fprintf(stdout, "\t%f;s%d_%f\t%d\t%f\n", td_out->ll,
+                  9 - td_out->best, td_out->bestll, -1,
+                  (1.0 * td_out->nkeep) / total_sites);
+          
+        }
         
       }
-
+      cnt += nTimes;
+      fprintf(stderr, "\t-> Processed %d out of %d\r", cnt, comparison_ids);
     }
-    cnt += nTimes;
-    fprintf(stderr, "\t-> Processed %d out of %d\r", cnt, comparison_ids);
   }
-
   fflush(stdout);
   for (size_t i = 0; i < freq.size(); i++) {
     delete[] gls[i];
