@@ -719,30 +719,65 @@ void emission_ngs_inbred(std::vector<double> * freq, double **gls, double **emis
     i = keeplist[x];
     freqa=freq->at(i);  // alternative allele frequency
     freqA=1-freqa;
-    // i might have to flip it: this was the old approach in ngsRelate:
-    // double freqA=freq[i];
-    // double freqa=1-freqA;
-
     AA = access_genotype(gls, i, ind1, 0);
     Aa = access_genotype(gls, i, ind1, 1);
     aa = access_genotype(gls, i, ind1, 2);
-
     // G_real=(AA)
-    emis[i][0] = pow(freqA,2)*AA;
-    emis[i][1] = freqA*AA;
+    emis[x][0] = pow(freqA,2)*AA;
+    emis[x][1] = freqA*AA;
 
     // G_real=(Aa)
-    emis[i][0] += 2*freqa*freqA*Aa;
-    emis[i][1] += 0;
+    emis[x][0] += 2*freqa*freqA*Aa;
+    emis[x][1] += 0;
 
     // G_real=(aa)
-    emis[i][0] += pow(freqa,2)*aa;
-    emis[i][1] += freqa*aa;
+    emis[x][0] += pow(freqa,2)*aa;
+    emis[x][1] += freqa*aa;
 
-    //if(i==295&&0)
-    //    fprintf(stderr,"emis[%d]:freq:%f %f %f\n",i,freqa,emis[i][0],emis[i][1]);
-      //      exit(0);
+#if 0
+    if(x==280874&&ind1==0){
+      fprintf(stderr,"\n\nNEW: emis[%d]:freq:%f %f %f\nGENO: %f %f %f",x,freqa,emis[x][0],emis[x][1], AA, Aa, aa);
     }
+    // 280874
+    if(x==280873&&ind1==0){
+      fprintf(stderr,"\n\nNEW: emis[%d]:freq:%f %f %f\nGENO: %f %f %f",x,freqa,emis[x][0],emis[x][1], AA, Aa, aa);
+    }
+#endif
+  }
+
+  
+#if 0
+  if(ind1==0){
+    // this is just to test compare the emission matrix of the first x snps.
+    // https://overiq.com/c-programming/101/fwrite-function-in-c/
+    FILE *fp;
+    fp = fopen("new.txt", "wb");
+    if(fp == NULL){
+      printf("Error opening file\n");
+      exit(1);
+    }
+    for(int x=0;x<nkeep;x++){
+      i = keeplist[x];
+      for(int y=0;y<2;y++){
+        fwrite(&emis[i][y], sizeof(double), 1, fp);
+      }
+    }
+    fclose(fp);
+    fp = fopen("new.allelefreq.txt", "wb");
+    if(fp == NULL){
+      printf("Error opening file\n");
+      exit(1);
+    }
+    for(int x=0;x<nkeep;x++){
+      i = keeplist[x];
+      freqa=freq->at(i);  // alternative allele frequency
+      freqA=1-freqa;
+      fprintf(fp, "%f %f\n", freqA, freqa);
+    }
+    fclose(fp);
+    exit(0);
+  }
+#endif
 
 }
 
@@ -1286,7 +1321,7 @@ void * do_work_inbred(void *threadarg){
       continue;
     }
     // removing minor allele frequencies
-    if (td->freq->at(i) < minMaf)
+    if (td->freq->at(i) < minMaf || (1-td->freq->at(i)) < minMaf)
       continue;
 
     keeplist[td->nkeep] = i;
@@ -1297,7 +1332,8 @@ void * do_work_inbred(void *threadarg){
   for (int i = 0; i < td->nkeep; i++) {
     emis[i] = new double[2];
   }
-  
+
+  // fprintf(stdout,"%d:%d\t",td->a,td->nkeep);  
 #if 0   // l1 + l2 -> gls not fixed yet
   if (gc) {
     if (gc > 1) {
@@ -1428,7 +1464,7 @@ int main(int argc, char **argv){
   exit(0);
 #endif
   if(do_inbred){
-    fprintf(stdout,"Pair\tZ=0\tZ=1\tloglh\tnIter\tcoverage\n");
+    fprintf(stdout,"Ind\tZ=0\tZ=1\tloglh\tnIter\tcoverage\n");
     int comparison_ids_inbred = 0;
     std::vector<worker_args> all_args_inbred;
     int fake_person = -1;
@@ -1447,12 +1483,15 @@ int main(int argc, char **argv){
     } // end ind b
     int cnt_inbred=0;
     while(cnt_inbred<comparison_ids_inbred){
+
       int nTimes_inbred;
       if(comparison_ids_inbred-cnt_inbred-num_threads>=0)
         nTimes_inbred = num_threads;
       else
         nTimes_inbred = comparison_ids_inbred-cnt_inbred;
 #if 0
+      fprintf(stderr, "\ngot this far. while %d.\n", cnt_inbred);
+      fprintf(stderr, "comparisons: %d\n", comparison_ids_inbred);
       for(int i=0;1 && i<nTimes_inbred;i++){
         fprintf(stderr,"cnt:%d i:%d\n",cnt_inbred+i,i);
       }
@@ -1463,15 +1502,18 @@ int main(int argc, char **argv){
       }
       for(int i=0;i<nTimes_inbred;i++){
         pthread_join(threads[i], NULL);
-        worker_args * td_out = &all_args_inbred[cnt_inbred + i];
-        if(td_out->best==0)
-          fprintf(stdout,"%f\t%f\t%f\t%d\t%f\n",p10[0],p10[1],td_out->bestll,-1,((double)td_out->nkeep)/((double)freq.size()));
-        if(td_out->best==1)
-          fprintf(stdout,"%f\t%f\t%f\t%d\t%f\n",p01[0],p01[1],td_out->bestll,-1,((double)td_out->nkeep)/((double)freq.size()));
-        if(td_out->best==2)
-          fprintf(stdout,"%f\t%f\t%f\t%d\t%f\n",td_out->pars[0],td_out->pars[1],td_out->bestll,td_out->niter,((double)td_out->nkeep)/((double)freq.size()));
+        worker_args * td_out_inbred = &all_args_inbred[cnt_inbred + i];
+        if(td_out_inbred->best==0)
+          fprintf(stdout,"%d\t%f\t%f\t%f\t%d\t%f\n",td_out_inbred->a, p10[0],p10[1],td_out_inbred->bestll,-1,((double)td_out_inbred->nkeep)/((double)freq.size()));
+        if(td_out_inbred->best==1)
+          fprintf(stdout,"%d\t%f\t%f\t%f\t%d\t%f\n",td_out_inbred->a,p01[0],p01[1],td_out_inbred->bestll,-1,((double)td_out_inbred->nkeep)/((double)freq.size()));
+        if(td_out_inbred->best==2)
+          fprintf(stdout,"%d\t%f\t%f\t%f\t%d\t%f\n",td_out_inbred->a,td_out_inbred->pars[0],td_out_inbred->pars[1],td_out_inbred->bestll,td_out_inbred->niter,((double)td_out_inbred->nkeep)/((double)freq.size()));
       fflush(stdout);
       }
+      cnt_inbred += nTimes_inbred;
+      fprintf(stderr, "\t-> Processed %d out of %d\r", cnt_inbred, comparison_ids_inbred);
+      
     }
   } else {
     if (ids.size()){
