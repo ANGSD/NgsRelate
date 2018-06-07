@@ -1,3 +1,5 @@
+[![Build Status](https://travis-ci.org/ANGSD/NgsRelate.svg?branch=master)](https://travis-ci.org/ANGSD/NgsRelate)
+
 5nov 2015. Added the first version of NGSrelate which is a hmm. Input are beagle files.
 
 The ngsrelate.cpp is the ML estimator described in the paper:
