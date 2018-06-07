@@ -1517,10 +1517,12 @@ int main(int argc, char **argv){
     }
   } else {
     if (ids.size()){
+      // fprintf(stdout,"a\tb\tida\tidb\tnSites\ts9\ts8\ts7\ts6\ts5\ts4\ts3\ts2\ts1\trab\tFa\tFb\ttheta\tloglh\tnIter\tcoverage\n");
       fprintf(stdout,
-              "a\tb\tida\tidb\tnSites\ts9\ts8\ts7\ts6\ts5\ts4\ts3\ts2\ts1\trab\tFa\tFb\ttheta\tloglh\tnIter\tcoverage\n");
+              "a\tb\tida\tidb\tnSites\ts9\ts8\ts7\ts6\ts5\ts4\ts3\ts2\ts1\trab\tFa\tFb\ttheta\tinbred_relatedness_1_2\tinbred_relatedness_2_1\tfraternity\tidentity\tzygosity\tloglh\tnIter\tcoverage\n");
     } else {
-      fprintf(stdout, "a\tb\tnSites\ts9\ts8\ts7\ts6\ts5\ts4\ts3\ts2\ts1\trab\tFa\tFb\ttheta\tloglh\tnIter\tcoverage\n");
+      // fprintf(stdout, "a\tb\tnSites\ts9\ts8\ts7\ts6\ts5\ts4\ts3\ts2\ts1\trab\tFa\tFb\ttheta\tloglh\tnIter\tcoverage\n");
+      fprintf(stdout, "a\tb\tnSites\ts9\ts8\ts7\ts6\ts5\ts4\ts3\ts2\ts1\trab\tFa\tFb\ttheta\tinbred_relatedness_1_2\tinbred_relatedness_2_1\tfraternity\tidentity\tzygosity\tloglh\tnIter\tcoverage\n");
     }
     int comparison_ids = 0;
     std::vector<worker_args> all_args;
@@ -1586,70 +1588,59 @@ int main(int argc, char **argv){
           fprintf(stdout, "%d\t%d\t%d", td_out->a, td_out->b,
                   td_out->nkeep);
         }
+        // Jac = ArrayPos
+        // 1   = 8;
+        // 2   = 7;
+        // 3   = 6;
+        // 4   = 5;
+        // 5   = 4;
+        // 6   = 3;
+        // 7   = 2;
+        // 8   = 1;
+        // 9   = 0;
+
+        for (int j = 0; j < 9; j++) {
+          fprintf(stdout, "\t%f", td_out->pars[j]);
+        }
+          // return(x[1]+x[7]+3/4*(x[3]+x[5])+x[8]*0.5)
+        double rab = (td_out->pars[8]+td_out->pars[2]) +
+          (0.75 * (td_out->pars[6]+td_out->pars[4])) +
+          td_out->pars[1]*0.5;
+        fprintf(stdout, "\t%f", rab);
+        // Fa
+        // sum(x[1]+x[2],x[3],x[4])
+        double Fa = td_out->pars[8]+td_out->pars[7]+td_out->pars[6]+td_out->pars[5];
+        fprintf(stdout, "\t%f", Fa);
+        // Fb
+        // sum(x[1],x[2],x[5],x[6])
+        double Fb = td_out->pars[8]+td_out->pars[7]+td_out->pars[4]+td_out->pars[3];
+        fprintf(stdout, "\t%f", Fb);
+        // theta, coancestry / kinship coefficient
+        double theta = td_out->pars[8]+0.5*(td_out->pars[6]+td_out->pars[4]+td_out->pars[2]) + 0.25 * td_out->pars[1];
+        fprintf(stdout, "\t%f", theta);
+
+        // new estimates from ackerman et al.
+        double inbred_relatedness_1_2 =  td_out->pars[8] + td_out->pars[6]/2;
+        double inbred_relatedness_2_1 =  td_out->pars[8] + td_out->pars[4]/2;
+        double fraternity = td_out->pars[7] + td_out->pars[2];
+        double identity = td_out->pars[8];
+        double zygosity = td_out->pars[8] + td_out->pars[7] + td_out->pars[2];
+        fprintf(stdout, "\t%f\t%f\t%f\t%f\t%f",
+                inbred_relatedness_1_2,
+                inbred_relatedness_2_1,
+                fraternity,
+                identity,
+                zygosity);
         
         if (td_out->best == 9) {
-          for (int j = 0; j < 9; j++) {
-            fprintf(stdout, "\t%f", td_out->pars[j]);
-          }
-          double rab = (td_out->pars[8]+td_out->pars[2]) +
-            (0.75 * td_out->pars[6]+td_out->pars[4]) +
-            td_out->pars[1]*0.5;
-          fprintf(stdout, "\t%f", rab);
-          // Fa
-          // sum(x[1]+x[2],x[3],x[4])
-          double Fa = td_out->pars[8]+td_out->pars[7]+td_out->pars[6]+td_out->pars[5];
-          fprintf(stdout, "\t%f", Fa);
-          // Fb
-          // sum(x[1],x[2],x[5],x[6])
-          double Fb = td_out->pars[8]+td_out->pars[7]+td_out->pars[4]+td_out->pars[3];
-          fprintf(stdout, "\t%f", Fb);
-          // theta, coancestry / kinship coefficient
-          double theta = td_out->pars[8]+0.5*(td_out->pars[6]+td_out->pars[4]+td_out->pars[2]) + 0.25 * td_out->pars[1];
-          fprintf(stdout, "\t%f", theta);
-          
           fprintf(stdout, "\t%f\t%d\t%f\n", td_out->ll,
                   td_out->niter,
                   (1.0 * td_out->nkeep) / total_sites);
         } else {
-          for (int j = 0; j < 9; j++) {
-            fprintf(stdout, "\t%f", td_out->pars[j]);
-          }
-          // 1 = 8;
-          // 2 = 7;
-          // 3 = 6;
-          // 4 = 5;        
-          // 5 = 4;
-          // 6 = 3;
-          // 7 = 2;
-          // 8 = 1;
-          // 9 = 0;
-          // rab
-          // whatisrxy <- function(x)
-          // return(x[1]+x[7]+3/4*(x[3]+x[5])+x[8]*0.5)
-          double rab = (td_out->pars[8]+td_out->pars[2]) +
-            (0.75 * td_out->pars[6]+td_out->pars[4]) +
-            td_out->pars[1]*0.5;
-          fprintf(stdout, "\t%f", rab);
-          // Fa
-          // sum(x[1]+x[2],x[3],x[4])
-          double Fa = td_out->pars[8]+td_out->pars[7]+td_out->pars[6]+td_out->pars[5];
-          fprintf(stdout, "\t%f", Fa);
-          // Fb
-          // sum(x[1],x[2],x[5],x[6])
-          double Fb = td_out->pars[8]+td_out->pars[7]+td_out->pars[4]+td_out->pars[3];
-          fprintf(stdout, "\t%f", Fb);
-          // theta, coancestry / kinship coefficient
-          
-          double theta = td_out->pars[8]+ 0.5*(td_out->pars[6]+td_out->pars[4]+td_out->pars[2]) +
-            0.25 * td_out->pars[1];
-          fprintf(stdout, "\t%f", theta);
-          
           fprintf(stdout, "\t%f;s%d_%f\t%d\t%f\n", td_out->ll,
                   9 - td_out->best, td_out->bestll, -1,
                   (1.0 * td_out->nkeep) / total_sites);
-          
         }
-        
       }
       cnt += nTimes;
       fprintf(stderr, "\t-> Processed %d out of %d\r", cnt, comparison_ids);
