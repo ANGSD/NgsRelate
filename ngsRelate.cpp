@@ -95,6 +95,7 @@ int pair1 =-1;
 int pair2 =-1;
 int nind =2;
 int do_inbred=0;
+int do_simple=0;
 int switchMaf = 0;
 int verbose = 0;
 double minMaf =0.05;
@@ -862,7 +863,8 @@ void print_info(FILE *fp){
   fprintf(fp, "   -g gfile            Name of genotypellh file\n");
   fprintf(fp, "   -c <INT>            Should call genotypes instead?\n");
   fprintf(fp, "   -s <INT>            Should you swich the freq with 1-freq?\n");
-  fprintf(fp, "   -F <INT>            Estimate inbreeding instead of the nine jacquard coefficients\n");
+  fprintf(fp, "   -F <INT>            Estimate inbreeding instead of estimating the nine jacquard coefficients\n");
+  fprintf(fp, "   -o <INT>            estimating the 3 jacquard coefficient, assumming no inbreeding\n");
   fprintf(fp, "   -v <INT>            Verbose. print like per iteration\n");
   fprintf(fp, "   -e <INT>            Errorrates when calling genotypes?\n");
   fprintf(fp, "   -a <INT>            First individual used for analysis? (zero offset)\n");
@@ -1377,7 +1379,7 @@ int main(int argc, char **argv){
     return extract_freq(--argc,++argv);
 
   char *htsfile=NULL;
-  while ((n = getopt(argc, argv, "f:i:t:r:g:m:v:s:F:c:e:a:b:n:l:z:p:h:")) >= 0) {
+  while ((n = getopt(argc, argv, "f:i:t:r:g:m:v:s:F:o:c:e:a:b:n:l:z:p:h:")) >= 0) {
     switch (n) {
     case 'f': freqname = strdup(optarg); break;
     case 'i': maxIter = atoi(optarg); break;
@@ -1388,6 +1390,7 @@ int main(int argc, char **argv){
     case 'v': verbose = atoi(optarg); break;
     case 's': switchMaf = atoi(optarg); break;
     case 'F': do_inbred = atoi(optarg); break;
+    case 'o': do_simple = atoi(optarg); break;
     case 'c': gc = atoi(optarg); break;
     case 'a': pair1 = atoi(optarg); break;
     case 'b': pair2 = atoi(optarg); break;
@@ -1516,6 +1519,10 @@ int main(int argc, char **argv){
       
     }
   } else {
+    if(do_simple){
+      fprintf(stderr, "\t-> setting Jacquard coefficient related to inbreeding (1-6) to zero\n");
+    }
+    
     if (ids.size()){
       // fprintf(stdout,"a\tb\tida\tidb\tnSites\ts9\ts8\ts7\ts6\ts5\ts4\ts3\ts2\ts1\trab\tFa\tFb\ttheta\tloglh\tnIter\tcoverage\n");
       fprintf(stdout,
@@ -1538,8 +1545,12 @@ int main(int argc, char **argv){
         double parval = 0.0, parsum = 0.0;
         for (int i = 0; i < 9; i++) {
           parval = drand48();
-          td_args.pars[i] = parval;
-          parsum += parval;
+          if(do_simple && i<6){
+            td_args.pars[i] = 0;
+          } else {
+            td_args.pars[i] = parval;
+            parsum += parval;
+          }
         }
         for (int i = 0; i < 9; i++) {
           td_args.pars[i] /= parsum;
