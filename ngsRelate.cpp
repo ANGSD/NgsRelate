@@ -1545,17 +1545,6 @@ int main(int argc, char **argv){
         double parval = 0.0, parsum = 0.0;
         for (int i = 0; i < 9; i++) {
           parval = drand48();
-        // Jac = ArrayPos
-        // 1   = 8;
-        // 2   = 7;
-        // 3   = 6;
-        // 4   = 5;
-        // 5   = 4;
-        // 6   = 3;
-        // 7   = 2;
-        // 8   = 1;
-        // 9   = 0;
-
           if(do_simple && i>=3){
             td_args.pars[i] = 0;
           } else {
