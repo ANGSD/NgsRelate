@@ -1614,6 +1614,8 @@ int main(int argc, char **argv){
           fprintf(stdout, "\t%f", td_out->pars[j]);
         }
           // return(x[1]+x[7]+3/4*(x[3]+x[5])+x[8]*0.5)
+        // Measuring Relatedness between Inbred Individuals by Hedrick 2015
+        // r_xy
         double rab = (td_out->pars[8]+td_out->pars[2]) +
           (0.75 * (td_out->pars[6]+td_out->pars[4])) +
           td_out->pars[1]*0.5;
@@ -1626,7 +1628,7 @@ int main(int argc, char **argv){
         // sum(x[1],x[2],x[5],x[6])
         double Fb = td_out->pars[8]+td_out->pars[7]+td_out->pars[4]+td_out->pars[3];
         fprintf(stdout, "\t%f", Fb);
-        // theta, coancestry / kinship coefficient
+        // theta, coancestry / kinship coefficient / f_XY
         double theta = td_out->pars[8]+0.5*(td_out->pars[6]+td_out->pars[4]+td_out->pars[2]) + 0.25 * td_out->pars[1];
         fprintf(stdout, "\t%f", theta);
 
