@@ -1662,9 +1662,10 @@ int main(int argc, char **argv){
         }
       }
       cnt += nTimes;
-      fprintf(stderr, "\t-> Processed %d out of %d\r", cnt, comparison_ids);
+      fprintf(stderr, "\t-> Processed     %d out of       %d\r", cnt, comparison_ids);
     }
   }
+  fprintf(stderr,"\n");
   fflush(stdout);
   for (size_t i = 0; i < freq.size(); i++) {
     delete[] gls[i];
