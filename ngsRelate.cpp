@@ -324,7 +324,7 @@ int emAccel(double *F,double **emis,double *F_new,int len, int & niter){
     }
   }
   if(outofparspace){
-    fprintf(stderr,"outofparspace will use second emstep as jump\n");
+    // fprintf(stderr,"outofparspace will use second emstep as jump\n");
     for(int i=0;i<9;i++)
       F_new[i] = F_em2[i];
   }
@@ -861,6 +861,7 @@ void print_info(FILE *fp){
   fprintf(fp, "   -t <FLOAT>          Tolerance for breaking EM\n");
   fprintf(fp, "   -r <FLOAT>          Seed for rand\n");
   fprintf(fp, "   -g gfile            Name of genotypellh file\n");
+  fprintf(fp, "   -p <INT>            threads (default 4)\n");
   fprintf(fp, "   -c <INT>            Should call genotypes instead?\n");
   fprintf(fp, "   -s <INT>            Should you swich the freq with 1-freq?\n");
   fprintf(fp, "   -F <INT>            Estimate inbreeding instead of estimating the nine jacquard coefficients\n");

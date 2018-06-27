@@ -17,28 +17,25 @@ else
 $(info HTSSRC not defined, assuming systemwide installation -lhts)
 endif
 
-
 .PHONY: misc clean test
 
 -include $(OBJ:.o=.d)
 
 ifdef HTSSRC
 %.o: %.cpp
-	$(CXX) -c  $(CXXFLAGS) $*.cpp -I$(HTS_INCDIR) 
-	$(CXX) -MM $(CXXFLAGS) $*.cpp -I$(HTS_INCDIR)  >$*.d
+        $(CXX) -c  $(CXXFLAGS) $*.cpp -I$(HTS_INCDIR) -D__WITH_BCF__
+        $(CXX) -MM $(CXXFLAGS) $*.cpp -I$(HTS_INCDIR) -D__WITH_BCF__ >$*.d
 
 ngsRelate: $(OBJ)
-	$(CXX) $(FLAGS)  -o ngsRelate *.o $(HTS_LIBDIR) -lz -lm -lbz2 -llzma -lpthread -lcurl
+        $(CXX) $(FLAGS)  -o ngsRelate *.o $(HTS_LIBDIR) -lz -lm -lbz2 -llzma -lpthread -lcurl -D__WITH_BCF__
 else
 %.o: %.cpp
-	$(CXX) -c  $(CXXFLAGS)  $*.cpp
-	$(CXX) -MM $(CXXFLAGS)  $*.cpp >$*.d
+        $(CXX) -c  $(CXXFLAGS)  $*.cpp
+        $(CXX) -MM $(CXXFLAGS)  $*.cpp >$*.d
 
 ngsRelate: $(OBJ)
-	$(CXX) $(FLAGS)  -o ngsRelate *.o -lz -lpthread -lhts  -lbz2 -llzma
+        $(CXX) $(FLAGS)  -o ngsRelate *.o -lz -lpthread -lhts  -lbz2 -llzma 
 endif
 
-clean:	
-	rm  -f *.o *.d ngsRelate *~
-
-
+clean:
+        rm  -f *.o *.d ngsRelate *~
