@@ -876,7 +876,9 @@ void print_info(FILE *fp){
   fprintf(fp, "\n");
   fprintf(fp,"Or\n ./ngsrelate extract_freq_bim pos.glf.gz plink.bim plink.freq\n");
   fprintf(fp,"Or\n ./ngsrelate extract_freq .mafs.gz .pos.glf.gz [-rmTrans]\n");
-  fprintf(fp,"Or\n ./ngsrelate -h my.bcf [DEVELOPMENT]\n");
+#ifdef __WITH_BCF__
+  fprintf(fp,"Or\n ./ngsrelate -h my.bcf [DEVELOPMENT ONLY]\n");
+#endif
   exit(0);
 }
 
