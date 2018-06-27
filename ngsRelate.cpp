@@ -1444,8 +1444,11 @@ int main(int argc, char **argv){
     std::vector<double *> tmpgl;
     nind=getgls(htsfile,tmpgl,freq,2,0.05);
     gls=new double *[tmpgl.size()];
-    for(int i=0;i<tmpgl.size();i++)
+    for(int i=0;i<tmpgl.size();i++){
       gls[i] = tmpgl[i];
+      for(int ii=0;ii<3*nind;ii++)
+	gls[i][ii]=exp(gls[i][ii]);
+    }  
   }
   fprintf(stderr,"\t\t-> NIND:%d\n",nind);
   for(int i=0;0&&i<freq.size();i++){

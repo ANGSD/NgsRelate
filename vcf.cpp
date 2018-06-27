@@ -247,7 +247,7 @@ int getgls(char*fname,std::vector<double *> &mygl, std::vector<double> &freqs,in
     }else
       delete [] tmp;
   }
-  fprintf(stderr, "Read %i records %i of which were SNPs number of sites with data:%lu\n", n, nsnp,mygl.size());
+  fprintf(stderr, "\t-> [vcf.cpp] Read %i records %i of which were SNPs number of sites with data:%lu\n", n, nsnp,mygl.size());
    free(pl);
   bcf_hdr_destroy(hdr);
   bcf_close(inf);
