@@ -2,7 +2,7 @@
   example modified from http://wresch.github.io/2014/11/18/process-vcf-file-with-htslib.html
 
   compile and run with:
-g++ vcf.cpp -I../htslib/ ../htslib/libhts.a -lz -D__WITH_MAIN__
+  g++ vcf.cpp -I../htslib/ ../htslib/libhts.a -lz -D__WITH_MAIN__
 
 ./a.out my.bcf
  */
@@ -149,7 +149,7 @@ int getgls(char*fname,std::vector<double *> &mygl, std::vector<double> &freqs,in
   nsamples = bcf_hdr_nsamples(hdr);
   fprintf(stderr, "\t-> File %s contains %i samples\n", fname, nsamples);
   const char **seqnames = NULL;
-#if 0
+#if __WITH_MAIN__
    seqnames = bcf_hdr_seqnames(hdr, &nseq);
   if (seqnames == NULL) {
     fprintf(stderr," error1\n");
