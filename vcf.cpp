@@ -110,7 +110,8 @@ double emFrequency(double *loglike,int numInds, int iter,double start,char *keep
 
 
 int getgls(char*fname,std::vector<double *> &mygl, std::vector<double> &freqs,int minind,double minfreq){
-  fprintf(stderr,"[getgls] fname:%s minind:%d minfreq:%f\n",fname,minind,minfreq);
+  fprintf(stderr,"\t-> [getgls] fname:%s minind:%d minfreq:%f\n",fname,minind,minfreq);
+
   for(int i=0;i<256;i++){
     pl2ln[i] = log(pow(10.0,-0.1*i));
     //    fprintf(stderr,"%d) %f %f\n",i,exp(pl2ln[i]),pl2ln[i]);
