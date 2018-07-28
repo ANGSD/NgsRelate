@@ -547,6 +547,22 @@ int em3(double *sfs,double  **emis, int len){
   return it;
 }
 
+void emislike_2dsfs_gen(double **gls, double **emislike_2dsfs, int *keeplist, int & nkeep, int & ind1, int & ind2 ){
+  int i;
+  for(int x=0;x<nkeep;x++){
+    i = keeplist[x];
+    emislike_2dsfs[x][0] = access_genotype(gls, i, ind1, 0) * access_genotype(gls, i, ind2, 0);
+    emislike_2dsfs[x][1] = access_genotype(gls, i, ind1, 0) * access_genotype(gls, i, ind2, 1);
+    emislike_2dsfs[x][2] = access_genotype(gls, i, ind1, 0) * access_genotype(gls, i, ind2, 2);
+    emislike_2dsfs[x][3] = access_genotype(gls, i, ind1, 1) * access_genotype(gls, i, ind2, 0);
+    emislike_2dsfs[x][4] = access_genotype(gls, i, ind1, 1) * access_genotype(gls, i, ind2, 1);
+    emislike_2dsfs[x][5] = access_genotype(gls, i, ind1, 1) * access_genotype(gls, i, ind2, 2);
+    emislike_2dsfs[x][6] = access_genotype(gls, i, ind1, 2) * access_genotype(gls, i, ind2, 0);
+    emislike_2dsfs[x][7] = access_genotype(gls, i, ind1, 2) * access_genotype(gls, i, ind2, 1);
+    emislike_2dsfs[x][8] = access_genotype(gls, i, ind1, 2) * access_genotype(gls, i, ind2, 2);
+  }
+}
+
 void emission_ngsrelate9(std::vector<double> * freq, double **gls, double **emis, int *keeplist, int & nkeep, int & ind1, int & ind2 ){
   // access_genotype(td->gls, i, td->a, 0);
   int i;
@@ -1194,11 +1210,11 @@ void readids(std::vector<char *> &ids,char *fname){
 }
 
 struct worker_args {
-  int thread_id, nkeep, a,b, niter, best;
+  int thread_id, nkeep, a,b, niter, best, niter_2dsfs;
   double **gls;
   std::vector<double> * freq;
-  double ll, bestll;
-  double pars[9];
+  double ll, bestll, ll_2dsfs;
+  double pars[9], pars_2dsfs[9];
   worker_args(int & id_a, int & id_b, std::vector<double> * f, double ** gls_arg ){
     a=id_a;
     b=id_b;
@@ -1242,9 +1258,10 @@ void * do_work(void *threadarg){
   }
   // fprintf(stderr, "\t-> keeping %d sites for downstream analyses", td->nkeep++);
   double **emis = new double *[td->nkeep];
-  
+  double **emislike_2dsfs = new double *[td->nkeep];
   for (int i = 0; i < td->nkeep; i++) {
     emis[i] = new double[9];
+    emislike_2dsfs[i] = new double[9];    
   }
 
 #if 0   // l1 + l2 -> gls not fixed yet
@@ -1262,13 +1279,18 @@ void * do_work(void *threadarg){
 #endif
 
   emission_ngsrelate9(td->freq, td->gls, emis, keeplist, td->nkeep, td->a, td->b);
-  if (model == 0)
+  emislike_2dsfs_gen(td->gls, emislike_2dsfs, keeplist, td->nkeep, td->a, td->b);
+  
+  if (model == 0){
     td->niter = em1(td->pars, emis, td->nkeep);
-  else if (model == 1)
+    td->niter_2dsfs = em1(td->pars_2dsfs, emislike_2dsfs, td->nkeep);
+  }else if (model == 1){
     td->niter = em2(td->pars, emis, td->nkeep);
-  else // below might not work
+    td->niter_2dsfs = em2(td->pars_2dsfs, emislike_2dsfs, td->nkeep);  
+  }else{ // below might not work
     td->niter = em3(td->pars, emis, td->nkeep);
-
+    td->niter_2dsfs = em3(td->pars_2dsfs, emislike_2dsfs, td->nkeep);
+  }
   double l100000000 = loglike(p100000000, emis, td->nkeep);
   double l010000000 = loglike(p010000000, emis, td->nkeep);
   double l001000000 = loglike(p001000000, emis, td->nkeep);
@@ -1279,7 +1301,7 @@ void * do_work(void *threadarg){
   double l000000010 = loglike(p000000010, emis, td->nkeep);
   double l000000001 = loglike(p000000001, emis, td->nkeep);
   double lopt = loglike(td->pars, emis, td->nkeep);
-
+  td->ll_2dsfs = loglike(td->pars_2dsfs, emislike_2dsfs, td->nkeep);
   td->ll = lopt;
 
   double likes[10] = {l100000000, l010000000, l001000000, l000100000,
@@ -1304,8 +1326,10 @@ void * do_work(void *threadarg){
   // end of work. Teardown
   for (int i = 0; i < td->nkeep; i++) {
     delete[] emis[i];
+    delete[] emislike_2dsfs[i];
   }
   delete[] emis;
+  delete[] emislike_2dsfs;
   pthread_exit(NULL);
 }
 
@@ -1532,10 +1556,10 @@ int main(int argc, char **argv){
     if (ids.size()){
       // fprintf(stdout,"a\tb\tida\tidb\tnSites\ts9\ts8\ts7\ts6\ts5\ts4\ts3\ts2\ts1\trab\tFa\tFb\ttheta\tloglh\tnIter\tcoverage\n");
       fprintf(stdout,
-              "a\tb\tida\tidb\tnSites\ts9\ts8\ts7\ts6\ts5\ts4\ts3\ts2\ts1\trab\tFa\tFb\ttheta\tinbred_relatedness_1_2\tinbred_relatedness_2_1\tfraternity\tidentity\tzygosity\tloglh\tnIter\tcoverage\n");
+              "a\tb\tida\tidb\tnSites\ts9\ts8\ts7\ts6\ts5\ts4\ts3\ts2\ts1\trab\tFa\tFb\ttheta\tinbred_relatedness_1_2\tinbred_relatedness_2_1\tfraternity\tidentity\tzygosity\tloglh\tnIter\tcoverage\t2dsfs\tR0\tR1\tKING\t2dsfs_loglike\t2dsfsf_niter\n");
     } else {
       // fprintf(stdout, "a\tb\tnSites\ts9\ts8\ts7\ts6\ts5\ts4\ts3\ts2\ts1\trab\tFa\tFb\ttheta\tloglh\tnIter\tcoverage\n");
-      fprintf(stdout, "a\tb\tnSites\ts9\ts8\ts7\ts6\ts5\ts4\ts3\ts2\ts1\trab\tFa\tFb\ttheta\tinbred_relatedness_1_2\tinbred_relatedness_2_1\tfraternity\tidentity\tzygosity\tloglh\tnIter\tcoverage\n");
+      fprintf(stdout, "a\tb\tnSites\ts9\ts8\ts7\ts6\ts5\ts4\ts3\ts2\ts1\trab\tFa\tFb\ttheta\tinbred_relatedness_1_2\tinbred_relatedness_2_1\tfraternity\tidentity\tzygosity\tloglh\tnIter\tcoverage\t2dsfs\tR0\tR1\tKING\t2dsfs_loglike\t2dsfsf_niter\n");
     }
     int comparison_ids = 0;
     std::vector<worker_args> all_args;
@@ -1562,6 +1586,19 @@ int main(int argc, char **argv){
           td_args.pars[i] /= parsum;
           // fprintf(stderr, "par: %d, %f\n", i, td_args.pars[i]);
         }
+
+        // for 2d sfs parameters
+        parval = 0.0, parsum = 0.0;
+        for (int i = 0; i < 9; i++) {
+          parval = drand48();
+          td_args.pars_2dsfs[i] = parval;
+          parsum += parval;
+        }
+        for (int i = 0; i < 9; i++) {
+          td_args.pars_2dsfs[i] /= parsum;
+          // fprintf(stderr, "par: %d, %f\n", i, td_args.pars[i]);
+        }
+
         
         all_args.push_back(td_args);
         comparison_ids++;
@@ -1622,44 +1659,69 @@ int main(int argc, char **argv){
           // return(x[1]+x[7]+3/4*(x[3]+x[5])+x[8]*0.5)
         // Measuring Relatedness between Inbred Individuals by Hedrick 2015
         // r_xy
-        double rab = (td_out->pars[8]+td_out->pars[2]) +
-          (0.75 * (td_out->pars[6]+td_out->pars[4])) +
-          td_out->pars[1]*0.5;
+        double rab = (td_out->pars[8] + td_out->pars[2]) +
+                     (0.75 * (td_out->pars[6] + td_out->pars[4])) +
+                     td_out->pars[1] * 0.5;
         fprintf(stdout, "\t%f", rab);
         // Fa
         // sum(x[1]+x[2],x[3],x[4])
-        double Fa = td_out->pars[8]+td_out->pars[7]+td_out->pars[6]+td_out->pars[5];
+        double Fa = td_out->pars[8] + td_out->pars[7] + td_out->pars[6] +
+                    td_out->pars[5];
         fprintf(stdout, "\t%f", Fa);
         // Fb
         // sum(x[1],x[2],x[5],x[6])
-        double Fb = td_out->pars[8]+td_out->pars[7]+td_out->pars[4]+td_out->pars[3];
+        double Fb = td_out->pars[8] + td_out->pars[7] + td_out->pars[4] +
+                    td_out->pars[3];
         fprintf(stdout, "\t%f", Fb);
         // theta, coancestry / kinship coefficient / f_XY
-        double theta = td_out->pars[8]+0.5*(td_out->pars[6]+td_out->pars[4]+td_out->pars[2]) + 0.25 * td_out->pars[1];
+        double theta =
+            td_out->pars[8] +
+            0.5 * (td_out->pars[6] + td_out->pars[4] + td_out->pars[2]) +
+            0.25 * td_out->pars[1];
         fprintf(stdout, "\t%f", theta);
 
         // new estimates from ackerman et al.
-        double inbred_relatedness_1_2 =  td_out->pars[8] + td_out->pars[6]/2;
-        double inbred_relatedness_2_1 =  td_out->pars[8] + td_out->pars[4]/2;
+        double inbred_relatedness_1_2 = td_out->pars[8] + td_out->pars[6] / 2;
+        double inbred_relatedness_2_1 = td_out->pars[8] + td_out->pars[4] / 2;
         double fraternity = td_out->pars[7] + td_out->pars[2];
         double identity = td_out->pars[8];
         double zygosity = td_out->pars[8] + td_out->pars[7] + td_out->pars[2];
-        fprintf(stdout, "\t%f\t%f\t%f\t%f\t%f",
-                inbred_relatedness_1_2,
-                inbred_relatedness_2_1,
-                fraternity,
-                identity,
-                zygosity);
-        
+        fprintf(stdout, "\t%f\t%f\t%f\t%f\t%f", inbred_relatedness_1_2,
+                inbred_relatedness_2_1, fraternity, identity, zygosity);
+
         if (td_out->best == 9) {
-          fprintf(stdout, "\t%f\t%d\t%f\n", td_out->ll,
-                  td_out->niter,
+          fprintf(stdout, "\t%f\t%d\t%f", td_out->ll, td_out->niter,
                   (1.0 * td_out->nkeep) / total_sites);
         } else {
-          fprintf(stdout, "\t%f;s%d_%f\t%d\t%f\n", td_out->ll,
-                  9 - td_out->best, td_out->bestll, -1,
-                  (1.0 * td_out->nkeep) / total_sites);
+          fprintf(stdout, "\t%f;s%d_%f\t%d\t%f", td_out->ll, 9 - td_out->best,
+                  td_out->bestll, -1, (1.0 * td_out->nkeep) / total_sites);
         }
+
+        fprintf(stdout, "\t%f", td_out->pars_2dsfs[0]);
+        for (int j = 1; j < 9; j++) {
+          fprintf(stdout, ",%f", td_out->pars_2dsfs[j]);
+        }
+        // fprintf(stdout, "%f\t%f\t%f\n",
+        // td_out->pars_2dsfs[0],td_out->pars_2dsfs[1],td_out->pars_2dsfs[2]);
+        // fprintf(stdout, "%f\t%f\t%f\n",
+        // td_out->pars_2dsfs[3],td_out->pars_2dsfs[4],td_out->pars_2dsfs[5]);
+        // fprintf(stdout, "%f\t%f\t%f\n",
+        // td_out->pars_2dsfs[6],td_out->pars_2dsfs[7],td_out->pars_2dsfs[8]);
+        double r0, r1, king;
+        r0 = (td_out->pars_2dsfs[2] + td_out->pars_2dsfs[6]) /
+             td_out->pars_2dsfs[4];
+        r1 = td_out->pars_2dsfs[4] /
+             (td_out->pars_2dsfs[1] + td_out->pars_2dsfs[2] +
+              td_out->pars_2dsfs[3] + td_out->pars_2dsfs[5] +
+              td_out->pars_2dsfs[6] + td_out->pars_2dsfs[7]);
+        king = (td_out->pars_2dsfs[4] -
+                (2 * (td_out->pars_2dsfs[2] + td_out->pars_2dsfs[6]))) /
+               (2 * td_out->pars_2dsfs[4] + td_out->pars_2dsfs[1] +
+                td_out->pars_2dsfs[3] + td_out->pars_2dsfs[5] +
+                td_out->pars_2dsfs[7]);
+        fprintf(stdout, "\t%f\t%f\t%f", r0, r1, king);
+
+        fprintf(stdout, "\t%f\t%d\n", td_out->ll_2dsfs, td_out->niter_2dsfs);
       }
       cnt += nTimes;
       fprintf(stderr, "\t-> Processed     %d out of       %d\r", cnt, comparison_ids);
