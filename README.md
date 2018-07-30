@@ -1,4 +1,5 @@
 [![Build Status](https://travis-ci.org/ANGSD/NgsRelate.svg?branch=master)](https://travis-ci.org/ANGSD/NgsRelate)
+30juni 2018. Added new version which does analysis from bcf/vcf and outputs all nine jacquards
 
 5nov 2015. Added the first version of NGSrelate which is a hmm. Input are beagle files.
 
