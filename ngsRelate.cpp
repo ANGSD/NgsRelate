@@ -1497,7 +1497,7 @@ int main(int argc, char **argv){
   exit(0);
 #endif
   if(do_inbred){
-    fprintf(stdout,"Ind\tZ=0\tZ=1\tloglh\tnIter\tcoverage\n");
+    fprintf(stdout,"Ind\tZ=0\tZ=1\tloglh\tnIter\tcoverage\tsites\n");
     int comparison_ids_inbred = 0;
     std::vector<worker_args> all_args_inbred;
     int fake_person = -1;
@@ -1537,11 +1537,11 @@ int main(int argc, char **argv){
         pthread_join(threads[i], NULL);
         worker_args * td_out_inbred = &all_args_inbred[cnt_inbred + i];
         if(td_out_inbred->best==0)
-          fprintf(stdout,"%d\t%f\t%f\t%f\t%d\t%f\n",td_out_inbred->a, p10[0],p10[1],td_out_inbred->bestll,-1,((double)td_out_inbred->nkeep)/((double)freq.size()));
+          fprintf(stdout,"%d\t%f\t%f\t%f\t%d\t%f\t%d\n",td_out_inbred->a, p10[0],p10[1],td_out_inbred->bestll,-1,((double)td_out_inbred->nkeep)/((double)freq.size()), freq.size());
         if(td_out_inbred->best==1)
-          fprintf(stdout,"%d\t%f\t%f\t%f\t%d\t%f\n",td_out_inbred->a,p01[0],p01[1],td_out_inbred->bestll,-1,((double)td_out_inbred->nkeep)/((double)freq.size()));
+          fprintf(stdout,"%d\t%f\t%f\t%f\t%d\t%f\t%d\n",td_out_inbred->a,p01[0],p01[1],td_out_inbred->bestll,-1,((double)td_out_inbred->nkeep)/((double)freq.size()), freq.size());
         if(td_out_inbred->best==2)
-          fprintf(stdout,"%d\t%f\t%f\t%f\t%d\t%f\n",td_out_inbred->a,td_out_inbred->pars[0],td_out_inbred->pars[1],td_out_inbred->bestll,td_out_inbred->niter,((double)td_out_inbred->nkeep)/((double)freq.size()));
+          fprintf(stdout,"%d\t%f\t%f\t%f\t%d\t%f\t%d\n",td_out_inbred->a,td_out_inbred->pars[0],td_out_inbred->pars[1],td_out_inbred->bestll,td_out_inbred->niter,((double)td_out_inbred->nkeep)/((double)freq.size()), freq.size());
       fflush(stdout);
       }
       cnt_inbred += nTimes_inbred;
