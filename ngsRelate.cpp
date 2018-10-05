@@ -1472,7 +1472,12 @@ int main(int argc, char **argv){
       gls[i] = tmpgl[i];
       for(int ii=0;ii<3*nind;ii++)
 	gls[i][ii]=exp(gls[i][ii]);
-    }  
+    }
+    if(freqname != NULL){
+      freq.clear();
+      getDouble(freqname,freq);
+      assert(freq.size()==gls.size());
+    }
   }
   fprintf(stderr,"\t\t-> NIND:%d\n",nind);
 
