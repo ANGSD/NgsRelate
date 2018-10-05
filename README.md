@@ -51,7 +51,7 @@ The genotype likelihood file needs to contain a line for each site with 3 values
 The frequency file needs to contain a line per site with the allele frequency of the site in it.
 
 ## VCF input ##
-NgsRelate takes a standard VCF file generated with e.g. [bcftools](http://samtools.github.io/bcftools/). By default, NgsRelate will estimate the allele frequencies using the individuals provided in the VCF files. As shown above, external allele frequencies can be provided.
+NgsRelate takes a standard VCF file generated with e.g. [bcftools](http://samtools.github.io/bcftools/). By default, NgsRelate will estimate the allele frequencies using the individuals provided in the VCF files. As shown above, external allele frequencies can be provided with `-f`. These frequencies will overwrite the ones estimated from the VCF file.
 
 
 # Output format #
@@ -67,7 +67,7 @@ The first two columns contain index of the two individuals used for the analysis
 15. Fb is the inbreeding coefficient of individual b
 16. theta is the coefficient of kinship
 
-The remaining five summary statistics (column 17-21) are based on from [Ackerman et al](http://www.genetics.org/content/206/1/105).
+The remaining five summary statistics (column 17-21) come from [Ackerman et al](http://www.genetics.org/content/206/1/105).
 
 22. the the log-likelihood of the ML estimate.
 23. number of iterations
@@ -105,14 +105,6 @@ Method (v1) is published here: http://bioinformatics.oxfordjournals.org/content/
 Method (v2) is currently under review.
 
 # Changelog #
-Important recent changes:
-#The option -z has been added so one can get the sample IDs printed in the output (if one run the program with -z idfilename)
-#We have fixed -m 1 so the estimates can no longer be negative
-
-See github for the full change log.
-
-=Bugs/Improvements=
--Make better output message if files doesn't exists when using the extract_freq option
 
 # Contacts #
 thorfinn@binf.ku.dk, k.hanghoej@snm.ku.dk, and ida@binf.ku.dk
