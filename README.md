@@ -56,11 +56,24 @@ NgsRelate takes a standard VCF file generated with e.g. [bcftools](http://samtoo
 
 # Output format #
 ``` bash
-a  b  ida  idb        nSites  s9        s8        s7        s6        s5        s4        s3        s2        s1        rab       Fa        Fb        theta     inbred_relatedness_1_2  inbred_relatedness_2_1  fraternity  identity  zygosity  loglh           nIter  coverage  2dsfs                                                                             R0        R1        KING      2dsfs_loglike   2dsfsf_niter
-0  1  C1   C1_inbred  99927   0.384903  0.360525  0.001453  0.178633  0.071648  0.000459  0.002328  0.000002  0.000049  0.237246  0.002838  0.250332  0.127894  0.001212                0.035873                0.001455    0.000049  0.001504  -341223.330857  106    0.999270  0.154920,0.087526,0.038723,0.143088,0.155154,0.139346,0.038473,0.087632,0.155137  0.497548  0.290122  0.000991  -356967.175857  7
+a  b nSites  s9        s8        s7        s6        s5        s4        s3        s2        s1        rab       Fa        Fb        theta     inbred_relatedness_1_2  inbred_relatedness_2_1  fraternity  identity  zygosity  loglh           nIter  coverage  2dsfs                                                                             R0        R1        KING      2dsfs_loglike   2dsfsf_niter
+0  1 99927   0.384903  0.360525  0.001453  0.178633  0.071648  0.000459  0.002328  0.000002  0.000049  0.237246  0.002838  0.250332  0.127894  0.001212                0.035873                0.001455    0.000049  0.001504  -341223.330857  106    0.999270  0.154920,0.087526,0.038723,0.143088,0.155154,0.139346,0.038473,0.087632,0.155137  0.497548  0.290122  0.000991  -356967.175857  7
 ```
 
-The first two columns contain the information of about what two individuals was used for the analysis. The third column contains information about how many sites were used in the analysis. The following three columns are the maximum likelihood (ML) estimates of the relatedness coefficients. The seventh column is the log of the likelihood of the ML estimate. The eigth column is the number of iterations of the maximization algorithm that was used to find the MLE, and finally the ninth column is fraction of non-missing sites, i.e. the fraction of sites where data was available for both individuals, and where the minor allele frequency (MAF) above the threshold (default is 0.05 but the user may specify a different threshold). Note that in some cases nIter is -1. This indicates that values on the boundary of the parameter space had a higher likelihood than the values achieved using the EM-algorithm (ML methods sometimes have trouble finding the ML estimate when it is on the boundary of the parameter space, and we therefore test the boundary values explicitly and output these if these have the highest likelihood).
+The first two columns contain index of the two individuals used for the analysis. The third column contains information about how many sites were used in the analysis. The following nine columns are the maximum likelihood (ML) estimates of the jacquard coefficients. Based on these Jacquard coefficients, NgsRelate calculates nine summary statistics:
+13. rab is the pairwise relatedness
+14. Fa is the inbreeding coefficient of individual a
+15. Fb is the inbreeding coefficient of individual b
+16. theta is the coefficient of kinship
+The remaining five summary statistics (column 17-21) are based on from [Ackerman et al](http://www.genetics.org/content/206/1/105).
+22. the the log-likelihood of the ML estimate.
+23. number of iterations
+24. fraction of sites used for the ML estimate
+25. 2dsfs estimates using the methodology from ANGSD
+
+You can also input a file with the IDs of the individuals (on ID per line), using the `-z` option, in the same order as in the file `filelist` used to make the genotype likelihoods or the VCF file. If you do the output will also contain these IDs as column 3 and 4.
+
+Note that in some cases nIter is -1. This indicates that values on the boundary of the parameter space had a higher likelihood than the values achieved using the EM-algorithm (ML methods sometimes have trouble finding the ML estimate when it is on the boundary of the parameter space, and we therefore test the boundary values explicitly and output these if these have the highest likelihood).
 
 # Help and additional options #
 
