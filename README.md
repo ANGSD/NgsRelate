@@ -5,7 +5,7 @@ This pages refers to the new v2 of ngsRelate which coestimates relatedness and i
 
 # Brief description #
 
-This page contains information about the program called NgsRelate, which can be used to infer relatedness coefficients for pairs of individuals from low coverage Next Generation Sequencing (NGS) data by using genotype likelihoods instead of called genotypes. To be able to infer the relatedness you will need to know the population allele frequencies and have genotype likelihoods. This can be obtained e.g. using the program ANGSD as shown in example 1 below. For more information about ANGSD see here: http://popgen.dk/angsd/index.php/Quick_Start.
+This page contains information about the program called NgsRelate, which can be used to infer relatedness, inbreeding coefficients and many other summary statistics for pairs of individuals from low coverage Next Generation Sequencing (NGS) data by using genotype likelihoods instead of called genotypes. To be able to infer the relatedness you will need to know the population allele frequencies and have genotype likelihoods. This can be obtained e.g. using the program ANGSD as shown in example 1 below. For more information about ANGSD see here: http://popgen.dk/angsd/index.php/Quick_Start. As of version 2, VCF/BCF files can also be parsed.
 
 # How to download and install #
 On a linux or mac system with curl and g++ installed NgsRelate can be downloaded and installed as follows:
@@ -19,7 +19,7 @@ cd htslib/;make -j2;cd ../ngsRelate;make HTSSRC=../htslib/
 
 ## Run example 1: using only NGS data ##
 Below is an example of how NgsRelate can be used to coestimate relatedness and inbreeding from NGS data.
-Assume we have file (`filelist`) containing paths to 100 BAM/CRAM files; one line per BAN/CRAM file. Then we can use ANGSD to estimate allele frequencies and calculate genotype likelihoods while doing SNP calling and in the end produce the the two input files needed for the NgsRelate program as follows:
+Assume we have file (`filelist`) containing paths to 100 BAM/CRAM files; one line per BAM/CRAM file. Then we can use ANGSD to estimate allele frequencies and calculate genotype likelihoods while doing SNP calling and in the end produce the the two input files needed for the NgsRelate program as follows:
 ``` bash
 ### First we generate a file with allele frequencies (angsdput.mafs.gz) and a file with genotype likelihoods (angsdput.glf.gz).
 ./angsd -b filelist -gl 1 -domajorminor 1 -snp_pval 1e-6 -domaf 1 -minmaf 0.05 -doGlf 3
