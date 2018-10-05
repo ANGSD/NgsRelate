@@ -17,10 +17,9 @@ cd htslib/;make -j2;cd ../ngsRelate;make HTSSRC=../htslib/
 
 # Run examples #
 
-
 ## Run example 1: using only NGS data ##
 Below is an example of how NgsRelate can be used to coestimate relatedness and inbreeding from NGS data.
-Assume we have file containing paths to 100 BAM/CRAM files; one line per BAN/CRAM file. Then we can use ANGSD to estimate allele frequencies and calculate genotype likelihoods while doing SNP calling and in the end produce the the two input files needed for the NgsRelate program as follows:
+Assume we have file (`filelist`) containing paths to 100 BAM/CRAM files; one line per BAN/CRAM file. Then we can use ANGSD to estimate allele frequencies and calculate genotype likelihoods while doing SNP calling and in the end produce the the two input files needed for the NgsRelate program as follows:
 ``` bash
 ### First we generate a file with allele frequencies (angsdput.mafs.gz) and a file with genotype likelihoods (angsdput.glf.gz).
 ./angsd -b filelist -gl 1 -domajorminor 1 -snp_pval 1e-6 -domaf 1 -minmaf 0.05 -doGlf 3
@@ -29,18 +28,18 @@ Assume we have file containing paths to 100 BAM/CRAM files; one line per BAN/CRA
 zcat angsdput.mafs.gz | cut -f5 |sed 1d >freq
 
 ### run NgsRelate
-./ngsrelate  -g angsdput.glf.gz -n 6 -f freq  > newres
+./ngsrelate  -g angsdput.glf.gz -n 100 -f freq  > gl.res
 ```
 The output should be a file called `newres` that contains relatedness estimates for all pairs between six individuals.
 
 ## Run example 2: using only VCF/BCF files ##
-As of version 2, NgsRelate can parse BCF/VCF files using `htslib` with the following command:
+As of version 2, NgsRelate can parse BCF/VCF files using [htslib](https://github.com/SAMtools/htslib) with the following command:
 ``` bash
-./ngsrelate  -h my.VCF.gz > newres
+./ngsrelate  -h my.VCF.gz > vcf.res
 ```
 By default, NgsRelate will estimate the allele frequencies using the individuals provided in the VCF files. External allele frequencies can be provided with the following command:
 ``` bash
-./ngsrelate  -h my.VCF.gz -f freq > newres
+./ngsrelate  -h my.VCF.gz -f freq > vcf.res
 ```
 The `freq` file should contain one allele frequency per line as shown in example 1. NOTE: The end-user must make sure that the allele frequencies overlap the sites provided in the VCF file.
 
@@ -52,11 +51,16 @@ The genotype likelihood file needs to contain a line for each site with 3 values
 The frequency file needs to contain a line per site with the allele frequency of the site in it.
 
 ## VCF input ##
-NgsRelate takes a standard VCF file generated with e.g. (bcftools)[http://samtools.github.io/bcftools/]. By default, NgsRelate will estimate the allele frequencies using the individuals provided in the VCF files. As shown above, external allele frequencies can be provided.
+NgsRelate takes a standard VCF file generated with e.g. [bcftools](http://samtools.github.io/bcftools/). By default, NgsRelate will estimate the allele frequencies using the individuals provided in the VCF files. As shown above, external allele frequencies can be provided.
 
 
 # Output format #
-COMING SOON
+``` bash
+a  b  ida  idb        nSites  s9        s8        s7        s6        s5        s4        s3        s2        s1        rab       Fa        Fb        theta     inbred_relatedness_1_2  inbred_relatedness_2_1  fraternity  identity  zygosity  loglh           nIter  coverage  2dsfs                                                                             R0        R1        KING      2dsfs_loglike   2dsfsf_niter
+0  1  C1   C1_inbred  99927   0.384903  0.360525  0.001453  0.178633  0.071648  0.000459  0.002328  0.000002  0.000049  0.237246  0.002838  0.250332  0.127894  0.001212                0.035873                0.001455    0.000049  0.001504  -341223.330857  106    0.999270  0.154920,0.087526,0.038723,0.143088,0.155154,0.139346,0.038473,0.087632,0.155137  0.497548  0.290122  0.000991  -356967.175857  7
+```
+
+The first two columns contain the information of about what two individuals was used for the analysis. The third column contains information about how many sites were used in the analysis. The following three columns are the maximum likelihood (ML) estimates of the relatedness coefficients. The seventh column is the log of the likelihood of the ML estimate. The eigth column is the number of iterations of the maximization algorithm that was used to find the MLE, and finally the ninth column is fraction of non-missing sites, i.e. the fraction of sites where data was available for both individuals, and where the minor allele frequency (MAF) above the threshold (default is 0.05 but the user may specify a different threshold). Note that in some cases nIter is -1. This indicates that values on the boundary of the parameter space had a higher likelihood than the values achieved using the EM-algorithm (ML methods sometimes have trouble finding the ML estimate when it is on the boundary of the parameter space, and we therefore test the boundary values explicitly and output these if these have the highest likelihood).
 
 # Help and additional options #
 
