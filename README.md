@@ -5,7 +5,7 @@ This pages refers to the new v2 of ngsRelate which coestimates relatedness and i
 
 # Brief description #
 
-This page contains information about the program called NgsRelate, which can be used to infer relatedness coefficients for pairs of individuals from low coverage Next Generation Sequencing (NGS) data by using genotype likelihoods instead of called genotypes. To be able to infer the relatedness you will need to know the population allele frequencies and have genotype likelihoods. This can be obtained e.g. using the program ANGSD as shown in the examples below. For more information about ANGSD see here: http://popgen.dk/angsd/index.php/Quick_Start.
+This page contains information about the program called NgsRelate, which can be used to infer relatedness coefficients for pairs of individuals from low coverage Next Generation Sequencing (NGS) data by using genotype likelihoods instead of called genotypes. To be able to infer the relatedness you will need to know the population allele frequencies and have genotype likelihoods. This can be obtained e.g. using the program ANGSD as shown in example 1 below. For more information about ANGSD see here: http://popgen.dk/angsd/index.php/Quick_Start.
 
 # How to download and install #
 On a linux or mac system with curl and g++ installed NgsRelate can be downloaded and installed as follows:
@@ -51,7 +51,7 @@ The genotype likelihood file needs to contain a line for each site with 3 values
 The frequency file needs to contain a line per site with the allele frequency of the site in it.
 
 ## VCF input ##
-NgsRelate takes a standard VCF file generated with e.g. [bcftools](http://samtools.github.io/bcftools/). By default, NgsRelate will estimate the allele frequencies using the individuals provided in the VCF files. As shown above, external allele frequencies can be provided with `-f`. These frequencies will overwrite the ones estimated from the VCF file.
+NgsRelate takes a standard VCF file generated with e.g. [bcftools](http://samtools.github.io/bcftools/). By default, NgsRelate will estimate the allele frequencies using the individuals provided in the VCF files. As shown in example 2, external allele frequencies can be provided with `-f`. These frequencies will overwrite the ones estimated from the VCF file.
 
 
 # Output format #
@@ -72,7 +72,8 @@ The remaining five summary statistics (column 17-21) come from [Ackerman et al](
 22. the the log-likelihood of the ML estimate.
 23. number of iterations
 24. fraction of sites used for the ML estimate
-25. 2dsfs estimates using the methodology from ANGSD
+
+<!-- 25. 2dsfs estimates using the methodology from ANGSD -->
 
 You can also input a file with the IDs of the individuals (on ID per line), using the `-z` option, in the same order as in the file `filelist` used to make the genotype likelihoods or the VCF file. If you do the output will also contain these IDs as column 3 and 4.
 
@@ -100,9 +101,9 @@ To only estimate inbreeding, use the following command
 
 
 # Citing and references #
-n
-Method (v1) is published here: http://bioinformatics.oxfordjournals.org/content/early/2015/08/29/bioinformatics.btv509.abstract
-Method (v2) is currently under review.
+
+- Method (v1) is published here: http://bioinformatics.oxfordjournals.org/content/early/2015/08/29/bioinformatics.btv509.abstract
+- Method (v2) is currently under review.
 
 # Changelog #
 
