@@ -28,9 +28,9 @@ Assume we have file (`filelist`) containing paths to 100 BAM/CRAM files; one lin
 zcat angsdput.mafs.gz | cut -f5 |sed 1d >freq
 
 ### run NgsRelate
-./ngsrelate  -g angsdput.glf.gz -n 100 -f freq  > gl.res
+./ngsrelate  -g angsdput.glf.gz -n 100 -f freq  > newres
 ```
-The output should be a file called `newres` that contains relatedness estimates for all pairs between six individuals.
+The output should be a file called `newres` that contains the output for all pairs between six individuals.
 
 ## Run example 2: using only VCF/BCF files ##
 As of version 2, NgsRelate can parse BCF/VCF files using [htslib](https://github.com/SAMtools/htslib) with the following command:
@@ -100,7 +100,7 @@ To only estimate inbreeding, use the following command
 
 
 # Citing and references #
-
+n
 Method (v1) is published here: http://bioinformatics.oxfordjournals.org/content/early/2015/08/29/bioinformatics.btv509.abstract
 Method (v2) is currently under review.
 
