@@ -61,11 +61,14 @@ a  b nSites  s9        s8        s7        s6        s5        s4        s3     
 ```
 
 The first two columns contain index of the two individuals used for the analysis. The third column contains information about how many sites were used in the analysis. The following nine columns are the maximum likelihood (ML) estimates of the jacquard coefficients. Based on these Jacquard coefficients, NgsRelate calculates nine summary statistics:
+
 13. rab is the pairwise relatedness
 14. Fa is the inbreeding coefficient of individual a
 15. Fb is the inbreeding coefficient of individual b
 16. theta is the coefficient of kinship
+
 The remaining five summary statistics (column 17-21) are based on from [Ackerman et al](http://www.genetics.org/content/206/1/105).
+
 22. the the log-likelihood of the ML estimate.
 23. number of iterations
 24. fraction of sites used for the ML estimate
