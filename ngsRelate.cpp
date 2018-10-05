@@ -1476,7 +1476,7 @@ int main(int argc, char **argv){
     if(freqname != NULL){
       freq.clear();
       getDouble(freqname,freq);
-      assert(freq.size()==gls.size());
+      assert(freq.size()==tmpgl.size());
     }
   }
   fprintf(stderr,"\t\t-> NIND:%d\n",nind);
