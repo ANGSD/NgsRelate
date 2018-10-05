@@ -1475,13 +1475,13 @@ int main(int argc, char **argv){
     }  
   }
   fprintf(stderr,"\t\t-> NIND:%d\n",nind);
-  for(int i=0;0&&i<freq.size();i++){
-    fprintf(stdout,"%f",freq[i]);
-    for(int ii=0;ii<3*nind;ii++)
-      fprintf(stdout,"\t%f",gls[i][ii]);
-    fprintf(stdout, "\n");
-  }
-  // exit(0);
+
+  // for(int i=0;0&&i<freq.size();i++){
+  //   fprintf(stdout,"%f",freq[i]);
+  //   for(int ii=0;ii<3*nind;ii++)
+  //     fprintf(stdout,"\t%f",gls[i][ii]);
+  //   fprintf(stdout, "\n");
+  // }
 #endif
 
   double total_sites = (1.0 * freq.size());
