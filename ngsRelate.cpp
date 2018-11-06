@@ -1479,7 +1479,7 @@ int main(int argc, char **argv){
       assert(freq.size()==tmpgl.size());
     }
   }
-  fprintf(stderr,"\t\t-> NIND:%d\n",nind);
+  fprintf(stderr,"\t-> NIND:%d\n",nind);
 
   // for(int i=0;0&&i<freq.size();i++){
   //   fprintf(stdout,"%f",freq[i]);
