@@ -22,7 +22,7 @@ Below is an example of how NgsRelate can be used to coestimate relatedness and i
 Assume we have file (`filelist`) containing paths to 100 BAM/CRAM files; one line per BAM/CRAM file. Then we can use ANGSD to estimate allele frequencies and calculate genotype likelihoods while doing SNP calling and in the end produce the the two input files needed for the NgsRelate program as follows:
 ``` bash
 ### First we generate a file with allele frequencies (angsdput.mafs.gz) and a file with genotype likelihoods (angsdput.glf.gz).
-./angsd -b filelist -gl 1 -domajorminor 1 -snp_pval 1e-6 -domaf 1 -minmaf 0.05 -doGlf 3
+./angsd -b filelist -gl 2 -domajorminor 1 -snp_pval 1e-6 -domaf 1 -minmaf 0.05 -doGlf 3
 
 ### Then we extract the frequency column from the allele frequency file and remove the header (to make it in the format NgsRelate needs)
 zcat angsdput.mafs.gz | cut -f5 |sed 1d >freq
@@ -62,16 +62,24 @@ a  b nSites  s9        s8        s7        s6        s5        s4        s3     
 
 The first two columns contain index of the two individuals used for the analysis. The third column contains information about how many sites were used in the analysis. The following nine columns are the maximum likelihood (ML) estimates of the jacquard coefficients. Based on these Jacquard coefficients, NgsRelate calculates nine summary statistics:
 
-13. rab is the pairwise relatedness
-14. Fa is the inbreeding coefficient of individual a
-15. Fb is the inbreeding coefficient of individual b
-16. theta is the coefficient of kinship
-
-The remaining five summary statistics (column 17-21) come from [Ackerman et al](http://www.genetics.org/content/206/1/105).
-
-22. the the log-likelihood of the ML estimate.
-23. number of iterations
+13. rab is the pairwise relatedness `(J1+J7+0.75*(J3+J5)+.5*J8)` [Hedrick et al](https://academic.oup.com/jhered/article/106/1/20/2961876)
+14. Fa is the inbreeding coefficient of individual a `J1+J2+J3+J4` [Ackerman et al](http://www.genetics.org/content/206/1/105)
+15. Fb is the inbreeding coefficient of individual b `J1+J2+J5+J6` [Ackerman et al](http://www.genetics.org/content/206/1/105)
+16. theta is the coefficient of kinship `J1 + 0.5*(J3+J5+J7) + 0.25*J8)` [Hedrick et al](https://academic.oup.com/jhered/article/106/1/20/2961876)
+17. inbred_relatedness_1_2 `J1+0.5*J3` [Ackerman et al](http://www.genetics.org/content/206/1/105)
+18. inbred_relatedness_2_1 `J1+0.5*J5` [Ackerman et al](http://www.genetics.org/content/206/1/105)
+19. fraternity `J2+J7` [Ackerman et al](http://www.genetics.org/content/206/1/105)
+20. identity `J1` [Ackerman et al](http://www.genetics.org/content/206/1/105) 
+21. zygosity `J1+J2+J7` [Ackerman et al](http://www.genetics.org/content/206/1/105)
+22. the log-likelihood of the ML estimate.
+23. number of EM iterations
 24. fraction of sites used for the ML estimate
+25. 2dsfs estimates using the methodology from realsfs in ANGSD
+26. R0 
+27. R1
+28. KING
+29. the log-likelihood of the 2dsfs ML estimate.
+30. number of iterations for 2dsfs ML estimate
 
 <!-- 25. 2dsfs estimates using the methodology from ANGSD -->
 
