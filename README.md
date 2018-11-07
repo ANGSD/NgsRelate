@@ -1,7 +1,7 @@
 [![Build Status](https://travis-ci.org/ANGSD/NgsRelate.svg?branch=master)](https://travis-ci.org/ANGSD/NgsRelate)
 30juni 2018. Added new version which does analysis from bcf/vcf and outputs all nine jacquards
 
-This page refers to the new v2 of ngsRelate which coestimates relatedness and inbreeding. For the old version please use this link: http://www.popgen.dk/software/index.php?title=NgsRelate&oldid=694
+This page refers to the new v2 of NgsRelate which coestimates relatedness and inbreeding. For the old version please use this link: http://www.popgen.dk/software/index.php?title=NgsRelate&oldid=694
 
 # Brief description #
 
@@ -46,9 +46,11 @@ The `freq` file should contain one allele frequency per line as shown in example
 # Input file format #
 
 ## Genotype likelihood input ##
-NgsRelate takes two files as input: a file with genotype likelihoods and a file with frequencies for the sites there are genotype likelihoods for.
+NgsRelate takes two files as input: a file with genotype likelihoods `(-g)` and a file with population allele frequencies `(-f)` for the sites there are genotype likelihoods for.
 The genotype likelihood file needs to contain a line for each site with 3 values for each individual (one log transformed genotype likelihood for each of the 3 possible genotypes encoded as 'double's) and it needs to be in binary format and gz compressed.
 The frequency file needs to contain a line per site with the allele frequency of the site in it.
+
+NgsRelate can also calculate a few summary statistics without known population allele frequencies. These statistics will be calculated automatically. Even if the population allele frequencies are not available, these summary statistics can still be estimated with NgsRelate by providing it with the number of used sites `(-L)` instead of the allele frequency file `(-f)`. 
 
 ## VCF input ##
 NgsRelate takes a standard VCF file generated with e.g. [bcftools](http://samtools.github.io/bcftools/). By default, NgsRelate will estimate the allele frequencies using the individuals provided in the VCF files. As shown in example 2, external allele frequencies can be provided with `-f`. These frequencies will overwrite the ones estimated from the VCF file.
@@ -56,11 +58,11 @@ NgsRelate takes a standard VCF file generated with e.g. [bcftools](http://samtoo
 
 # Output format #
 ``` bash
-a  b nSites  s9        s8        s7        s6        s5        s4        s3        s2        s1        rab       Fa        Fb        theta     inbred_relatedness_1_2  inbred_relatedness_2_1  fraternity  identity  zygosity  loglh           nIter  coverage  2dsfs                                                                             R0        R1        KING      2dsfs_loglike   2dsfsf_niter
-0  1 99927   0.384903  0.360525  0.001453  0.178633  0.071648  0.000459  0.002328  0.000002  0.000049  0.237246  0.002838  0.250332  0.127894  0.001212                0.035873                0.001455    0.000049  0.001504  -341223.330857  106    0.999270  0.154920,0.087526,0.038723,0.143088,0.155154,0.139346,0.038473,0.087632,0.155137  0.497548  0.290122  0.000991  -356967.175857  7
+a  b  nSites  s9        s8        s7        s6        s5        s4        s3        s2        s1        rab       Fa        Fb        theta     inbred_relatedness_1_2  inbred_relatedness_2_1  fraternity  identity  zygosity  2of3IDB   FDiff      loglh           nIter  coverage  2dsfs                                                                             R0        R1        KING       2dsfs_loglike   2dsfsf_niter
+0  1  99927   0.384487  0.360978  0.001416  0.178610  0.071681  0.000617  0.002172  0.000034  0.000005  0.237300  0.002828  0.250330  0.127884  0.001091                0.035846                0.001451    0.000005  0.001456  0.345411  -0.088997  -341223.335664  103    0.999270  0.154920,0.087526,0.038724,0.143087,0.155155,0.139345,0.038473,0.087632,0.155138  0.497548  0.290124  0.000991   -356967.175857  7
 ```
 
-The first two columns contain index of the two individuals used for the analysis. The third column contains information about how many sites were used in the analysis. The following nine columns are the maximum likelihood (ML) estimates of the jacquard coefficients. Based on these Jacquard coefficients, NgsRelate calculates nine summary statistics:
+The first two columns contain indices of the two individuals used for the analysis. The third column is the number of genomic sites considered. The following nine columns are the maximum likelihood (ML) estimates of the nine jacquard coefficients. Based on these Jacquard coefficients, NgsRelate calculates 11 summary statistics:
 
 13. rab is the pairwise relatedness `(J1+J7+0.75*(J3+J5)+.5*J8)` [Hedrick et al](https://academic.oup.com/jhered/article/106/1/20/2961876)
 14. Fa is the inbreeding coefficient of individual a `J1+J2+J3+J4` [Ackerman et al](http://www.genetics.org/content/206/1/105)
@@ -71,17 +73,20 @@ The first two columns contain index of the two individuals used for the analysis
 19. fraternity `J2+J7` [Ackerman et al](http://www.genetics.org/content/206/1/105)
 20. identity `J1` [Ackerman et al](http://www.genetics.org/content/206/1/105) 
 21. zygosity `J1+J2+J7` [Ackerman et al](http://www.genetics.org/content/206/1/105)
-22. the log-likelihood of the ML estimate.
-23. number of EM iterations
-24. fraction of sites used for the ML estimate
-25. 2dsfs estimates using the methodology from realsfs in ANGSD
-26. R0 
-27. R1
-28. KING
-29. the log-likelihood of the 2dsfs ML estimate.
-30. number of iterations for 2dsfs ML estimate
+22. Two-out-of-three IBD `J1+J2+J3+J5+J7+0.5*(J4+J6+J8)` [Miklos csuros](https://www.sciencedirect.com/science/article/pii/S0040580913001123)
+23. Inbreeding difference `0.5*(J4-J6)` [Miklos csuros](https://www.sciencedirect.com/science/article/pii/S0040580913001123)
+24. the log-likelihood of the ML estimate.
+25. number of EM iterations
+26. fraction of sites used for the ML estimate
 
-<!-- 25. 2dsfs estimates using the methodology from ANGSD -->
+The remaining columns relate to statistics based on a 2D-SFS. 
+
+27. 2dsfs estimates using the same methodology as implemented in realSFS, see [ANGSD](https://github.com/ANGSD/angsd)
+28. R0 [Waples et al](https://www.biorxiv.org/content/early/2018/08/31/260497)
+29. R1 [Waples et al](https://www.biorxiv.org/content/early/2018/08/31/260497)
+30. KING [Waples et al](https://www.biorxiv.org/content/early/2018/08/31/260497)
+31. the log-likelihood of the 2dsfs estimate.
+32. number of iterations for 2dsfs estimate
 
 You can also input a file with the IDs of the individuals (on ID per line), using the `-z` option, in the same order as in the file `filelist` used to make the genotype likelihoods or the VCF file. If you do the output will also contain these IDs as column 3 and 4.
 
