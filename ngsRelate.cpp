@@ -17,6 +17,8 @@
 #include <map>
 #include <libgen.h>  // basename
 #include <pthread.h> // threading
+#include <time.h> // time
+
 #ifdef __WITH_BCF__
 #include "vcf.h"
 #endif
@@ -41,7 +43,7 @@ int refToInt[256] = {
   4,4,4,4,4,4,4,4,4,4,4,4,4,4,4,4//255
 };
 //this is as close to the bound we will allow
-double TINY=1e-6;
+double TINY=1e-8;
 double p100000000[9] = {1 - TINY,   TINY / 8.0, TINY / 8.0,
                         TINY / 8.0, TINY / 8.0, TINY / 8.0,
                         TINY / 8.0, TINY / 8.0, TINY / 8.0};
@@ -84,16 +86,22 @@ double p01[2]={TINY,1-TINY};
 int num_threads = 4;
 char *freqname=NULL;
 char *gname=NULL;
+
 int maxIter =5000;
-double tole =1e-6;
+double tole =1e-8;
 int n=-1;
-int seed=100;
+
+int seed=INT_MAX;
+
 int model =1;
 int gc =0;
 double errate = 0.005;
 int pair1 =-1;
 int pair2 =-1;
 int nind =2;
+int nsites_2dsfs = 0;
+size_t overall_number_of_sites = 0;
+int do_2dsfs_only = 0;
 int do_inbred=0;
 int do_simple=0;
 int switchMaf = 0;
@@ -835,8 +843,14 @@ double **getGL(const char *fname, int sites, int nInd) {
       fprintf(stderr, "\t-> Too many sites in glf file. Looks outof sync, or "
                       "make sure you supplied correct number of individuals "
                       "(-n)\n");
+
+      if(do_2dsfs_only){
+        fprintf(stderr, "\t-> Or that the number of sites provided (-L) it is correct\n");
+      }
       exit(0);
     }
+
+
   }
   if (i != sites) {
     fprintf(stderr, "nsites: %d assumed but %d read\n", sites, i);
@@ -872,6 +886,7 @@ void print_info(FILE *fp){
   fprintf(fp, "Usage main analyses: ./ngsrelate  [options] \n");
   fprintf(fp, "Options:\n");
   fprintf(fp, "   -f <filename>       Name of file with frequencies\n");
+  fprintf(fp, "   -L <INT>            Number of genomic sites. Must be provided if -f (allele frequency file) is NOT provided \n");
   fprintf(fp, "   -m <INTEGER>        model 0=normalEM 1=acceleratedEM\n");
   fprintf(fp, "   -i <UINTEGER>       Maximum number of EM iterations\n");
   fprintf(fp, "   -t <FLOAT>          Tolerance for breaking EM\n");
@@ -1213,9 +1228,10 @@ struct worker_args {
   int thread_id, nkeep, a,b, niter, best, niter_2dsfs;
   double **gls;
   std::vector<double> * freq;
+  size_t nsites;
   double ll, bestll, ll_2dsfs;
   double pars[9], pars_2dsfs[9];
-  worker_args(int & id_a, int & id_b, std::vector<double> * f, double ** gls_arg ){
+  worker_args(int & id_a, int & id_b, std::vector<double> * f, double ** gls_arg, size_t & s ){
     a=id_a;
     b=id_b;
     nkeep=0;
@@ -1224,6 +1240,7 @@ struct worker_args {
     bestll=0.0;    
     freq = f;
     gls=gls_arg;
+    nsites = s;
   }
 };
 
@@ -1237,8 +1254,8 @@ void * do_work(void *threadarg){
 #endif
 
   // init all in each thread
-  int *keeplist = new int [td->freq->size()];
-  for (size_t i = 0; i < td->freq->size(); i++) {
+  int *keeplist = new int [td->nsites];
+  for (size_t i = 0; i < td->nsites; i++) {
     // skip missing data
     if (access_genotype(td->gls, i, td->a, 0) == access_genotype(td->gls, i, td->a, 1) && 
         access_genotype(td->gls, i, td->a, 0) == access_genotype(td->gls, i, td->a, 2)){
@@ -1250,18 +1267,25 @@ void * do_work(void *threadarg){
     }
 
     // removing minor allele frequencies
-    if (td->freq->at(i) < minMaf || (1 - td->freq->at(i)) < minMaf)
+
+    if ( !do_2dsfs_only && (td->freq->at(i) < minMaf || (1 - td->freq->at(i)) < minMaf))
       continue;
 
     keeplist[td->nkeep] = i;
     td->nkeep++;
   }
   // fprintf(stderr, "\t-> keeping %d sites for downstream analyses", td->nkeep++);
-  double **emis = new double *[td->nkeep];
+  double **emis;
+  if(!do_2dsfs_only){
+    emis = new double *[td->nkeep];
+    for (int i = 0; i < td->nkeep; i++) {
+      emis[i] = new double[9];
+    }
+  }
+
   double **emislike_2dsfs = new double *[td->nkeep];
   for (int i = 0; i < td->nkeep; i++) {
-    emis[i] = new double[9];
-    emislike_2dsfs[i] = new double[9];    
+    emislike_2dsfs[i] = new double[9];
   }
 
 #if 0   // l1 + l2 -> gls not fixed yet
@@ -1277,45 +1301,51 @@ void * do_work(void *threadarg){
     }
   }
 #endif
+  if(!do_2dsfs_only){
+    emission_ngsrelate9(td->freq, td->gls, emis, keeplist, td->nkeep, td->a, td->b);
 
-  emission_ngsrelate9(td->freq, td->gls, emis, keeplist, td->nkeep, td->a, td->b);
-  emislike_2dsfs_gen(td->gls, emislike_2dsfs, keeplist, td->nkeep, td->a, td->b);
-  
-  if (model == 0){
-    td->niter = em1(td->pars, emis, td->nkeep);
-    td->niter_2dsfs = em1(td->pars_2dsfs, emislike_2dsfs, td->nkeep);
-  }else if (model == 1){
-    td->niter = em2(td->pars, emis, td->nkeep);
-    td->niter_2dsfs = em2(td->pars_2dsfs, emislike_2dsfs, td->nkeep);  
-  }else{ // below might not work
-    td->niter = em3(td->pars, emis, td->nkeep);
-    td->niter_2dsfs = em3(td->pars_2dsfs, emislike_2dsfs, td->nkeep);
-  }
-  double l100000000 = loglike(p100000000, emis, td->nkeep);
-  double l010000000 = loglike(p010000000, emis, td->nkeep);
-  double l001000000 = loglike(p001000000, emis, td->nkeep);
-  double l000100000 = loglike(p000100000, emis, td->nkeep);
-  double l000010000 = loglike(p000010000, emis, td->nkeep);
-  double l000001000 = loglike(p000001000, emis, td->nkeep);
-  double l000000100 = loglike(p000000100, emis, td->nkeep);
-  double l000000010 = loglike(p000000010, emis, td->nkeep);
-  double l000000001 = loglike(p000000001, emis, td->nkeep);
-  double lopt = loglike(td->pars, emis, td->nkeep);
-  td->ll_2dsfs = loglike(td->pars_2dsfs, emislike_2dsfs, td->nkeep);
-  td->ll = lopt;
+    if (model == 0){
+      td->niter = em1(td->pars, emis, td->nkeep);
+    }else if (model == 1){
+      td->niter = em2(td->pars, emis, td->nkeep);
+    }else{ // below might not work
+      td->niter = em3(td->pars, emis, td->nkeep);
+    }
+    double l100000000 = loglike(p100000000, emis, td->nkeep);
+    double l010000000 = loglike(p010000000, emis, td->nkeep);
+    double l001000000 = loglike(p001000000, emis, td->nkeep);
+    double l000100000 = loglike(p000100000, emis, td->nkeep);
+    double l000010000 = loglike(p000010000, emis, td->nkeep);
+    double l000001000 = loglike(p000001000, emis, td->nkeep);
+    double l000000100 = loglike(p000000100, emis, td->nkeep);
+    double l000000010 = loglike(p000000010, emis, td->nkeep);
+    double l000000001 = loglike(p000000001, emis, td->nkeep);
+    double lopt = loglike(td->pars, emis, td->nkeep);
+    td->ll = lopt;
 
-  double likes[10] = {l100000000, l010000000, l001000000, l000100000,
-                      l000010000, l000001000, l000000100, l000000010,
-                      l000000001, lopt};
-  td->best = 0;
-  td->bestll = likes[0];
-  for (int i = 1; i < 10; i++) {
-    if (likes[i] > likes[td->best]){
-      td->best = i;
-      td->bestll = likes[i];
+    double likes[10] = {l100000000, l010000000, l001000000, l000100000,
+                        l000010000, l000001000, l000000100, l000000010,
+                        l000000001, lopt};
+    td->best = 0;
+    td->bestll = likes[0];
+    for (int i = 1; i < 10; i++) {
+      if (likes[i] > likes[td->best]){
+        td->best = i;
+        td->bestll = likes[i];
+      }
     }
   }
 
+  emislike_2dsfs_gen(td->gls, emislike_2dsfs, keeplist, td->nkeep, td->a, td->b);
+  if (model == 0){
+    td->niter_2dsfs = em1(td->pars_2dsfs, emislike_2dsfs, td->nkeep);
+  }else if (model == 1){
+    td->niter_2dsfs = em2(td->pars_2dsfs, emislike_2dsfs, td->nkeep);  
+  }else{ // below might not work
+    td->niter_2dsfs = em3(td->pars_2dsfs, emislike_2dsfs, td->nkeep);
+  }
+  td->ll_2dsfs = loglike(td->pars_2dsfs, emislike_2dsfs, td->nkeep);
+  
   // double newpars[9] = {0.0625, 0.3125, 0.21875,
   //                      0.03125, 0.125, 0.03125,
   //                      0.125, 0.03125, 0.0625};
@@ -1324,12 +1354,20 @@ void * do_work(void *threadarg){
   // fprintf(stdout, "%f is the likelihood of the correct estimates\n", newlopt);
 
   // end of work. Teardown
-  for (int i = 0; i < td->nkeep; i++) {
-    delete[] emis[i];
-    delete[] emislike_2dsfs[i];
+
+  if(do_2dsfs_only){
+    for (int i = 0; i < td->nkeep; i++) {
+      delete[] emislike_2dsfs[i];
+    }
+    delete[] emislike_2dsfs;
+  } else {
+    for (int i = 0; i < td->nkeep; i++) {
+      delete[] emis[i];
+      delete[] emislike_2dsfs[i];
+    }
+    delete[] emis;
+    delete[] emislike_2dsfs;
   }
-  delete[] emis;
-  delete[] emislike_2dsfs;
   pthread_exit(NULL);
 }
 
@@ -1406,7 +1444,7 @@ int main(int argc, char **argv){
     return extract_freq(--argc,++argv);
 
   char *htsfile=NULL;
-  while ((n = getopt(argc, argv, "f:i:t:r:g:m:v:s:F:o:c:e:a:b:n:l:z:p:h:")) >= 0) {
+  while ((n = getopt(argc, argv, "f:i:t:r:g:m:v:s:F:o:c:e:a:b:n:l:z:p:h:L:")) >= 0) {
     switch (n) {
     case 'f': freqname = strdup(optarg); break;
     case 'i': maxIter = atoi(optarg); break;
@@ -1427,6 +1465,7 @@ int main(int argc, char **argv){
     case 'l': minMaf = atof(optarg); break;
     case 'h': htsfile = strdup(optarg); break;
     case 'z': readids(ids,optarg); break;
+    case 'L': nsites_2dsfs = atoi(optarg); break;
     default: {fprintf(stderr,"unknown arg:\n");return 0;}
       print_info(stderr);
     }
@@ -1446,22 +1485,55 @@ int main(int argc, char **argv){
   if (ids.size() != 0 && ids.size() != nind) {
     fprintf(stderr, "\t-> Number of names doesnt match the -n parameter\n");
   }
+
+  srand(time(NULL));
+  if (seed == INT_MAX){
+    seed=rand();
+  }
+  fprintf(stderr,"\t-> Seed is: %d\n",seed);
+
   srand48(seed);
-  if ((nind == -1 || freqname == NULL || gname == NULL)&&htsfile==NULL) {
-    fprintf(stderr, "\t-> Must supply -n -f -g parameters (%d,%s,%s) OR -h file.bcf\n", nind,
-            freqname, gname);
+
+  if ((nind == -1 || gname == NULL)&&htsfile==NULL) {
+    fprintf(stderr, "\t-> Must supply -n -g parameters (%d,%s) OR -h file.[vb]cf\n", nind,gname);
     return 0;
   }
+
+  if ( freqname == NULL && ( do_simple || do_inbred )){
+    fprintf(stderr, "\t-> Must supply -f (allele frequency file) if '-o 1' or '-F 1' are enabled\n");
+    return 0;
+    }
+  
+  if (freqname == NULL){
+    fprintf(stderr, "\t-> Allele frequencies file (-f) is not provided. Only summary statistitics based on 2dsfs will be reported\n");
+    do_2dsfs_only = 1;
+    if(!nsites_2dsfs){
+      fprintf(stderr, "\t-> Number of genomic sites must be provided (-L <INT>)\n");
+      return 0;
+    }
+  }
+
+  
+  // if ((nind == -1 || freqname == NULL || gname == NULL)&&htsfile==NULL) {
+  //   fprintf(stderr, "\t-> Must supply -n -f -g parameters (%d,%s,%s) OR -h file.bcf\n", nind,
+  //           freqname, gname);
+  //   return 0;
+  // }
 
   pthread_t threads[num_threads];
 
   std::vector<double> freq;
   double **gls=NULL;
 
-
-  if(htsfile==NULL){
+  
+  if(htsfile==NULL && !do_2dsfs_only){
     getDouble(freqname,freq);
     gls = getGL(gname, freq.size(), nind);
+    overall_number_of_sites = freq.size();
+  }
+  if(htsfile==NULL && do_2dsfs_only){
+    gls = getGL(gname, nsites_2dsfs, nind);
+    overall_number_of_sites = nsites_2dsfs;
   }
 #ifdef __WITH_BCF__
   if(htsfile){
@@ -1477,6 +1549,7 @@ int main(int argc, char **argv){
       freq.clear();
       getDouble(freqname,freq);
       assert(freq.size()==tmpgl.size());
+      overall_number_of_sites = freq.size();
     }
   }
   fprintf(stderr,"\t-> NIND:%d\n",nind);
@@ -1488,17 +1561,17 @@ int main(int argc, char **argv){
   //   fprintf(stdout, "\n");
   // }
 #endif
+  double total_sites = overall_number_of_sites * 1.0;
 
-  double total_sites = (1.0 * freq.size());
   if (switchMaf) {
     fprintf(stderr, "\t-> switching frequencies\n");
-    for (size_t i = 0; i < freq.size(); i++)
+    for (size_t i = 0; i < overall_number_of_sites; i++)
       freq[i] = 1 - freq[i];
   }
 
 
 #if 0
-  print(stdout,freq.size(),3*nind,gls);
+  print(stdout,overall_number_of_sites,3*nind,gls);
   exit(0);
 #endif
   if(do_inbred){
@@ -1509,7 +1582,7 @@ int main(int argc, char **argv){
     for(int a=0;a<nind;a++){
       if (pair1 != -1)
         a = pair1;
-      worker_args td_args_inbred(a, fake_person, &freq, gls );        
+      worker_args td_args_inbred(a, fake_person, &freq, gls, overall_number_of_sites);
       td_args_inbred.pars[0]=drand48();
       td_args_inbred.pars[1]=1-td_args_inbred.pars[0];
       all_args_inbred.push_back(td_args_inbred);
@@ -1523,10 +1596,11 @@ int main(int argc, char **argv){
     while(cnt_inbred<comparison_ids_inbred){
 
       int nTimes_inbred;
-      if(comparison_ids_inbred-cnt_inbred-num_threads>=0)
+      if(comparison_ids_inbred-cnt_inbred-num_threads>=0){
         nTimes_inbred = num_threads;
-      else
+      } else{
         nTimes_inbred = comparison_ids_inbred-cnt_inbred;
+      }
 #if 0
       fprintf(stderr, "\ngot this far. while %d.\n", cnt_inbred);
       fprintf(stderr, "comparisons: %d\n", comparison_ids_inbred);
@@ -1542,16 +1616,15 @@ int main(int argc, char **argv){
         pthread_join(threads[i], NULL);
         worker_args * td_out_inbred = &all_args_inbred[cnt_inbred + i];
         if(td_out_inbred->best==0)
-          fprintf(stdout,"%d\t%f\t%f\t%f\t%d\t%f\t%d\n",td_out_inbred->a, p10[0],p10[1],td_out_inbred->bestll,-1,((double)td_out_inbred->nkeep)/((double)freq.size()), td_out_inbred->nkeep);
+          fprintf(stdout,"%d\t%f\t%f\t%f\t%d\t%f\t%d\n",td_out_inbred->a, p10[0],p10[1],td_out_inbred->bestll,-1,((double)td_out_inbred->nkeep)/((double)overall_number_of_sites), td_out_inbred->nkeep);
         if(td_out_inbred->best==1)
-          fprintf(stdout,"%d\t%f\t%f\t%f\t%d\t%f\t%d\n",td_out_inbred->a,p01[0],p01[1],td_out_inbred->bestll,-1,((double)td_out_inbred->nkeep)/((double)freq.size()), td_out_inbred->nkeep);
+          fprintf(stdout,"%d\t%f\t%f\t%f\t%d\t%f\t%d\n",td_out_inbred->a,p01[0],p01[1],td_out_inbred->bestll,-1,((double)td_out_inbred->nkeep)/((double)overall_number_of_sites), td_out_inbred->nkeep);
         if(td_out_inbred->best==2)
-          fprintf(stdout,"%d\t%f\t%f\t%f\t%d\t%f\t%d\n",td_out_inbred->a,td_out_inbred->pars[0],td_out_inbred->pars[1],td_out_inbred->bestll,td_out_inbred->niter,((double)td_out_inbred->nkeep)/((double)freq.size()), td_out_inbred->nkeep);
+          fprintf(stdout,"%d\t%f\t%f\t%f\t%d\t%f\t%d\n",td_out_inbred->a,td_out_inbred->pars[0],td_out_inbred->pars[1],td_out_inbred->bestll,td_out_inbred->niter,((double)td_out_inbred->nkeep)/((double)overall_number_of_sites), td_out_inbred->nkeep);
       fflush(stdout);
       }
       cnt_inbred += nTimes_inbred;
       fprintf(stderr, "\t-> Processed %d out of %d\r", cnt_inbred, comparison_ids_inbred);
-      
     }
   } else {
     if(do_simple){
@@ -1561,10 +1634,9 @@ int main(int argc, char **argv){
     if (ids.size()){
       // fprintf(stdout,"a\tb\tida\tidb\tnSites\ts9\ts8\ts7\ts6\ts5\ts4\ts3\ts2\ts1\trab\tFa\tFb\ttheta\tloglh\tnIter\tcoverage\n");
       fprintf(stdout,
-              "a\tb\tida\tidb\tnSites\ts9\ts8\ts7\ts6\ts5\ts4\ts3\ts2\ts1\trab\tFa\tFb\ttheta\tinbred_relatedness_1_2\tinbred_relatedness_2_1\tfraternity\tidentity\tzygosity\tloglh\tnIter\tcoverage\t2dsfs\tR0\tR1\tKING\t2dsfs_loglike\t2dsfsf_niter\n");
+              "a\tb\tida\tidb\tnSites\ts9\ts8\ts7\ts6\ts5\ts4\ts3\ts2\ts1\trab\tFa\tFb\ttheta\tinbred_relatedness_1_2\tinbred_relatedness_2_1\tfraternity\tidentity\tzygosity\t2of3IDB\tFDiff\tloglh\tnIter\tcoverage\t2dsfs\tR0\tR1\tKING\t2dsfs_loglike\t2dsfsf_niter\n");
     } else {
-      // fprintf(stdout, "a\tb\tnSites\ts9\ts8\ts7\ts6\ts5\ts4\ts3\ts2\ts1\trab\tFa\tFb\ttheta\tloglh\tnIter\tcoverage\n");
-      fprintf(stdout, "a\tb\tnSites\ts9\ts8\ts7\ts6\ts5\ts4\ts3\ts2\ts1\trab\tFa\tFb\ttheta\tinbred_relatedness_1_2\tinbred_relatedness_2_1\tfraternity\tidentity\tzygosity\tloglh\tnIter\tcoverage\t2dsfs\tR0\tR1\tKING\t2dsfs_loglike\t2dsfsf_niter\n");
+      fprintf(stdout, "a\tb\tnSites\ts9\ts8\ts7\ts6\ts5\ts4\ts3\ts2\ts1\trab\tFa\tFb\ttheta\tinbred_relatedness_1_2\tinbred_relatedness_2_1\tfraternity\tidentity\tzygosity\t2of3IDB\tFDiff\tloglh\tnIter\tcoverage\t2dsfs\tR0\tR1\tKING\t2dsfs_loglike\t2dsfsf_niter\n");
     }
     int comparison_ids = 0;
     std::vector<worker_args> all_args;
@@ -1575,21 +1647,25 @@ int main(int argc, char **argv){
         if (pair2 != -1)
           b = pair2;
 
-        worker_args td_args(a, b, &freq, gls );        
+        worker_args td_args(a, b, &freq, gls, overall_number_of_sites);
         
         double parval = 0.0, parsum = 0.0;
         for (int i = 0; i < 9; i++) {
           parval = drand48();
-          if(do_simple && i>=3){
+          if(do_2dsfs_only){
             td_args.pars[i] = 0;
-          } else {
+          } else if(do_simple && i>=3){
+            td_args.pars[i] = 0;
+          }else {
             td_args.pars[i] = parval;
             parsum += parval;
           }
         }
-        for (int i = 0; i < 9; i++) {
-          td_args.pars[i] /= parsum;
-          // fprintf(stderr, "par: %d, %f\n", i, td_args.pars[i]);
+        if(parsum>0){
+          for (int i = 0; i < 9; i++) {
+            td_args.pars[i] /= parsum;
+            // fprintf(stderr, "par: %d, %f\n", i, td_args.pars[i]);
+          }
         }
 
         // for 2d sfs parameters
@@ -1599,12 +1675,12 @@ int main(int argc, char **argv){
           td_args.pars_2dsfs[i] = parval;
           parsum += parval;
         }
+
         for (int i = 0; i < 9; i++) {
           td_args.pars_2dsfs[i] /= parsum;
           // fprintf(stderr, "par: %d, %f\n", i, td_args.pars[i]);
         }
 
-        
         all_args.push_back(td_args);
         comparison_ids++;
         if (pair1 != -1 || pair2 != -1) {
@@ -1647,53 +1723,84 @@ int main(int argc, char **argv){
           fprintf(stdout, "%d\t%d\t%d", td_out->a, td_out->b,
                   td_out->nkeep);
         }
-        // Jac = ArrayPos
-        // 1   = 8;
-        // 2   = 7;
-        // 3   = 6;
-        // 4   = 5;
-        // 5   = 4;
-        // 6   = 3;
-        // 7   = 2;
-        // 8   = 1;
-        // 9   = 0;
+        /////////////////////////
+        // Jacquard = ArrayPos //
+        //        1 = 8;       //
+        //        2 = 7;       //
+        //        3 = 6;       //
+        //        4 = 5;       //
+        //        5 = 4;       //
+        //        6 = 3;       //
+        //        7 = 2;       //
+        //        8 = 1;       //
+        //        9 = 0;       //
+        /////////////////////////
 
         for (int j = 0; j < 9; j++) {
           fprintf(stdout, "\t%f", td_out->pars[j]);
         }
-          // return(x[1]+x[7]+3/4*(x[3]+x[5])+x[8]*0.5)
-        // Measuring Relatedness between Inbred Individuals by Hedrick 2015
-        // r_xy
+
+        //////////////////////////////////////////////////////////////////////
+        // Measuring Relatedness between Inbred Individuals by Hedrick 2015 //
+        // return(x[1]+x[7]+3/4*(x[3]+x[5])+x[8]*0.5)                       //
+        // r_xy                                                             //
+        //////////////////////////////////////////////////////////////////////
         double rab = (td_out->pars[8] + td_out->pars[2]) +
                      (0.75 * (td_out->pars[6] + td_out->pars[4])) +
                      td_out->pars[1] * 0.5;
         fprintf(stdout, "\t%f", rab);
-        // Fa
-        // sum(x[1]+x[2],x[3],x[4])
+
+        /////////////////////////////////////////////////
+        // Fa - inbreeding coefficient of individual a //
+        // sum(x[1]+x[2],x[3],x[4])                    //
+        /////////////////////////////////////////////////
         double Fa = td_out->pars[8] + td_out->pars[7] + td_out->pars[6] +
                     td_out->pars[5];
         fprintf(stdout, "\t%f", Fa);
-        // Fb
-        // sum(x[1],x[2],x[5],x[6])
+        
+        /////////////////////////////////////////////////
+        // Fb - inbreeding coefficient of individual b //
+        // sum(x[1],x[2],x[5],x[6])                    //
+        /////////////////////////////////////////////////
         double Fb = td_out->pars[8] + td_out->pars[7] + td_out->pars[4] +
                     td_out->pars[3];
         fprintf(stdout, "\t%f", Fb);
-        // theta, coancestry / kinship coefficient / f_XY
+
+        /////////////////////////////////////////////////////
+        // theta / coancestry / kinship coefficient / f_XY //
+        /////////////////////////////////////////////////////
+
         double theta =
             td_out->pars[8] +
             0.5 * (td_out->pars[6] + td_out->pars[4] + td_out->pars[2]) +
             0.25 * td_out->pars[1];
         fprintf(stdout, "\t%f", theta);
 
-        // new estimates from ackerman et al.
-        double inbred_relatedness_1_2 = td_out->pars[8] + td_out->pars[6] / 2;
-        double inbred_relatedness_2_1 = td_out->pars[8] + td_out->pars[4] / 2;
+        /////////////////////////////////////////////
+        // summary statistics from ackerman et al. //
+        /////////////////////////////////////////////
+        double inbred_relatedness_1_2 = td_out->pars[8] + (td_out->pars[6] / 2.0);
+        double inbred_relatedness_2_1 = td_out->pars[8] + (td_out->pars[4] / 2.0);
         double fraternity = td_out->pars[7] + td_out->pars[2];
         double identity = td_out->pars[8];
         double zygosity = td_out->pars[8] + td_out->pars[7] + td_out->pars[2];
         fprintf(stdout, "\t%f\t%f\t%f\t%f\t%f", inbred_relatedness_1_2,
                 inbred_relatedness_2_1, fraternity, identity, zygosity);
 
+        /////////////////////////////////////////////////////////////////////////////////////////////////////////////
+        // summary statistics from Non-identifiability of identity coefficients at biallelic loci by miklos csuros //
+        /////////////////////////////////////////////////////////////////////////////////////////////////////////////
+        
+        // at least one pair of IBD alleles among three randomly selected ones:
+        double eq_11e = td_out->pars[8] + td_out->pars[7] +
+          td_out->pars[6] + td_out->pars[4] + td_out->pars[2] + 0.5 * (td_out->pars[5] + td_out->pars[3] + td_out->pars[1]);
+        // 
+        double eq_11f = 0.5 * (td_out->pars[5] - td_out->pars[3]);
+        fprintf(stdout, "\t%f\t%f", eq_11e, eq_11f);
+        
+        ///////////////////////////////
+        // optimization of EM output //
+        ///////////////////////////////
         if (td_out->best == 9) {
           fprintf(stdout, "\t%f\t%d\t%f", td_out->ll, td_out->niter,
                   (1.0 * td_out->nkeep) / total_sites);
@@ -1702,6 +1809,9 @@ int main(int argc, char **argv){
                   td_out->bestll, -1, (1.0 * td_out->nkeep) / total_sites);
         }
 
+        ////////////////////
+        // printing 2dsfs //
+        ////////////////////
         fprintf(stdout, "\t%f", td_out->pars_2dsfs[0]);
         for (int j = 1; j < 9; j++) {
           fprintf(stdout, ",%f", td_out->pars_2dsfs[j]);
@@ -1712,6 +1822,11 @@ int main(int argc, char **argv){
         // td_out->pars_2dsfs[3],td_out->pars_2dsfs[4],td_out->pars_2dsfs[5]);
         // fprintf(stdout, "%f\t%f\t%f\n",
         // td_out->pars_2dsfs[6],td_out->pars_2dsfs[7],td_out->pars_2dsfs[8]);
+
+
+        //////////////////////////////////////
+        // computing 2dsfs based statistics //
+        //////////////////////////////////////
         double r0, r1, king;
         r0 = (td_out->pars_2dsfs[2] + td_out->pars_2dsfs[6]) /
              td_out->pars_2dsfs[4];
@@ -1724,6 +1839,11 @@ int main(int argc, char **argv){
                (2 * td_out->pars_2dsfs[4] + td_out->pars_2dsfs[1] +
                 td_out->pars_2dsfs[3] + td_out->pars_2dsfs[5] +
                 td_out->pars_2dsfs[7]);
+
+        /////////////////////////////////////
+        // printing 2dsfs based statistics //
+        /////////////////////////////////////
+       
         fprintf(stdout, "\t%f\t%f\t%f", r0, r1, king);
 
         fprintf(stdout, "\t%f\t%d\n", td_out->ll_2dsfs, td_out->niter_2dsfs);
@@ -1734,7 +1854,7 @@ int main(int argc, char **argv){
   }
   fprintf(stderr,"\n");
   fflush(stdout);
-  for (size_t i = 0; i < freq.size(); i++) {
+  for (size_t i = 0; i < overall_number_of_sites; i++) {
     delete[] gls[i];
   }
   delete[] gls;
