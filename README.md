@@ -50,7 +50,7 @@ NgsRelate takes two files as input: a file with genotype likelihoods `(-g)` and 
 The genotype likelihood file needs to contain a line for each site with 3 values for each individual (one log transformed genotype likelihood for each of the 3 possible genotypes encoded as 'double's) and it needs to be in binary format and gz compressed.
 The frequency file needs to contain a line per site with the allele frequency of the site in it.
 
-NgsRelate can also calculate a few summary statistics without known population allele frequencies. These statistics will be calculated automatically. Even if the population allele frequencies are not available, these summary statistics can still be estimated with NgsRelate by providing it with the number of used sites `(-L)` instead of the allele frequency file `(-f)`. 
+NgsRelate also calculates a few summary statistics based on the 2dsfs instead of known population allele frequencies. Even if the population allele frequencies are not available, these summary statistics can still be estimated with NgsRelate by providing it with the number of used sites `(-L)` instead of the allele frequency file `(-f)`. 
 
 ## VCF input ##
 NgsRelate takes a standard VCF file generated with e.g. [bcftools](http://samtools.github.io/bcftools/). By default, NgsRelate will estimate the allele frequencies using the individuals provided in the VCF files. As shown in example 2, external allele frequencies can be provided with `-f`. These frequencies will overwrite the ones estimated from the VCF file.
