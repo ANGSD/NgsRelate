@@ -62,12 +62,13 @@ a  b  nSites  s9        s8        s7        s6        s5        s4        s3    
 0  1  99927   0.384487  0.360978  0.001416  0.178610  0.071681  0.000617  0.002172  0.000034  0.000005  0.237300  0.002828  0.250330  0.127884  0.001091                0.035846                0.001451    0.000005  0.001456  0.345411  -0.088997  -341223.335664  103    0.999270  0.154920,0.087526,0.038724,0.143087,0.155155,0.139345,0.038473,0.087632,0.155138  0.497548  0.290124  0.000991   -356967.175857  7
 ```
 
-The first two columns contain indices of the two individuals used for the analysis. The third column is the number of genomic sites considered. The following nine columns are the maximum likelihood (ML) estimates of the nine jacquard coefficients. Based on these Jacquard coefficients, NgsRelate calculates 11 summary statistics:
+The first two columns contain indices of the two individuals used for the analysis. The third column is the number of genomic sites considered. The following nine columns are the maximum likelihood (ML) estimates of the nine jacquard coefficients, where  K0==S9; K1==S8; K2==S7 in absence of inbreeding. 
+Based on these Jacquard coefficients, NgsRelate calculates 11 summary statistics:
 
 13. rab is the pairwise relatedness `(J1+J7+0.75*(J3+J5)+.5*J8)` [Hedrick et al](https://academic.oup.com/jhered/article/106/1/20/2961876)
-14. Fa is the inbreeding coefficient of individual a `J1+J2+J3+J4` [Ackerman et al](http://www.genetics.org/content/206/1/105)
-15. Fb is the inbreeding coefficient of individual b `J1+J2+J5+J6` [Ackerman et al](http://www.genetics.org/content/206/1/105)
-16. theta is the coefficient of kinship `J1 + 0.5*(J3+J5+J7) + 0.25*J8)` [Hedrick et al](https://academic.oup.com/jhered/article/106/1/20/2961876)
+14. Fa is the inbreeding coefficient of individual a `J1+J2+J3+J4` [Jacquard](https://www.springer.com/gp/book/9783642884177)
+15. Fb is the inbreeding coefficient of individual b `J1+J2+J5+J6` [Jacquard](https://www.springer.com/gp/book/9783642884177)
+16. theta is the coefficient of kinship `J1 + 0.5*(J3+J5+J7) + 0.25*J8)` [Jacquard](https://www.springer.com/gp/book/9783642884177)
 17. inbred_relatedness_1_2 `J1+0.5*J3` [Ackerman et al](http://www.genetics.org/content/206/1/105)
 18. inbred_relatedness_2_1 `J1+0.5*J5` [Ackerman et al](http://www.genetics.org/content/206/1/105)
 19. fraternity `J2+J7` [Ackerman et al](http://www.genetics.org/content/206/1/105)
