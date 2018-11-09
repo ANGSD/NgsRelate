@@ -18,7 +18,7 @@
 #include <libgen.h>  // basename
 #include <pthread.h> // threading
 #include <time.h> // time
-
+#include <limits.h> //INT_MAX
 #ifdef __WITH_BCF__
 #include "vcf.h"
 #endif
