@@ -1476,7 +1476,6 @@ int main(int argc, char **argv){
     return 0;
   }
 #endif
-    
 
   if (hasDef == 0&&htsfile==NULL) {
   fprintf(stderr, "\t-> -n parameter has not been supplied. Will assume that "
@@ -1499,12 +1498,12 @@ int main(int argc, char **argv){
     return 0;
   }
 
-  if ( freqname == NULL && ( do_simple || do_inbred )){
+  if ( freqname == NULL && ( do_simple || do_inbred || htsfile==NULL )){
     fprintf(stderr, "\t-> Must supply -f (allele frequency file) if '-o 1' or '-F 1' are enabled\n");
     return 0;
     }
   
-  if (freqname == NULL){
+  if (freqname == NULL && htsfile==NULL){
     fprintf(stderr, "\t-> Allele frequencies file (-f) is not provided. Only summary statistitics based on 2dsfs will be reported\n");
     do_2dsfs_only = 1;
     if(!nsites_2dsfs){
