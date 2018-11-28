@@ -11,6 +11,8 @@
 #include <vector>
 #include <htslib/vcf.h>
 #include <cmath>
+#include <limits>
+#include <string>
 
 void usage() {
         puts(
@@ -32,7 +34,31 @@ void usage() {
                 );
 }
 
-double pl2ln[256];
+// https://github.com/samtools/htslib/blob/57fe419344cb03e2ea46315443abd242489c32f2/vcf.c#L53
+// uint32_t bcf_float_missing    = 0x7F800001;
+// uint32_t bcf_float_vector_end = 0x7F800002;
+
+const int PHREDMAX=256;
+float pl2ln[PHREDMAX];
+
+// double pl2ln[256];
+float pl2ln_f(int32_t & val){
+  if(val>=PHREDMAX){
+    return log(pow(10.0,-0.1*val));
+  } else {
+    return pl2ln[val];
+  }
+    
+}
+
+template <class T>
+bool same_val_vcf(T a, T b) {
+  return std::fabs(a - b) < std::numeric_limits<T>::epsilon();  
+}
+
+
+// https://en.cppreference.com/w/c/numeric/math/isnan
+bool is_nan_vcf(double x) { return x != x; }
 
 //from angsd
 double emFrequency(double *loglike,int numInds, int iter,double start,char *keep,int keepInd){
@@ -109,14 +135,12 @@ double emFrequency(double *loglike,int numInds, int iter,double start,char *keep
 }
 
 
-int getgls(char*fname,std::vector<double *> &mygl, std::vector<double> &freqs,int minind,double minfreq){
-  fprintf(stderr,"\t-> [getgls] fname:%s minind:%d minfreq:%f\n",fname,minind,minfreq);
-
-  for(int i=0;i<256;i++){
+size_t getgls(char*fname,std::vector<double *> &mygl, std::vector<double> &freqs,int minind,double minfreq, std::string &vcf_format_field, std::string &vcf_allele_field, const double & gt_epsilon){
+  fprintf(stderr,"\t-> [getgls] fname:%s minfreq:%f\n",fname,minfreq);
+  for(int i=0;i<PHREDMAX;i++){    
     pl2ln[i] = log(pow(10.0,-0.1*i));
-    //    fprintf(stderr,"%d) %f %f\n",i,exp(pl2ln[i]),pl2ln[i]);
   }
- 
+  //   http://wresch.github.io/2014/11/18/process-vcf-file-with-htslib.html
   // counters
   int n    = 0;  // total number of records in file
   int nsnp = 0;  // number of SNP records in file
@@ -126,13 +150,14 @@ int getgls(char*fname,std::vector<double *> &mygl, std::vector<double> &freqs,in
   // pl data for each call
   int npl_arr = 0;
   int npl     = 0;
-  int *pl     = NULL;
-  
-  // gl data for each call
-  int ngl_arr = 0;
-  int ngl     = 0;
-  float *gl     = NULL;
+  int32_t *pl = NULL;
 
+   // gt data for each call
+  int32_t ngt_arr = 0;
+  int32_t ngt     = 0;
+  int32_t *gt     = NULL;
+
+  
   // af1/af data for each call
   int naf_arr = 0;
   int naf     = 0;
@@ -163,7 +188,7 @@ int getgls(char*fname,std::vector<double *> &mygl, std::vector<double> &freqs,in
 	    bcf_hdr_id2name(hdr, i));
   }
 #endif
-  
+  char *chr;
   // struc for storing each record
   bcf1_t *rec = bcf_init();
   if (rec == NULL) {
@@ -175,55 +200,115 @@ int getgls(char*fname,std::vector<double *> &mygl, std::vector<double> &freqs,in
     n++;
     if (!bcf_is_snp(rec))
       continue;
-    nsnp++;
-    
-#if 0
-    ngl = bcf_get_format_float(hdr, rec, "GL", &gl, &ngl_arr);
-#endif
-    npl = bcf_get_format_int32(hdr, rec, "PL", &pl, &npl_arr);
-    
-    naf = bcf_get_info_float(hdr, rec, "AF1", &af, &naf_arr);
-    //    fprintf(stderr,"rec->pos:%d npl:%d ngl:%d naf:%d rec->n_allele:%d af[0]:%f\n",rec->pos,npl,ngl,naf,rec->n_allele,af[0]);
 
+    nsnp++;
+
+    if(rec->n_allele>=3||rec->n_allele==1)//last case shouldt happen
+      continue;
+
+    float *ln_gl = new float[3*nsamples];    
+
+    if(vcf_format_field == "PL"){
+      npl = bcf_get_format_int32(hdr, rec, "PL", &pl, &npl_arr);
+      if(npl<0){
+        // return codes: https://github.com/samtools/htslib/blob/bcf9bff178f81c9c1cf3a052aeb6cbe32fe5fdcc/htslib/vcf.h#L667
+        // no PL tag is available
+        fprintf(stderr, "BAD SITE %s:%d. return code:%d while fetching PL tag\n", bcf_seqname(hdr,rec), rec->pos, npl);
+        continue;
+      }
+      // https://github.com/samtools/bcftools/blob/e9c08eb38d1dcb2b2d95a8241933daa1dd3204e5/plugins/tag2tag.c#L151
+
+      for (int i=0; i<npl; i++){
+        if ( pl[i]==bcf_int32_missing ){
+          bcf_float_set_missing(ln_gl[i]);
+        } else if ( pl[i]==bcf_int32_vector_end ){
+          bcf_float_set_vector_end(ln_gl[i]);
+        } else{
+          ln_gl[i] = pl2ln_f(pl[i]);
+        }
+        // fprintf(stderr, "%d %f\n", pl[i], ln_gl[i]);
+      }
+    } else if(vcf_format_field == "GT"){
+       int ngts = bcf_get_genotypes(hdr, rec, &gt, &ngt_arr);
+       if ( ngts<0 ){
+         fprintf(stderr, "BAD SITE %s:%d. return code:%d while fetching GT tag\n", bcf_seqname(hdr,rec), rec->pos, npl);
+         continue;
+         }
+       for(int ns=0; ns<nsamples;ns++){
+         int32_t *curr_ptr = gt + ns*2;
+         float *ln_gl_ptr = ln_gl + ns*3;
+         if ( bcf_gt_is_missing(curr_ptr[0]) ||
+              bcf_gt_is_missing(curr_ptr[1]) ){ // obs genotype is missing
+           // missing
+           ln_gl_ptr[0] = NAN;
+           ln_gl_ptr[1] = NAN;
+           ln_gl_ptr[2] = NAN;
+           
+         } else if (bcf_gt_allele(curr_ptr[0])!=bcf_gt_allele(curr_ptr[1])){ // this is obs genotype
+           // het
+           // ln_gl_ptr[0] = -INFINITY;
+           // ln_gl_ptr[1] = 0;
+           // ln_gl_ptr[2] = -INFINITY;
+           ln_gl_ptr[0] = log(2 * (1-gt_epsilon) * gt_epsilon);
+           ln_gl_ptr[1] = log(pow(1-gt_epsilon, 2) + pow(gt_epsilon, 2));
+           ln_gl_ptr[2] = log(2 * (1-gt_epsilon) * gt_epsilon);
+
+         } else if(bcf_gt_allele(curr_ptr[0])==1){ // this is obs genotype
+           // hom alt
+           // ln_gl_ptr[0] = -INFINITY;
+           // ln_gl_ptr[1] = -INFINITY;
+           // ln_gl_ptr[2] = 0;
+           ln_gl_ptr[0] = log(pow(gt_epsilon, 2));
+           ln_gl_ptr[1] = log((1-gt_epsilon) * gt_epsilon);
+           ln_gl_ptr[2] = log(pow(1-gt_epsilon, 2));
+         } else{ // this is obs genotype
+           // hom ref
+           // ln_gl_ptr[0] = 0;
+           // ln_gl_ptr[1] = -INFINITY;
+           // ln_gl_ptr[2] = -INFINITY;
+           ln_gl_ptr[0] = log(pow(1-gt_epsilon, 2));
+           ln_gl_ptr[1] = log((1-gt_epsilon) * gt_epsilon);
+           ln_gl_ptr[2] = log(pow(gt_epsilon, 2));
+         }
+       }
+    } else {
+         fprintf(stderr, "\t\t-> BIG TROUBLE. Can only take one of two tags, GT or PL\n");
+       }
+    
+    int keepInd=0;
+    char keep[nsamples];
+    double *tmp = new double[3*nsamples];    
+    for(int ns=0;ns<nsamples;ns++){
+      float *ary= ln_gl+ns*3;
+      if ((is_nan_vcf(ary[0]) || is_nan_vcf(ary[1]) || is_nan_vcf(ary[2])) ||
+          (same_val_vcf(ary[0], ary[1]) && same_val_vcf(ary[0], ary[2]))){
+        keep[ns]=0;
+      }else{
+	keep[ns]=1;
+	keepInd++;
+      }
+      tmp[ns*3] = ary[0];
+      tmp[ns*3+1] = ary[1];
+      tmp[ns*3+2] = ary[2];
+      // fprintf(stderr, "TMP: %d %d: %f %f %f\n", ns+1, rec->pos+1, tmp[ns*3], tmp[ns*3+1], tmp[ns*3+2]);
+    }
+    delete [] ln_gl;
+    
+    naf = bcf_get_info_float(hdr, rec, vcf_allele_field.c_str(), &af, &naf_arr);
+    // fprintf(stderr,"rec->pos:%d npl:%d ngl:%d naf:%d rec->n_allele:%d\n",rec->pos,npl,ngl,naf,rec->n_allele);    
     //if multiple alt alleles then n_allele>3. We only care about diallelic ref/alt alleless
     //		if(rec->n_allele==4) fprintf(stdout,"\n%s\n",rec->d.allele[2]);
     //ok this is a bit messed up. apparantly sometime the allele is <*> sometimes not.
     // just use the first two alleles now and discard the rest of the alleles.
-    if(rec->n_allele>3||rec->n_allele==1)//last case shouldt happen
-      continue;
 
-    int offs = rec->n_allele==2?3:6;
-      
-    //lets only deal with pl for now.
-    double *tmp = new double[3*nsamples];
-    int keepInd=0;
-    char keep[nsamples];
-    //  memset(keep,'0',nsamples);
-    for(int n=0;n<nsamples;n++){
-      for(int nn=0;nn<3;nn++){
-	//fprintf(stderr,"%d\n",pl[n*offs+nn]);
-	tmp[n*3+nn] = pl2ln[pl[n*offs+nn]];
-	// 
-      }
-      double *ary= tmp+n*3;
-      if(ary[0]==ary[1]&&ary[0]==ary[2])
-	keep[n]=0;
-      else{
-	keep[n]=1;
-	keepInd++;
-	}
-      
-    }
     double freq;
-    if(naf==1)
+    if(naf==1){
       freq = af[0];
-    else
-      freq= emFrequency(tmp,nsamples,50,0.05,keep,keepInd);
-    // fprintf(stdout,"%f %f\n",af[0],freq);;
-    //    fprintf(stdout,"%d %f\n",keepInd,freq);
-    //exit(0);
+    }else{
+      freq = emFrequency(tmp,nsamples,50,0.05,keep,keepInd);
+    }
     //filtering
-    if(keepInd>minind&&freq>=minfreq) {
+    if(keepInd>minind&&freq>=minfreq && freq<= (1-minfreq)) {
 #ifdef __WITH_MAIN__
       fprintf(stdout,"%s\t%i\t%s\t%s\tqual:%f n_info:%d n_allele:%d n_fmt:%d n_sample:%d n_samplws_with_data:%d freq:%f",
 	      seqnames[rec->rid],
@@ -239,17 +324,21 @@ int getgls(char*fname,std::vector<double *> &mygl, std::vector<double> &freqs,in
 	      freq
 	      );
       for(int i=0;i<3*nsamples;i++)
-	fprintf(stdout," %f",tmp[i]);
+	fprintf(stdout," %f",ln_gl[i]);
       fprintf(stdout,"\n");
 #endif
       mygl.push_back(tmp);
       freqs.push_back(freq);
       //	fprintf(stderr,"pushhh\n");
-    }else
+    } else {
       delete [] tmp;
+    }
+    // fprintf(stderr,"rec->pos:%d npl:%d naf:%d rec->n_allele:%d af[0]:%f\n",rec->pos,npl,naf,rec->n_allele,freq);
+    // exit(0);
   }
   fprintf(stderr, "\t-> [vcf.cpp] Read %i records %i of which were SNPs number of sites with data:%lu\n", n, nsnp,mygl.size());
-   free(pl);
+  free(pl);
+  free(gt);
   bcf_hdr_destroy(hdr);
   bcf_close(inf);
   bcf_destroy(rec);

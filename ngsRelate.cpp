@@ -17,8 +17,10 @@
 #include <map>
 #include <libgen.h>  // basename
 #include <pthread.h> // threading
-#include <time.h> // time
-#include <limits.h> //INT_MAX
+#include <time.h>    // time
+#include <limits>
+#include <string>
+
 #ifdef __WITH_BCF__
 #include "vcf.h"
 #endif
@@ -91,7 +93,7 @@ int maxIter =5000;
 double tole =1e-8;
 int n=-1;
 
-int seed=INT_MAX;
+int seed=std::numeric_limits<int>::max();
 
 int model =1;
 int gc =0;
@@ -109,6 +111,10 @@ int verbose = 0;
 double minMaf =0.05;
 int hasDef = 0;
 double ttol=1e-6;
+std::string vcf_format_field = "PL"; // can take PL or GT
+std::string vcf_allele_field = "AFngsrelate"; // can take any tag value e.g. AF AF1 etc
+double gt_epsilon = 0.001; // error added to called genotypes from a VCF file.
+
 std::vector<char *> ids;
 
 float emTole=1e-12;
@@ -121,6 +127,21 @@ void stayin(double *post){
       post[i] =1- emTole;
   }
 }
+
+// bool same_double(double x, double y)
+// {
+//   double maxX = std::max(1.0, std::fabs(x));
+//   double maxY = std::max(1.0, std::fabs(y));
+//   double maxXYOne = std::max( maxX, maxY );
+//   return std::fabs(x - y) <= std::numeric_limits<double>::epsilon()*maxXYOne ;
+// }
+// https://stackoverflow.com/a/15012792/2788987
+bool same_double(double a, double b) {
+  return std::fabs(a - b) < std::numeric_limits<double>::epsilon();  
+}
+
+// https://en.cppreference.com/w/c/numeric/math/isnan
+bool is_nan(double x) { return x != x; }
 
 double access_genotype(double **gls, const int & site, const int & indi, const int & geno){
   return gls[site][indi * 3 + geno];
@@ -904,6 +925,8 @@ void print_info(FILE *fp){
   fprintf(fp, "   -n <INT>            Number of samples in glf.gz\n");
   fprintf(fp, "   -l <INT>            minMaf or 1-Maf filter\n");
   fprintf(fp, "   -z <INT>            Name of file with IDs (optional)\n");
+  fprintf(fp, "   -T <STRING>         For -h vcf use PL (default) or GT tag\n");
+  fprintf(fp, "   -A <STRING>         For -h vcf use allele frequency TAG e.g. AFngsrelate (default)\n");  
   fprintf(fp, "\n");
   fprintf(fp,"Or\n ./ngsrelate extract_freq_bim pos.glf.gz plink.bim plink.freq\n");
   fprintf(fp,"Or\n ./ngsrelate extract_freq .mafs.gz .pos.glf.gz [-rmTrans]\n");
@@ -1257,22 +1280,43 @@ void * do_work(void *threadarg){
   int *keeplist = new int [td->nsites];
   for (size_t i = 0; i < td->nsites; i++) {
     // skip missing data
-    if (access_genotype(td->gls, i, td->a, 0) == access_genotype(td->gls, i, td->a, 1) && 
-        access_genotype(td->gls, i, td->a, 0) == access_genotype(td->gls, i, td->a, 2)){
-      continue;
-    }
-    if (access_genotype(td->gls, i, td->b, 0) == access_genotype(td->gls, i, td->b, 1) && 
-        access_genotype(td->gls, i, td->b, 0) == access_genotype(td->gls, i, td->b, 2)){
+    if(is_nan(access_genotype(td->gls, i, td->a, 0)) ||
+       is_nan(access_genotype(td->gls, i, td->a, 1)) ||
+       is_nan(access_genotype(td->gls, i, td->a, 2)) ||
+       is_nan(access_genotype(td->gls, i, td->b, 0)) ||
+       is_nan(access_genotype(td->gls, i, td->b, 1)) ||
+       is_nan(access_genotype(td->gls, i, td->b, 2))){
+      // fprintf(stderr, "is nan genotype is present at site %ld: %f", i, access_genotype(td->gls, i, td->a, 0));
+      // fprintf(stderr, " %f", access_genotype(td->gls, i, td->a, 1));
+      // fprintf(stderr, " %f", access_genotype(td->gls, i, td->a, 2));
+      // fprintf(stderr, " %f", access_genotype(td->gls, i, td->b, 0));
+      // fprintf(stderr, " %f", access_genotype(td->gls, i, td->b, 1));
+      // fprintf(stderr, " %f\n", access_genotype(td->gls, i, td->b, 2));
+      // exit(0);
       continue;
     }
 
+    if(same_double(access_genotype(td->gls, i, td->a, 0), access_genotype(td->gls, i, td->a, 1)) &&
+       same_double(access_genotype(td->gls, i, td->a, 0), access_genotype(td->gls, i, td->a, 2))) {
+    // if (access_genotype(td->gls, i, td->a, 0) == access_genotype(td->gls, i, td->a, 1) && 
+    //     access_genotype(td->gls, i, td->a, 0) == access_genotype(td->gls, i, td->a, 2)){
+      continue;
+    }
+    if(same_double(access_genotype(td->gls, i, td->b, 0), access_genotype(td->gls, i, td->b, 1)) &&
+       same_double(access_genotype(td->gls, i, td->b, 0), access_genotype(td->gls, i, td->b, 2))) {
+    // if (access_genotype(td->gls, i, td->b, 0) == access_genotype(td->gls, i, td->b, 1) && 
+    //     access_genotype(td->gls, i, td->b, 0) == access_genotype(td->gls, i, td->b, 2)){
+      continue;
+    }
     // removing minor allele frequencies
-
     if ( !do_2dsfs_only && (td->freq->at(i) < minMaf || (1 - td->freq->at(i)) < minMaf))
       continue;
 
     keeplist[td->nkeep] = i;
     td->nkeep++;
+  }
+  if (td->nkeep==0){
+    fprintf(stderr, "sites with both %d and %d having data: %d\n", td->a, td->b, td->nkeep);
   }
   // fprintf(stderr, "\t-> keeping %d sites for downstream analyses", td->nkeep++);
   double **emis;
@@ -1383,6 +1427,13 @@ void * do_work_inbred(void *threadarg){
   int *keeplist = new int [td->freq->size()];
   for (size_t i = 0; i < td->freq->size(); i++) {
     // skip missing data
+    if(is_nan(access_genotype(td->gls, i, td->a, 0)) ||
+       is_nan(access_genotype(td->gls, i, td->a, 1)) ||
+       is_nan(access_genotype(td->gls, i, td->a, 2))){
+      continue;
+    }
+     
+
     if (access_genotype(td->gls, i, td->a, 0) == access_genotype(td->gls, i, td->a, 1) && 
         access_genotype(td->gls, i, td->a, 0) == access_genotype(td->gls, i, td->a, 2)){
       continue;
@@ -1444,7 +1495,7 @@ int main(int argc, char **argv){
     return extract_freq(--argc,++argv);
 
   char *htsfile=NULL;
-  while ((n = getopt(argc, argv, "f:i:t:r:g:m:v:s:F:o:c:e:a:b:n:l:z:p:h:L:")) >= 0) {
+  while ((n = getopt(argc, argv, "f:i:t:r:g:m:v:s:F:o:c:e:a:b:n:l:z:p:h:L:T:A:")) >= 0) {
     switch (n) {
     case 'f': freqname = strdup(optarg); break;
     case 'i': maxIter = atoi(optarg); break;
@@ -1464,6 +1515,8 @@ int main(int argc, char **argv){
     case 'e': errate = atof(optarg); break;
     case 'l': minMaf = atof(optarg); break;
     case 'h': htsfile = strdup(optarg); break;
+    case 'T': vcf_format_field = strdup(optarg); break;
+    case 'A': vcf_allele_field = strdup(optarg); break;            
     case 'z': readids(ids,optarg); break;
     case 'L': nsites_2dsfs = atoi(optarg); break;
     default: {fprintf(stderr,"unknown arg:\n");return 0;}
@@ -1486,11 +1539,15 @@ int main(int argc, char **argv){
   }
 
   srand(time(NULL));
-  if (seed == INT_MAX){
+  if (seed ==  std::numeric_limits<int>::max()){
     seed=rand();
   }
   fprintf(stderr,"\t-> Seed is: %d\n",seed);
 
+  if (htsfile!=NULL){
+    fprintf(stderr, "\t-> Will use TAG: '%s' from the VCF file\n", vcf_format_field.c_str());
+    fprintf(stderr, "\t-> Will use TAG: '%s' in the VCF file as allele frequency if present. Otherwise allele frequencies are estimated from the data\n", vcf_allele_field.c_str());
+  }
   srand48(seed);
 
   if ((nind == -1 || gname == NULL)&&htsfile==NULL) {
@@ -1537,19 +1594,22 @@ int main(int argc, char **argv){
 #ifdef __WITH_BCF__
   if(htsfile){
     std::vector<double *> tmpgl;
-    nind=getgls(htsfile,tmpgl,freq,2,minMaf);
+
+    nind=getgls(htsfile,tmpgl,freq,2,minMaf, vcf_format_field, vcf_allele_field, gt_epsilon);
     gls=new double *[tmpgl.size()];
     for(int i=0;i<tmpgl.size();i++){
       gls[i] = tmpgl[i];
-      for(int ii=0;ii<3*nind;ii++)
-	gls[i][ii]=exp(gls[i][ii]);
+      for(int ii=0;ii<3*nind;ii++){
+        // if(ii % 3 ==0 ){
+        //   fprintf(stderr, "%f %f %f\n", exp(gls[i][ii]),exp(gls[i][ii+1]),exp(gls[i][ii+2]));
+        // }
+        // fprintf(stderr, "%d %d: %f %f %d\n", i, ii,  gls[i][ii] , exp(gls[i][ii]), is_nan(exp(gls[i][ii])));        
+        gls[i][ii]=exp(gls[i][ii]);
+      }
+      // exit(0);
     }
-    if(freqname != NULL){
-      freq.clear();
-      getDouble(freqname,freq);
-      assert(freq.size()==tmpgl.size());
-      overall_number_of_sites = freq.size();
-    }
+    
+    overall_number_of_sites = freq.size();
   }
   fprintf(stderr,"\t-> NIND:%d\n",nind);
 
