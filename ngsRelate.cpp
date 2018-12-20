@@ -1555,7 +1555,7 @@ int main(int argc, char **argv){
     return 0;
   }
 
-  if ( freqname == NULL && ( do_simple || do_inbred || htsfile==NULL )){
+  if ( freqname == NULL && ( do_simple || do_inbred ) && htsfile==NULL )){
     fprintf(stderr, "\t-> Must supply -f (allele frequency file) if '-o 1' or '-F 1' are enabled\n");
     return 0;
     }
