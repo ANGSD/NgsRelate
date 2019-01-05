@@ -1493,7 +1493,10 @@ int main(int argc, char **argv){
     return extract_freq_bim(--argc,++argv);
   if(strcasecmp(argv[1],"extract_freq")==0)
     return extract_freq(--argc,++argv);
-
+  fprintf(stdout,"#");
+  for(int i=0;i<argc;i++)
+    fprintf(stdout," %s",argv[i]);
+  fprintf(stdout,"\n");
   char *htsfile=NULL;
   while ((n = getopt(argc, argv, "f:i:t:r:g:m:v:s:F:o:c:e:a:b:n:l:z:p:h:L:T:A:")) >= 0) {
     switch (n) {
