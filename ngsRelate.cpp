@@ -1871,9 +1871,9 @@ int main(int argc, char **argv){
         ////////////////////
         // printing 2dsfs //
         ////////////////////
-        fprintf(stdout, "\t%f", td_out->pars_2dsfs[0]);
+        fprintf(stdout, "\t%e", td_out->pars_2dsfs[0]);
         for (int j = 1; j < 9; j++) {
-          fprintf(stdout, ",%f", td_out->pars_2dsfs[j]);
+          fprintf(stdout, ",%e", td_out->pars_2dsfs[j]);
         }
         // fprintf(stdout, "%f\t%f\t%f\n",
         // td_out->pars_2dsfs[0],td_out->pars_2dsfs[1],td_out->pars_2dsfs[2]);
