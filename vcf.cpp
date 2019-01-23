@@ -135,8 +135,8 @@ double emFrequency(double *loglike,int numInds, int iter,double start,char *keep
 }
 
 
-size_t getgls(char*fname,std::vector<double *> &mygl, std::vector<double> &freqs,int minind,double minfreq, std::string &vcf_format_field, std::string &vcf_allele_field, const double & gt_epsilon){
-  fprintf(stderr,"\t-> [getgls] fname:%s minfreq:%f\n",fname,minfreq);
+size_t getgls(char*fname,std::vector<double *> &mygl, std::vector<double> &freqs,int minind,double minfreq, std::string &vcf_format_field, std::string &vcf_allele_field, const double & gt_epsilon,std::vector<char *> &posinfo){
+  //  fprintf(stderr,"\t-> [getgls] fname:%s minfreq:%f\n",fname,minfreq);
   for(int i=0;i<PHREDMAX;i++){    
     pl2ln[i] = log(pow(10.0,-0.1*i));
   }
@@ -175,8 +175,9 @@ size_t getgls(char*fname,std::vector<double *> &mygl, std::vector<double> &freqs
   nsamples = bcf_hdr_nsamples(hdr);
   fprintf(stderr, "\t-> File %s contains %i samples\n", fname, nsamples);
   const char **seqnames = NULL;
+  seqnames = bcf_hdr_seqnames(hdr, &nseq);
 #if __WITH_MAIN__
-   seqnames = bcf_hdr_seqnames(hdr, &nseq);
+
   if (seqnames == NULL) {
     fprintf(stderr," error1\n");
     exit(0);
@@ -233,7 +234,7 @@ size_t getgls(char*fname,std::vector<double *> &mygl, std::vector<double> &freqs
        if ( ngts<0 ){
          fprintf(stderr, "BAD SITE %s:%d. return code:%d while fetching GT tag\n", bcf_seqname(hdr,rec), rec->pos, npl);
          continue;
-         }
+       }
        for(int ns=0; ns<nsamples;ns++){
          int32_t *curr_ptr = gt + ns*2;
          float *ln_gl_ptr = ln_gl + ns*3;
@@ -270,8 +271,7 @@ size_t getgls(char*fname,std::vector<double *> &mygl, std::vector<double> &freqs
     double *tmp = new double[3*nsamples];    
     for(int ns=0;ns<nsamples;ns++){
       float *ary= ln_gl+ns*3;
-      if ((is_nan_vcf(ary[0]) || is_nan_vcf(ary[1]) || is_nan_vcf(ary[2])) ||
-          (same_val_vcf(ary[0], ary[1]) && same_val_vcf(ary[0], ary[2]))){
+      if ((is_nan_vcf(ary[0]) || is_nan_vcf(ary[1]) || is_nan_vcf(ary[2])) ||(same_val_vcf(ary[0], ary[1]) && same_val_vcf(ary[0], ary[2]))){
         keep[ns]=0;
       }else{
 	keep[ns]=1;
@@ -282,6 +282,7 @@ size_t getgls(char*fname,std::vector<double *> &mygl, std::vector<double> &freqs
       tmp[ns*3+2] = ary[2];
       // fprintf(stderr, "TMP: %d %d: %f %f %f\n", ns+1, rec->pos+1, tmp[ns*3], tmp[ns*3+1], tmp[ns*3+2]);
     }
+    //    fprintf(stderr,"keepind:%d\n",keepInd);
     delete [] ln_gl;
     
     naf = bcf_get_info_float(hdr, rec, vcf_allele_field.c_str(), &af, &naf_arr);
@@ -297,8 +298,15 @@ size_t getgls(char*fname,std::vector<double *> &mygl, std::vector<double> &freqs
     }else{
       freq = emFrequency(tmp,nsamples,50,0.05,keep,keepInd);
     }
+    //should matter, program should never run on such low freqs, this is just for validation between formats
+    if(freq>0.999)
+      freq=1;
+    if(freq<0.001)
+      freq=0;
+    //fprintf(stderr,"freq:%f minfreq:%f keepInd:%d minind:%d\n",freq,minfreq,keepInd,minind);
     //filtering
     if(keepInd>minind&&freq>=minfreq && freq<= (1-minfreq)) {
+
 #ifdef __WITH_MAIN__
       fprintf(stdout,"%s\t%i\t%s\t%s\tqual:%f n_info:%d n_allele:%d n_fmt:%d n_sample:%d n_samplws_with_data:%d freq:%f",
 	      seqnames[rec->rid],
@@ -319,7 +327,13 @@ size_t getgls(char*fname,std::vector<double *> &mygl, std::vector<double> &freqs
 #endif
       mygl.push_back(tmp);
       freqs.push_back(freq);
+      //populate debug names
+#if 1
+      char ptmp[1024];
+      snprintf(ptmp,1024,"%s_%d", seqnames[rec->rid],rec->pos+1);
+      posinfo.push_back(strdup(ptmp));
       //	fprintf(stderr,"pushhh\n");
+#endif
     } else {
       delete [] tmp;
     }
@@ -332,6 +346,7 @@ size_t getgls(char*fname,std::vector<double *> &mygl, std::vector<double> &freqs
   bcf_hdr_destroy(hdr);
   bcf_close(inf);
   bcf_destroy(rec);
+
   return nsamples;
  
 }
