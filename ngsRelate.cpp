@@ -1738,6 +1738,7 @@ int main(int argc, char **argv){
       overall_number_of_sites = nsites_2dsfs;
     }
   }
+
 #ifdef __WITH_BCF__
   if(htsfile){
     std::vector<double *> tmpgl;
@@ -1746,22 +1747,14 @@ int main(int argc, char **argv){
     gls=new double *[tmpgl.size()];
     for(int i=0;i<tmpgl.size();i++){
       gls[i] = tmpgl[i];
-      for(int ii=0;ii<3*nind;ii++){
-        // if(ii % 3 ==0 ){
-        //   fprintf(stderr, "%f %f %f\n", exp(gls[i][ii]),exp(gls[i][ii+1]),exp(gls[i][ii+2]));
-        // }
-        // fprintf(stderr, "%d %d: %f %f %d\n", i, ii,  gls[i][ii] , exp(gls[i][ii]), is_nan(exp(gls[i][ii])));        
-        gls[i][ii]=exp(gls[i][ii]);
-      }
-      // exit(0);
+      for(int ii=0;ii<3*nind;ii++)
+	gls[i][ii]=exp(gls[i][ii]);
     }
-    
     overall_number_of_sites = freq.size();
   }
   fprintf(stderr,"\t-> NIND:%d\n",nind);
-
-
 #endif
+
   double total_sites = overall_number_of_sites * 1.0;
 
   //all data read from either 1) glf/freq 2) hts/vcf/bcf 3)plink
@@ -1786,11 +1779,7 @@ int main(int argc, char **argv){
     }
   }
 
-
-
-
 #if 0 //for printout everything
-
   for(int i=0;i<freq.size();i++){
     fprintf(stdout,"%f",freq[i]);
     for(int ii=0;ii<3*nind;ii++)
@@ -1800,10 +1789,6 @@ int main(int argc, char **argv){
   return 0;
 #endif
 
-#if 0
-  print(stdout,overall_number_of_sites,3*nind,gls);
-  exit(0);
-#endif
   if(do_inbred){
     fprintf(stdout,"Ind\tZ=0\tZ=1\tloglh\tnIter\tcoverage\tsites\n");
     int comparison_ids_inbred = 0;
