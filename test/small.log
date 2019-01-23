@@ -6,9 +6,9 @@ Options in effect:
 
 Hostname: a00790.science.domain
 Working directory: /science/willerslev/users-shared/science-snm-willerslev-fvr124/kristian_ibd/ngs
-Start time: Wed Jan 23 15:47:26 2019
+Start time: Wed Jan 23 16:52:17 2019
 
-Random number seed: 1548254846
+Random number seed: 1548258737
 772475 MB RAM detected; reserving 386237 MB for main workspace.
 --vcf: small-temporary.bed + small-temporary.bim + small-temporary.fam written.
 5417 variants loaded from .bim file.
@@ -22,4 +22,4 @@ Total genotyping rate is 0.917331.
 Note: No phenotypes present.
 --make-bed to small.bed + small.bim + small.fam ... done.
 
-End time: Wed Jan 23 15:47:26 2019
+End time: Wed Jan 23 16:52:17 2019
