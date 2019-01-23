@@ -5,20 +5,21 @@ Options in effect:
   --vcf small.vcf.gz
 
 Hostname: a00790.science.domain
-Working directory: /science/willerslev/users-shared/science-snm-willerslev-fvr124/kristian_ibd/ngs/test
-Start time: Wed Jan 23 11:43:06 2019
+Working directory: /science/willerslev/users-shared/science-snm-willerslev-fvr124/kristian_ibd/ngs
+Start time: Wed Jan 23 15:47:26 2019
 
-Random number seed: 1548240186
+Random number seed: 1548254846
 772475 MB RAM detected; reserving 386237 MB for main workspace.
 --vcf: small-temporary.bed + small-temporary.bim + small-temporary.fam written.
-1000 variants loaded from .bim file.
+5417 variants loaded from .bim file.
 33 people (0 males, 0 females, 33 ambiguous) loaded from .fam.
 Ambiguous sex IDs written to small.nosex .
 Using 1 thread (no multithreaded calculations invoked).
 Before main variant filters, 33 founders and 0 nonfounders present.
 Calculating allele frequencies... done.
-1000 variants and 33 people pass filters and QC.
+Total genotyping rate is 0.917331.
+5417 variants and 33 people pass filters and QC.
 Note: No phenotypes present.
 --make-bed to small.bed + small.bim + small.fam ... done.
 
-End time: Wed Jan 23 11:43:06 2019
+End time: Wed Jan 23 15:47:26 2019

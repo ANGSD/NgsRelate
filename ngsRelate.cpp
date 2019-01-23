@@ -1400,7 +1400,7 @@ void * do_work(void *threadarg){
   assert(td->nsites>0);
   // init all in each thread
   int *keeplist = td->keeplist;
-  fprintf(stderr,"td->nsites:%lu\n",td->nsites);
+
   for (size_t i = 0; i < td->nsites; i++) {
 
 #if 0
@@ -1571,9 +1571,11 @@ int main(int argc, char **argv){
     return extract_freq_bim(--argc,++argv);
   if(strcasecmp(argv[1],"extract_freq")==0)
     return extract_freq(--argc,++argv);
+#if 0
   fprintf(stdout,"#");
   for(int i=0;i<argc;i++)
     fprintf(stdout," %s",argv[i]);
+#endif
   fprintf(stdout,"\n");
   char *htsfile=NULL;
   char *plinkfile=NULL;
@@ -1638,7 +1640,7 @@ int main(int argc, char **argv){
   }
 #endif
 
-  if (hasDef == 0&&htsfile==NULL) {
+  if (hasDef == 0&&htsfile==NULL &&plinkfile==NULL) {
   fprintf(stderr, "\t-> -n parameter has not been supplied. Will assume that "
     "file contains 2 samples...\n");
   }
@@ -1700,7 +1702,7 @@ int main(int argc, char **argv){
 	  hit+=1.0;
 	  asum+=imat[j][i];
 	}
-      freq.push_back(asum/hit/2.0);
+      freq.push_back(1-asum/hit/2.0);//flip
     }
 #if 0 //validated with plink --freq
     for(int i=0;i<bimnlines;i++)
@@ -1713,7 +1715,7 @@ int main(int argc, char **argv){
 	double *pi = gls[i]+j*3;
 	if(imat[j][i]==3)
 	  pi[0]=pi[1]=pi[2] = 1;
-	else if(imat[j][i]==0){
+	else if(imat[j][i]==2){
 	  pi[0] =1;
 	  pi[1]=pi[2] =0;
 	}
@@ -1721,7 +1723,7 @@ int main(int argc, char **argv){
 	  pi[1] =1;
 	  pi[0]=pi[2] =0;
 	}
-	else if(imat[j][i]==2){
+	else if(imat[j][i]==0){
 	  pi[2] =1;
 	  pi[0]=pi[1] =0;
 	}
@@ -1760,7 +1762,7 @@ int main(int argc, char **argv){
   //all data read from either 1) glf/freq 2) hts/vcf/bcf 3)plink
   //now call genotypes if needed
 
-
+  fprintf(stderr,"\t-> nind:%d overall_number_of_sites:%d\n",nind,overall_number_of_sites);
   if (switchMaf) {
     fprintf(stderr, "\t-> switching frequencies\n");
     for (size_t i = 0; i < overall_number_of_sites; i++)

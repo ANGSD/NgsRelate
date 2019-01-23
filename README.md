@@ -121,10 +121,8 @@ To only estimate inbreeding, use the following command
 thorfinn@binf.ku.dk, k.hanghoej@snm.ku.dk, and ida@binf.ku.dk
 
 # Testdataset
-bcftools call -c test.bcf -Ov |grep -P "^#" test.vcf >head
-bcftools call -c test.bcf -Ov |grep -P "^#" -v test.vcf |shuf -n1000 test.vcf.tail |sort -k1 -k2 -n >tail
-cat head tail |bcftools view -Ob -o small.bcf
-bcftools view small.bcf |bgzip -c >small.vcf.gz
-plink --vcf small.vcf.gz --make-bed --out small
+bcftools call -v -m test.bcf -Ob >small.bcf
+bcftools view small.bcf -Oz -o small.vcf.gz -m2 -M2 -v snps
+plink --vcf small.vcf.gz --make-bed --out small 
 bgzip small.bed
-md5sum * >small.md5
+md5sum small.* >small.md5

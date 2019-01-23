@@ -39,3 +39,9 @@ endif
 
 clean:
 	rm  -f *.o *.d ngsRelate *~
+
+.PHONY: all clean install install-all install-misc misc test
+
+test:
+	echo "Only subset of analyses is being tested"
+	cd test;./test1.sh ../ngsRelate

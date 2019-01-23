@@ -226,7 +226,7 @@ size_t getgls(char*fname,std::vector<double *> &mygl, std::vector<double> &freqs
         } else{
           ln_gl[i] = pl2ln_f(pl[i]);
         }
-         fprintf(stderr, "%d %f\n", pl[i], ln_gl[i]);
+	//         fprintf(stderr, "%d %f\n", pl[i], ln_gl[i]);
       }
     } else if(vcf_format_field == "GT"){
        int ngts = bcf_get_genotypes(hdr, rec, &gt, &ngt_arr);
