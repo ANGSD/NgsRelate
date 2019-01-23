@@ -44,6 +44,8 @@ int refToInt[256] = {
   4,4,4,4,4,4,4,4,4,4,4,4,4,4,4,4,//239
   4,4,4,4,4,4,4,4,4,4,4,4,4,4,4,4//255
 };
+
+
 //this is as close to the bound we will allow
 double TINY=1e-8;
 double p100000000[9] = {1 - TINY,   TINY / 8.0, TINY / 8.0,
@@ -113,7 +115,6 @@ int hasDef = 0;
 double ttol=1e-6;
 std::string vcf_format_field = "PL"; // can take PL or GT
 std::string vcf_allele_field = "AFngsrelate"; // can take any tag value e.g. AF AF1 etc
-double gt_epsilon = 0.001; // error added to called genotypes from a VCF file.
 
 std::vector<char *> ids;
 
@@ -126,6 +127,111 @@ void stayin(double *post){
     if(post[i]>(1-emTole))
       post[i] =1- emTole;
   }
+}
+
+size_t nlines(const char *fname){
+  FILE *fp = NULL;
+  fp=fopen(fname,"rb");
+  assert(fp);
+  size_t nlines = 0;
+  while(!feof(fp)){
+    char ch = fgetc(fp);
+    if(ch == '\n')
+	nlines++;
+  }
+  return nlines;
+}
+
+
+
+int **bed_to_intMatrix(const char* file, int nrow,int ncol) {
+
+  //  const unsigned char recode[4] = {'\x01', '\x00', '\x02', '\x03'};
+  //0,1,2: 3 is missing 
+  const unsigned char recode[4] = { '\x02','\x01', '\x03', '\x00'};
+  const unsigned char mask = '\x03';
+
+
+  FILE *in = fopen(file, "r");
+  if (!in){
+    printf("Couln't open input file: %s", file);
+    exit(0);
+  }
+  unsigned char start[3];
+  if (fread(start, 1, 3, in)!=3){
+    printf("Failed to read first 3 bytes");
+    exit(0);
+  }
+  if (start[0]!='\x6C' || start[1]!='\x1B'){
+    printf("Input file does not appear to be a .bed file (%X, %X)", 
+	   start[0], start[1]);
+    exit(0);
+  }
+  /* Create output object */
+  
+  
+  int **returnMat =new int*[nrow];
+  for(int i=0;i<nrow;i++){
+    returnMat[i] = new int[ncol];
+    for(int j=0;j<ncol;j++)
+      returnMat[i][j] = -1;
+  }
+  int ncell = nrow*ncol;
+  unsigned char *result = new unsigned char[nrow*ncol]; 
+  memset(result, 0x00, ncell);
+
+  /* Read in data */
+
+  int snp_major = start[2];
+  int part=0, ij=0, i=0, j=0;
+  while (1) {
+    unsigned char byte;
+    if (!part) {
+      if (feof(in) || !fread(&byte, 1, 1, in)) {
+	printf("Unexpected end of file reached");
+	exit(0);
+      }
+      part = 4;
+    }
+    unsigned char code = byte & mask;
+    byte = byte >> 2;
+    part--;
+    result[ij] = recode[code];
+    returnMat[i][j] = result[ij];
+    if(returnMat[i][j]==3)
+      returnMat[i][j]=1;
+    else if(returnMat[i][j]==1)
+      returnMat[i][j]=3;
+    else if(returnMat[i][j]<0 || returnMat[i][j]>3){
+      printf("Problem in bed file at position=(%d,%d)=%d\n",i,j,returnMat[i][j]);
+      exit(0);
+    }
+    // printf("(%d,%d)=%d ",i,j,result[ij]);
+    if (snp_major) {
+      ij++;
+      i++;
+      if (i==nrow) {
+	i = part = 0;
+	j++;
+	if (j==ncol)
+	  break;
+      }
+    }	
+    else {
+      ij += nrow;
+      j++;
+      if (j==ncol){
+	j = part = 0;
+	i++;
+	if (i==nrow)
+	  break;
+	ij = i;
+      }
+    }
+  }
+  fclose(in);
+  delete [] result;
+  return returnMat;
 }
 
 // bool same_double(double x, double y)
@@ -927,6 +1033,7 @@ void print_info(FILE *fp){
   fprintf(fp, "   -z <INT>            Name of file with IDs (optional)\n");
   fprintf(fp, "   -T <STRING>         For -h vcf use PL (default) or GT tag\n");
   fprintf(fp, "   -A <STRING>         For -h vcf use allele frequency TAG e.g. AFngsrelate (default)\n");  
+  fprintf(fp, "   -P <filename>       plink name of the binary plink file (excluding the .bed)\n");
   fprintf(fp, "\n");
   fprintf(fp,"Or\n ./ngsrelate extract_freq_bim pos.glf.gz plink.bim plink.freq\n");
   fprintf(fp,"Or\n ./ngsrelate extract_freq .mafs.gz .pos.glf.gz [-rmTrans]\n");
@@ -936,55 +1043,67 @@ void print_info(FILE *fp){
   exit(0);
 }
 
-void callgenotypesEps(double **gls,int len,double eps){
-  fprintf(stderr,"\t-> Call genotypes: %f\n",eps);
+int is_missing(double *ary){
+  if(ary[0]==ary[1]&&ary[0]==ary[2]&&ary[1]==ary[2])
+    return 1;
+  else
+    return 0;
+}
+
+
+void callgenotypesEps(double **gls,int nsites,int nind,double eps){
+
   double g00 = (1-eps)*(1-eps);
   double g01 = 2*(1-eps)*eps;
   double g02 = eps*eps;
   double g10 = (1-eps)*eps;
   double g11 = (1-eps)*(1-eps)+eps*eps;
 
-  for(int s=0;s<len;s++){
-    int whmax=0;
-    for(int i=1;i<3;i++){
-      //      fprintf(stderr,"%d %d | %f %f\n",s,i,gls[s][i],gls[s][whmax]);
-      if(gls[s][i]>gls[s][whmax])
-        whmax=i;
+  for(int off=0;off<nind;off++){
+    for(int s=0;s<nsites;s++){
+      if(!is_missing(&gls[s][off*3])){
+	int whmax=0;
+	for(int i=1;i<3;i++)
+	  if(gls[s][off*3+i]>gls[s][off*3+whmax])
+	    whmax=i;
+	
+	if(whmax==0){
+	  gls[s][off*3+0] = g00;
+	  gls[s][off*3+1] = g01;
+	  gls[s][off*3+2] = g02;
+	}else if(whmax==1){
+	  gls[s][off*3+0]=gls[s][off*3+2]=g10;
+	  gls[s][off*3+1]=g11;
+	}else if(whmax==2){
+	  gls[s][off*3+0] = g02;
+	  gls[s][off*3+1] = g01;
+	  gls[s][off*3+2] = g00;
+	}else{
+	  assert(0!=1);
+	}
+      }else
+	gls[s][off*3+0]=gls[s][off*3+1]=gls[s][off*3+2]=1;//how should we treat missing in the case of called genotypes?
     }
-    //    fprintf(stdout,"i\t%d\n",whmax);
-    if(whmax==0){
-      gls[s][0] = g00;gls[s][1]=g01;gls[s][2]=g02;
-    }else if(whmax==1){
-      gls[s][0]=gls[s][2]=g10;
-      gls[s][1]=g11;
-    }else if(whmax==2){
-      gls[s][0] = g02;gls[s][1]=g01;gls[s][2]=g00;
-    }else{
-      fprintf(stderr,"never happens\n");
-    }
-
   }
-
 }
 
-void callgenotypesHwe(double **gls,int len,double eps,double *freq){
-  fprintf(stderr,"\t-> Call genotypesHwe: %f\n",eps);
+void callgenotypesHwe(double **gls,int nsites,int nind,std::vector<double> freq){
 
-  for(int s=0;s<len;s++){
-    gls[s][0] = gls[s][0]*freq[s]*freq[s];
-    gls[s][1] = 2*gls[s][1]*(1-freq[s])*freq[s];
-    gls[s][2] = gls[s][2]*(1-freq[s])*(1-freq[s]);
+  for(int off=0;off<nind;off++){
+    for(int s=0;s<nsites;s++){
+      gls[s][3*off+0] *= freq[s]*freq[s];
+      gls[s][3*off+1] *= (1-freq[s])*freq[s];
+      gls[s][3*off+2] *= (1-freq[s])*(1-freq[s]);
+      
+      int whmax=0;
+      for(int i=1;i<3;i++)
+	if(gls[s][3*off+i]>gls[s][3*off+whmax])
+	  whmax=i;
 
-    int whmax=0;
-    for(int i=1;i<3;i++){
-      //      fprintf(stderr,"%d %d | %f %f\n",s,i,gls[s][i],gls[s][whmax]);
-      if(gls[s][i]>gls[s][whmax])
-        whmax=i;
+      for(int i=0;i<3;i++)
+	gls[s][3*off+i] = 0;
+      gls[s][3*off+whmax]=1;
     }
-    //    fprintf(stdout,"i\t%d\n",whmax);
-    for(int i=1;i<3;i++)
-      gls[s][i] = 0;
-    gls[s][whmax]=1;
   }
 
 }
@@ -1254,6 +1373,7 @@ struct worker_args {
   size_t nsites;
   double ll, bestll, ll_2dsfs;
   double pars[9], pars_2dsfs[9];
+  int *keeplist;
   worker_args(int & id_a, int & id_b, std::vector<double> * f, double ** gls_arg, size_t & s ){
     a=id_a;
     b=id_b;
@@ -1264,60 +1384,51 @@ struct worker_args {
     freq = f;
     gls=gls_arg;
     nsites = s;
+    keeplist = new int[nsites];
   }
 };
 
 
 void * do_work(void *threadarg){
+
   // https://www.tutorialspoint.com/cplusplus/cpp_multithreading.htm
   struct worker_args * td;
   td = ( worker_args * ) threadarg;
 #if 0
   fprintf(stderr,"ID:%d THREAD:%d\n",td->id, td->thread_id);
 #endif
-
+  assert(td->nsites>0);
   // init all in each thread
-  int *keeplist = new int [td->nsites];
+  int *keeplist = td->keeplist;
+  fprintf(stderr,"td->nsites:%lu\n",td->nsites);
   for (size_t i = 0; i < td->nsites; i++) {
-    // skip missing data
-    if(is_nan(access_genotype(td->gls, i, td->a, 0)) ||
-       is_nan(access_genotype(td->gls, i, td->a, 1)) ||
-       is_nan(access_genotype(td->gls, i, td->a, 2)) ||
-       is_nan(access_genotype(td->gls, i, td->b, 0)) ||
-       is_nan(access_genotype(td->gls, i, td->b, 1)) ||
-       is_nan(access_genotype(td->gls, i, td->b, 2))){
-      // fprintf(stderr, "is nan genotype is present at site %ld: %f", i, access_genotype(td->gls, i, td->a, 0));
-      // fprintf(stderr, " %f", access_genotype(td->gls, i, td->a, 1));
-      // fprintf(stderr, " %f", access_genotype(td->gls, i, td->a, 2));
-      // fprintf(stderr, " %f", access_genotype(td->gls, i, td->b, 0));
-      // fprintf(stderr, " %f", access_genotype(td->gls, i, td->b, 1));
-      // fprintf(stderr, " %f\n", access_genotype(td->gls, i, td->b, 2));
-      // exit(0);
-      continue;
-    }
 
-    if(same_double(access_genotype(td->gls, i, td->a, 0), access_genotype(td->gls, i, td->a, 1)) &&
-       same_double(access_genotype(td->gls, i, td->a, 0), access_genotype(td->gls, i, td->a, 2))) {
-    // if (access_genotype(td->gls, i, td->a, 0) == access_genotype(td->gls, i, td->a, 1) && 
-    //     access_genotype(td->gls, i, td->a, 0) == access_genotype(td->gls, i, td->a, 2)){
+#if 0
+    fprintf(stderr, "gls[%ld]: %f", i, access_genotype(td->gls, i, td->a, 0));
+    fprintf(stderr, " %f", access_genotype(td->gls, i, td->a, 1));
+    fprintf(stderr, " %f", access_genotype(td->gls, i, td->a, 2));
+    fprintf(stderr, " %f", access_genotype(td->gls, i, td->b, 0));
+    fprintf(stderr, " %f", access_genotype(td->gls, i, td->b, 1));
+    fprintf(stderr, " %f\n", access_genotype(td->gls, i, td->b, 2));
+#endif
+
+    if(is_missing(&td->gls[i][3*td->a]))
       continue;
-    }
-    if(same_double(access_genotype(td->gls, i, td->b, 0), access_genotype(td->gls, i, td->b, 1)) &&
-       same_double(access_genotype(td->gls, i, td->b, 0), access_genotype(td->gls, i, td->b, 2))) {
-    // if (access_genotype(td->gls, i, td->b, 0) == access_genotype(td->gls, i, td->b, 1) && 
-    //     access_genotype(td->gls, i, td->b, 0) == access_genotype(td->gls, i, td->b, 2)){
+    if(is_missing(&td->gls[i][3*td->b]))
       continue;
-    }
+
     // removing minor allele frequencies
     if ( !do_2dsfs_only && (td->freq->at(i) < minMaf || (1 - td->freq->at(i)) < minMaf))
       continue;
 
-    keeplist[td->nkeep] = i;
+    keeplist[td->nkeep] = i;//dont forget
     td->nkeep++;
   }
+  //  fprintf(stderr,"td->nkeep:%d\n",td->nkeep);exit(0);
   if (td->nkeep==0){
     fprintf(stderr, "sites with both %d and %d having data: %d\n", td->a, td->b, td->nkeep);
   }
+
   // fprintf(stderr, "\t-> keeping %d sites for downstream analyses", td->nkeep++);
   double **emis;
   if(!do_2dsfs_only){
@@ -1332,19 +1443,6 @@ void * do_work(void *threadarg){
     emislike_2dsfs[i] = new double[9];
   }
 
-#if 0   // l1 + l2 -> gls not fixed yet
-  if (gc) {
-    if (gc > 1) {
-      callgenotypesHwe(l1, td->nkeep, errate, newfreq);
-      callgenotypesHwe(l2, td->nkeep, errate, newfreq);
-    }
-
-    if (gc > 0) {
-      callgenotypesEps(l1, td->nkeep, errate);
-      callgenotypesEps(l2, td->nkeep, errate);
-    }
-  }
-#endif
   if(!do_2dsfs_only){
     emission_ngsrelate9(td->freq, td->gls, emis, keeplist, td->nkeep, td->a, td->b);
 
@@ -1424,20 +1522,12 @@ void * do_work_inbred(void *threadarg){
 #endif
 
   // init all in each thread
-  int *keeplist = new int [td->freq->size()];
+  int *keeplist = td->keeplist;
   for (size_t i = 0; i < td->freq->size(); i++) {
-    // skip missing data
-    if(is_nan(access_genotype(td->gls, i, td->a, 0)) ||
-       is_nan(access_genotype(td->gls, i, td->a, 1)) ||
-       is_nan(access_genotype(td->gls, i, td->a, 2))){
-      continue;
-    }
-     
 
-    if (access_genotype(td->gls, i, td->a, 0) == access_genotype(td->gls, i, td->a, 1) && 
-        access_genotype(td->gls, i, td->a, 0) == access_genotype(td->gls, i, td->a, 2)){
+    if(is_missing(&td->gls[i][3*td->a]))
       continue;
-    }
+
     // removing minor allele frequencies
     if (td->freq->at(i) < minMaf || (1-td->freq->at(i)) < minMaf)
       continue;
@@ -1451,18 +1541,6 @@ void * do_work_inbred(void *threadarg){
     emis[i] = new double[2];
   }
 
-  // fprintf(stdout,"%d:%d\t",td->a,td->nkeep);  
-#if 0   // l1 + l2 -> gls not fixed yet
-  if (gc) {
-    if (gc > 1) {
-      callgenotypesHwe(l1, td->nkeep, errate, newfreq);
-    }
-    
-    if (gc > 0) {
-      callgenotypesEps(l1, td->nkeep, errate);
-    }
-  }
-#endif
   emission_ngs_inbred(td->freq,td->gls, emis, keeplist, td->nkeep, td->a);
   td->niter=em_inbred(td->pars,emis,tole,maxIter,td->nkeep,model,verbose);
   td->ll = loglike_inbred(td->pars,emis,td->nkeep);
@@ -1498,9 +1576,12 @@ int main(int argc, char **argv){
     fprintf(stdout," %s",argv[i]);
   fprintf(stdout,"\n");
   char *htsfile=NULL;
-  while ((n = getopt(argc, argv, "f:i:t:r:g:m:v:s:F:o:c:e:a:b:n:l:z:p:h:L:T:A:")) >= 0) {
+  char *plinkfile=NULL;
+
+  while ((n = getopt(argc, argv, "f:i:t:r:g:m:v:s:F:o:c:e:a:b:n:l:z:p:h:L:T:A:P:")) >= 0) {
     switch (n) {
     case 'f': freqname = strdup(optarg); break;
+    case 'P': plinkfile = strdup(optarg); break;
     case 'i': maxIter = atoi(optarg); break;
     case 't': tole = atof(optarg); break;
     case 'r': seed = atoi(optarg); break;
@@ -1525,6 +1606,30 @@ int main(int argc, char **argv){
     default: {fprintf(stderr,"unknown arg:\n");return 0;}
       print_info(stderr);
     }
+  }
+  std::string plink_fam,plink_bim,plink_bed;
+  if(plinkfile){
+    fprintf(stderr,"\t-P %s\n",plinkfile);
+    std::string p_str =std::string(plinkfile);
+    if(p_str.length()>4){
+      std::string ext = p_str.substr(p_str.length()-4,p_str.length());
+      if (!ext.compare(".bed")||!ext.compare(".bim")||!ext.compare(".fam")){
+	std::string front = p_str.substr(0,p_str.length()-4);
+	plink_bim = (front+".bim");
+	plink_fam = (front+".fam");
+	plink_bed = (front+".bed");
+      }else{
+	plink_bim = (p_str+".bim");
+	plink_fam = (p_str+".fam");
+	plink_bed = (p_str+".bed");	
+      }}else{
+      plink_bim = (p_str+".bim");
+      plink_fam = (p_str+".fam");
+      plink_bed = (p_str+".bed");
+    }
+    fprintf(stderr,"\t NB make sure plink file only contains autosomes");
+    fprintf(stderr,"\t-P %s -> bed:\'%s\' fam:\'%s\' bim:\'%s\'\n",plinkfile,plink_bed.c_str(),plink_fam.c_str(),plink_bim.c_str());
+
   }
 #ifndef __WITH_BCF__
   if(htsfile){
@@ -1553,7 +1658,7 @@ int main(int argc, char **argv){
   }
   srand48(seed);
 
-  if ((nind == -1 || gname == NULL)&&htsfile==NULL) {
+  if ((nind == -1 || gname == NULL)&&htsfile==NULL&&plinkfile==NULL) {
     fprintf(stderr, "\t-> Must supply -n -g parameters (%d,%s) OR -h file.[vb]cf\n", nind,gname);
     return 0;
   }
@@ -1563,7 +1668,7 @@ int main(int argc, char **argv){
     return 0;
     }
   
-  if (freqname == NULL && htsfile==NULL){
+  if (freqname == NULL && htsfile==NULL &&plinkfile==NULL){
     fprintf(stderr, "\t-> Allele frequencies file (-f) is not provided. Only summary statistitics based on 2dsfs will be reported\n");
     do_2dsfs_only = 1;
     if(!nsites_2dsfs){
@@ -1573,32 +1678,71 @@ int main(int argc, char **argv){
   }
 
   
-  // if ((nind == -1 || freqname == NULL || gname == NULL)&&htsfile==NULL) {
-  //   fprintf(stderr, "\t-> Must supply -n -f -g parameters (%d,%s,%s) OR -h file.bcf\n", nind,
-  //           freqname, gname);
-  //   return 0;
-  // }
-
   pthread_t threads[num_threads];
 
   std::vector<double> freq;
   double **gls=NULL;
 
-  
-  if(htsfile==NULL && !do_2dsfs_only){
-    getDouble(freqname,freq);
-    gls = getGL(gname, freq.size(), nind);
-    overall_number_of_sites = freq.size();
-  }
-  if(htsfile==NULL && do_2dsfs_only){
-    gls = getGL(gname, nsites_2dsfs, nind);
-    overall_number_of_sites = nsites_2dsfs;
+  if(plinkfile){
+    fprintf(stderr,"\t-> Starting to read plinkfiles\n");
+    int famnlines=nlines(plink_fam.c_str());
+    int bimnlines=nlines(plink_bim.c_str());
+    nind = famnlines;
+    overall_number_of_sites = bimnlines;
+    fprintf(stderr,"\t-> nlines in .fam:%d\t nlines in .bim:%d\n",famnlines,bimnlines);
+    int **imat = bed_to_intMatrix(plink_bed.c_str(),famnlines,bimnlines);//leak
+    //imat[ind][site]
+    for(int i=0;i<bimnlines;i++){
+      double hit =0;
+      double asum =0;
+      for(int j=0;j<famnlines;j++)
+	if(imat[j][i]!=3){
+	  hit+=1.0;
+	  asum+=imat[j][i];
+	}
+      freq.push_back(asum/hit/2.0);
+    }
+#if 0 //validated with plink --freq
+    for(int i=0;i<bimnlines;i++)
+      fprintf(stderr,"freq[%d]:\t%f\n",i,freq[i]);
+#endif
+    gls = new double*[bimnlines];
+    for(int i=0;i<bimnlines;i++){
+      gls[i] = new double[3*famnlines];
+      for(int j=0;j<famnlines;j++){
+	double *pi = gls[i]+j*3;
+	if(imat[j][i]==3)
+	  pi[0]=pi[1]=pi[2] = 1;
+	else if(imat[j][i]==0){
+	  pi[0] =1;
+	  pi[1]=pi[2] =0;
+	}
+	else if(imat[j][i]==1){
+	  pi[1] =1;
+	  pi[0]=pi[2] =0;
+	}
+	else if(imat[j][i]==2){
+	  pi[2] =1;
+	  pi[0]=pi[1] =0;
+	}
+      }
+    }
+  }else{  
+    if(htsfile==NULL && !do_2dsfs_only){
+      getDouble(freqname,freq);
+      gls = getGL(gname, freq.size(), nind);
+      overall_number_of_sites = freq.size();
+    }
+    if(htsfile==NULL && do_2dsfs_only){
+      gls = getGL(gname, nsites_2dsfs, nind);
+      overall_number_of_sites = nsites_2dsfs;
+    }
   }
 #ifdef __WITH_BCF__
   if(htsfile){
     std::vector<double *> tmpgl;
 
-    nind=getgls(htsfile,tmpgl,freq,2,minMaf, vcf_format_field, vcf_allele_field, gt_epsilon);
+    nind=getgls(htsfile,tmpgl,freq,2,minMaf, vcf_format_field, vcf_allele_field, errate);
     gls=new double *[tmpgl.size()];
     for(int i=0;i<tmpgl.size();i++){
       gls[i] = tmpgl[i];
@@ -1616,21 +1760,45 @@ int main(int argc, char **argv){
   }
   fprintf(stderr,"\t-> NIND:%d\n",nind);
 
-  // for(int i=0;0&&i<freq.size();i++){
-  //   fprintf(stdout,"%f",freq[i]);
-  //   for(int ii=0;ii<3*nind;ii++)
-  //     fprintf(stdout,"\t%f",gls[i][ii]);
-  //   fprintf(stdout, "\n");
-  // }
+
 #endif
   double total_sites = overall_number_of_sites * 1.0;
+
+  //all data read from either 1) glf/freq 2) hts/vcf/bcf 3)plink
+  //now call genotypes if needed
+
 
   if (switchMaf) {
     fprintf(stderr, "\t-> switching frequencies\n");
     for (size_t i = 0; i < overall_number_of_sites; i++)
       freq[i] = 1 - freq[i];
   }
+  
+  if (gc) {
+    if (gc> 1) {
+      fprintf(stderr,"\t-> Calling genotypes assuming hwe\n");
+      callgenotypesHwe(gls, overall_number_of_sites, nind, freq);
+    }
+    
+    if (gc > 0){
+      fprintf(stderr,"\t-> Modelling errors for genotypes (should only be used for called genotypes)\n");    
+      callgenotypesEps(gls, overall_number_of_sites, nind, errate);
+    }
+  }
 
+
+
+
+#if 0 //for printout everything
+
+  for(int i=0;i<freq.size();i++){
+    fprintf(stdout,"%f",freq[i]);
+    for(int ii=0;ii<3*nind;ii++)
+      fprintf(stdout,"\t%f",gls[i][ii]);
+    fprintf(stdout, "\n");
+  }
+  return 0;
+#endif
 
 #if 0
   print(stdout,overall_number_of_sites,3*nind,gls);

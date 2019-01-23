@@ -208,7 +208,7 @@ size_t getgls(char*fname,std::vector<double *> &mygl, std::vector<double> &freqs
 
     float *ln_gl = new float[3*nsamples];    
 
-    if(vcf_format_field == "PL"){
+    if(vcf_format_field == "PL") {
       npl = bcf_get_format_int32(hdr, rec, "PL", &pl, &npl_arr);
       if(npl<0){
         // return codes: https://github.com/samtools/htslib/blob/bcf9bff178f81c9c1cf3a052aeb6cbe32fe5fdcc/htslib/vcf.h#L667
@@ -217,7 +217,7 @@ size_t getgls(char*fname,std::vector<double *> &mygl, std::vector<double> &freqs
         continue;
       }
       // https://github.com/samtools/bcftools/blob/e9c08eb38d1dcb2b2d95a8241933daa1dd3204e5/plugins/tag2tag.c#L151
-
+      
       for (int i=0; i<npl; i++){
         if ( pl[i]==bcf_int32_missing ){
           bcf_float_set_missing(ln_gl[i]);
@@ -226,7 +226,7 @@ size_t getgls(char*fname,std::vector<double *> &mygl, std::vector<double> &freqs
         } else{
           ln_gl[i] = pl2ln_f(pl[i]);
         }
-        // fprintf(stderr, "%d %f\n", pl[i], ln_gl[i]);
+         fprintf(stderr, "%d %f\n", pl[i], ln_gl[i]);
       }
     } else if(vcf_format_field == "GT"){
        int ngts = bcf_get_genotypes(hdr, rec, &gt, &ngt_arr);
@@ -240,40 +240,30 @@ size_t getgls(char*fname,std::vector<double *> &mygl, std::vector<double> &freqs
          if ( bcf_gt_is_missing(curr_ptr[0]) ||
               bcf_gt_is_missing(curr_ptr[1]) ){ // obs genotype is missing
            // missing
-           ln_gl_ptr[0] = NAN;
-           ln_gl_ptr[1] = NAN;
-           ln_gl_ptr[2] = NAN;
+           ln_gl_ptr[0] = 0;
+           ln_gl_ptr[1] = 0;
+           ln_gl_ptr[2] = 0;
            
          } else if (bcf_gt_allele(curr_ptr[0])!=bcf_gt_allele(curr_ptr[1])){ // this is obs genotype
            // het
-           // ln_gl_ptr[0] = -INFINITY;
-           // ln_gl_ptr[1] = 0;
-           // ln_gl_ptr[2] = -INFINITY;
-           ln_gl_ptr[0] = log(2 * (1-gt_epsilon) * gt_epsilon);
-           ln_gl_ptr[1] = log(pow(1-gt_epsilon, 2) + pow(gt_epsilon, 2));
-           ln_gl_ptr[2] = log(2 * (1-gt_epsilon) * gt_epsilon);
-
-         } else if(bcf_gt_allele(curr_ptr[0])==1){ // this is obs genotype
+	   ln_gl_ptr[0] = -INFINITY;
+	   ln_gl_ptr[1] = 0;
+	   ln_gl_ptr[2] = -INFINITY;
+	 } else if(bcf_gt_allele(curr_ptr[0])==1){ // this is obs genotype
            // hom alt
-           // ln_gl_ptr[0] = -INFINITY;
-           // ln_gl_ptr[1] = -INFINITY;
-           // ln_gl_ptr[2] = 0;
-           ln_gl_ptr[0] = log(pow(gt_epsilon, 2));
-           ln_gl_ptr[1] = log((1-gt_epsilon) * gt_epsilon);
-           ln_gl_ptr[2] = log(pow(1-gt_epsilon, 2));
-         } else{ // this is obs genotype
+	   ln_gl_ptr[0] = -INFINITY;
+	   ln_gl_ptr[1] = -INFINITY;
+	   ln_gl_ptr[2] = 0;
+	 } else{ // this is obs genotype
            // hom ref
-           // ln_gl_ptr[0] = 0;
-           // ln_gl_ptr[1] = -INFINITY;
-           // ln_gl_ptr[2] = -INFINITY;
-           ln_gl_ptr[0] = log(pow(1-gt_epsilon, 2));
-           ln_gl_ptr[1] = log((1-gt_epsilon) * gt_epsilon);
-           ln_gl_ptr[2] = log(pow(gt_epsilon, 2));
-         }
+	   ln_gl_ptr[0] = 0;
+	   ln_gl_ptr[1] = -INFINITY;
+	   ln_gl_ptr[2] = -INFINITY;
+	 }
        }
     } else {
-         fprintf(stderr, "\t\t-> BIG TROUBLE. Can only take one of two tags, GT or PL\n");
-       }
+      fprintf(stderr, "\t\t-> BIG TROUBLE. Can only take one of two tags, GT or PL\n");
+    }
     
     int keepInd=0;
     char keep[nsamples];
