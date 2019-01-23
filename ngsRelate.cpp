@@ -25,6 +25,8 @@
 #include "vcf.h"
 #endif
 
+std::vector<char *> posinfo;//<- debug
+
 #define LENS  4096
 int refToInt[256] = {
   0,1,2,3,4,4,4,4,4,4,4,4,4,4,4,4,//15
@@ -277,8 +279,14 @@ void print(FILE *fp,int x,double *m){
   fprintf(fp,"\n");
 }
 
-double loglike(double *p,double **emis,int len){
+double loglike9(double *p,double **emis,int len){
   double ret =0;
+#if 0
+  fprintf(stderr,"loglike: ");
+  for(int i=0;i<9;i++)
+    fprintf(stderr," %f",p[i]);
+  fprintf(stderr,"\n");
+#endif
   for(int i=0;i<len;i++){
     double tmp = 0;
     for(int j=0;j<9;j++)
@@ -359,6 +367,13 @@ void emStep1(double *pre,double **emis,double *post,int len){
   stayin(post);
 #endif
   normalize(post,9);
+#if 0
+  fprintf(stderr,"emstep1post: ");
+  for(int i=0;i<9;i++)
+    fprintf(stderr," %f",post[i]);
+  fprintf(stderr,"\n");
+#endif
+  
   for(int i=0;i<9;i++){
     if(post[i]<0||post[i]>1){
       fprintf(stderr,
@@ -425,7 +440,9 @@ int emAccel(double *F,double **emis,double *F_new,int len, int & niter){
   double sr2 = sumSquare(F_diff1);
   
   if(sqrt(sr2)<ttol){
-    // fprintf(stderr,"sr2 break: %e\n", sqrt(sr2));
+     fprintf(stderr,"sr2 break: %e\n", sqrt(sr2));
+    for(int i=0;0&&i<9;i++)
+      F_new[i]  = F_em1[i];
     return 0;
   }
   niter++;
@@ -435,7 +452,9 @@ int emAccel(double *F,double **emis,double *F_new,int len, int & niter){
   double sq2 = sumSquare(F_diff2);
 
   if(sqrt(sq2)<ttol){
-    // fprintf(stderr,"sq2 break: %e\n", sqrt(sq2));
+    fprintf(stderr,"sq2 break: %e\n", sqrt(sq2));
+    for(int i=0;0&&i<9;i++)
+      F_new[i]  = F_em2[i];
     return 0;
   }
 
@@ -550,7 +569,7 @@ int emAccel_inbred(double *F,double **emis,double *F_new,int len){
 int em1(double *sfs,double  **emis, int len){
   int niter = 0;
   double oldLik,lik;
-  oldLik = loglike(sfs,emis,len);
+  oldLik = loglike9(sfs,emis,len);
   if(verbose)
     fprintf(stderr,"startlik=%f est: %f %f %f %f %f %f %f %f %f\n",oldLik,sfs[0],sfs[1],sfs[2],sfs[3],sfs[4],sfs[5],sfs[6],sfs[7],sfs[8]);
   fflush(stderr);
@@ -562,7 +581,7 @@ int em1(double *sfs,double  **emis, int len){
     emStep1(sfs,emis,tmp,len);
     for(int i=0;i<9;i++)
       sfs[i]= tmp[i];
-    lik = loglike(sfs,emis,len);
+    lik = loglike9(sfs,emis,len);
 
     if(verbose)
       fprintf(stderr,"[%d] lik=%f diff=%g\n",it,lik,fabs(lik-oldLik));
@@ -613,7 +632,7 @@ int em_inbred(double *pars,double  **emis,double tole,int maxIter,int len,int mo
 int em2(double *sfs,double  **emis, int len){
   int niter=0;
   double oldLik,lik;
-  oldLik = loglike(sfs,emis,len);
+  oldLik = loglike9(sfs,emis,len);
   if(verbose){
     fprintf(stderr,"startlik=%f\n",oldLik);
     fflush(stderr);
@@ -622,12 +641,29 @@ int em2(double *sfs,double  **emis, int len){
   double tmp[9];
   int it;
   for(it=0;niter<maxIter;it++) {
+#if 0
+  fprintf(stderr,"sfsemacclpre: ");
+  for(int i=0;i<9;i++)
+    fprintf(stderr," %f",sfs[i]);
+  fprintf(stderr,"\n");
+#endif
     emAccel(sfs,emis,tmp,len, niter);
-
     for(int i=0;i<9;i++)
       sfs[i]= tmp[i];
-    lik = loglike(sfs,emis,len);
-    if(verbose)
+#if 0
+  fprintf(stderr,"sfsemacclpost: ");
+  for(int i=0;i<9;i++)
+    fprintf(stderr," %f",sfs[i]);
+  fprintf(stderr,"\n");
+#endif
+
+    lik = loglike9(sfs,emis,len);
+    if(isnan(lik)){
+      fprintf(stderr,"em2 evaluates like to NaN\n");
+      exit(0);
+      break;
+      //  exit(0);
+    }if(verbose)
       fprintf(stderr,"[%d] lik=%f diff=%e\n",it,lik,fabs(lik-oldLik));
 
     if(fabs(lik-oldLik)<tole){
@@ -638,48 +674,6 @@ int em2(double *sfs,double  **emis, int len){
     oldLik=lik;
   }
   return niter;
-}
-
-int em3(double *sfs,double  **emis, int len){
-  //  exit(0);
-  int niter = 0;
-  double oldLik,lik;
-  oldLik = loglike(sfs,emis,len);
-  if(verbose){
-    fprintf(stderr,"em3startlik=%f (%f,%f,%f)\n",oldLik,sfs[0],sfs[1],sfs[2]);
-    fflush(stderr);
-  }
-
-  double tmp[9];
-  int it;
-  int speedy=1;
-  for(it=0;niter<maxIter;it++) {
-    if(speedy)
-      emAccel(sfs,emis,tmp,len, niter);
-    else
-      niter++;
-      emStep1(sfs,emis,tmp,len);
-    lik = loglike(tmp,emis,len);
-
-    fprintf(stderr,"[%d]:%d (%f,%f,%F) lik=%f diff=%e\n",it,speedy,sfs[0],sfs[1],sfs[2],lik,fabs(lik-oldLik));
-    if(std::isnan(lik)||lik<oldLik){
-      fprintf(stderr,"Problem llh is now bigger or nan, will go back and use regular em\n");
-      fprintf(stderr,"This is offending pars: %f %f %f\n",sfs[0],sfs[1],sfs[2]);
-      speedy=0;
-      continue;
-    }
-    for(int i=0;i<9;i++)
-      sfs[i]= tmp[i];
-
-    if(fabs(lik-oldLik)<tole){
-      // fprintf(stderr,"breaking\n");
-      oldLik=lik;
-      break;
-    }
-    oldLik=lik;
-
-  }
-  return it;
 }
 
 void emislike_2dsfs_gen(double **gls, double **emislike_2dsfs, int *keeplist, int & nkeep, int & ind1, int & ind2 ){
@@ -695,6 +689,12 @@ void emislike_2dsfs_gen(double **gls, double **emislike_2dsfs, int *keeplist, in
     emislike_2dsfs[x][6] = access_genotype(gls, i, ind1, 2) * access_genotype(gls, i, ind2, 0);
     emislike_2dsfs[x][7] = access_genotype(gls, i, ind1, 2) * access_genotype(gls, i, ind2, 1);
     emislike_2dsfs[x][8] = access_genotype(gls, i, ind1, 2) * access_genotype(gls, i, ind2, 2);
+#if 0
+    fprintf(stderr,"emis2dsfs[%d]:\t",x);
+    for(int j=0;j<9;j++)
+      fprintf(stderr,"%f ",emislike_2dsfs[x][j]);
+    fprintf(stderr,"\n");
+#endif
   }
 }
 
@@ -1403,15 +1403,6 @@ void * do_work(void *threadarg){
 
   for (size_t i = 0; i < td->nsites; i++) {
 
-#if 0
-    fprintf(stderr, "gls[%ld]: %f", i, access_genotype(td->gls, i, td->a, 0));
-    fprintf(stderr, " %f", access_genotype(td->gls, i, td->a, 1));
-    fprintf(stderr, " %f", access_genotype(td->gls, i, td->a, 2));
-    fprintf(stderr, " %f", access_genotype(td->gls, i, td->b, 0));
-    fprintf(stderr, " %f", access_genotype(td->gls, i, td->b, 1));
-    fprintf(stderr, " %f\n", access_genotype(td->gls, i, td->b, 2));
-#endif
-
     if(is_missing(&td->gls[i][3*td->a]))
       continue;
     if(is_missing(&td->gls[i][3*td->b]))
@@ -1428,6 +1419,26 @@ void * do_work(void *threadarg){
   if (td->nkeep==0){
     fprintf(stderr, "sites with both %d and %d having data: %d\n", td->a, td->b, td->nkeep);
   }
+#if 0
+  for(int x=0;x<td->nkeep;x++){
+    int at = keeplist[x];
+    fprintf(stderr,"postfiltergls[%d]:\t",at);
+    for(int j=0;j<3;j++)
+      fprintf(stderr,"%f ",td->gls[at][td->a*3+j]);
+    for(int j=0;j<3;j++)
+      fprintf(stderr,"%f ",td->gls[at][td->b*3+j]);
+    fprintf(stderr,"\n");
+  }
+#endif
+
+#if 0
+  for(int x=0;x<td->nkeep;x++){
+    int at = keeplist[x];
+    fprintf(stderr,"posinfo\t%s\n",posinfo[at]);
+  }
+  exit(0);
+#endif
+
 
   // fprintf(stderr, "\t-> keeping %d sites for downstream analyses", td->nkeep++);
   double **emis;
@@ -1450,19 +1461,18 @@ void * do_work(void *threadarg){
       td->niter = em1(td->pars, emis, td->nkeep);
     }else if (model == 1){
       td->niter = em2(td->pars, emis, td->nkeep);
-    }else{ // below might not work
-      td->niter = em3(td->pars, emis, td->nkeep);
     }
-    double l100000000 = loglike(p100000000, emis, td->nkeep);
-    double l010000000 = loglike(p010000000, emis, td->nkeep);
-    double l001000000 = loglike(p001000000, emis, td->nkeep);
-    double l000100000 = loglike(p000100000, emis, td->nkeep);
-    double l000010000 = loglike(p000010000, emis, td->nkeep);
-    double l000001000 = loglike(p000001000, emis, td->nkeep);
-    double l000000100 = loglike(p000000100, emis, td->nkeep);
-    double l000000010 = loglike(p000000010, emis, td->nkeep);
-    double l000000001 = loglike(p000000001, emis, td->nkeep);
-    double lopt = loglike(td->pars, emis, td->nkeep);
+
+    double l100000000 = loglike9(p100000000, emis, td->nkeep);
+    double l010000000 = loglike9(p010000000, emis, td->nkeep);
+    double l001000000 = loglike9(p001000000, emis, td->nkeep);
+    double l000100000 = loglike9(p000100000, emis, td->nkeep);
+    double l000010000 = loglike9(p000010000, emis, td->nkeep);
+    double l000001000 = loglike9(p000001000, emis, td->nkeep);
+    double l000000100 = loglike9(p000000100, emis, td->nkeep);
+    double l000000010 = loglike9(p000000010, emis, td->nkeep);
+    double l000000001 = loglike9(p000000001, emis, td->nkeep);
+    double lopt = loglike9(td->pars, emis, td->nkeep);
     td->ll = lopt;
 
     double likes[10] = {l100000000, l010000000, l001000000, l000100000,
@@ -1479,21 +1489,13 @@ void * do_work(void *threadarg){
   }
 
   emislike_2dsfs_gen(td->gls, emislike_2dsfs, keeplist, td->nkeep, td->a, td->b);
+
   if (model == 0){
     td->niter_2dsfs = em1(td->pars_2dsfs, emislike_2dsfs, td->nkeep);
   }else if (model == 1){
     td->niter_2dsfs = em2(td->pars_2dsfs, emislike_2dsfs, td->nkeep);  
-  }else{ // below might not work
-    td->niter_2dsfs = em3(td->pars_2dsfs, emislike_2dsfs, td->nkeep);
   }
-  td->ll_2dsfs = loglike(td->pars_2dsfs, emislike_2dsfs, td->nkeep);
-  
-  // double newpars[9] = {0.0625, 0.3125, 0.21875,
-  //                      0.03125, 0.125, 0.03125,
-  //                      0.125, 0.03125, 0.0625};
-
-  // double newlopt = loglike(newpars, emis, td->nkeep);
-  // fprintf(stdout, "%f is the likelihood of the correct estimates\n", newlopt);
+  td->ll_2dsfs = loglike9(td->pars_2dsfs, emislike_2dsfs, td->nkeep);
 
   // end of work. Teardown
 
@@ -1575,15 +1577,17 @@ int main(int argc, char **argv){
   fprintf(stdout,"#");
   for(int i=0;i<argc;i++)
     fprintf(stdout," %s",argv[i]);
-#endif
   fprintf(stdout,"\n");
+#endif
+
   char *htsfile=NULL;
   char *plinkfile=NULL;
-
-  while ((n = getopt(argc, argv, "f:i:t:r:g:m:v:s:F:o:c:e:a:b:n:l:z:p:h:L:T:A:P:")) >= 0) {
+  char *outname=NULL;
+  while ((n = getopt(argc, argv, "f:i:t:r:g:m:v:s:F:o:c:e:a:b:n:l:z:p:h:L:T:A:P:O:")) >= 0) {
     switch (n) {
     case 'f': freqname = strdup(optarg); break;
     case 'P': plinkfile = strdup(optarg); break;
+    case 'O': outname = strdup(optarg); break;
     case 'i': maxIter = atoi(optarg); break;
     case 't': tole = atof(optarg); break;
     case 'r': seed = atoi(optarg); break;
@@ -1744,8 +1748,7 @@ int main(int argc, char **argv){
 #ifdef __WITH_BCF__
   if(htsfile){
     std::vector<double *> tmpgl;
-
-    nind=getgls(htsfile,tmpgl,freq,2,minMaf, vcf_format_field, vcf_allele_field, errate);
+    nind=getgls(htsfile,tmpgl,freq,2,minMaf, vcf_format_field, vcf_allele_field, errate,posinfo);
     gls=new double *[tmpgl.size()];
     for(int i=0;i<tmpgl.size();i++){
       gls[i] = tmpgl[i];
@@ -1754,7 +1757,6 @@ int main(int argc, char **argv){
     }
     overall_number_of_sites = freq.size();
   }
-  fprintf(stderr,"\t-> NIND:%d\n",nind);
 #endif
 
   double total_sites = overall_number_of_sites * 1.0;
