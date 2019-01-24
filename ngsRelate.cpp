@@ -672,33 +672,36 @@ int analyse_j9(double *pk_pars,std::vector<double> *pk_freq,double **pk_gls,int 
   }
 }
 
-
-void * do_work(void *threadarg){
-
-  // https://www.tutorialspoint.com/cplusplus/cpp_multithreading.htm
-  struct worker_args * td;
-  td = ( worker_args * ) threadarg;
-
+void anal1(int a,int b,worker_args * td,double minMaf){
   assert(td->nsites>0);
   td->nkeep = populate_keeplist(td->a,td->b,td->nsites,td->gls,minMaf,td->freq,td->keeplist);
   
   
-  if (1||td->nkeep==0)
-    fprintf(stderr, "\t->Sites with both %d and %d having data: %d td->emis:%p\n", td->a, td->b, td->nkeep,td->emis);
+  if (td->nkeep==0)
+    fprintf(stderr, "\t->Sites with both %d and %d having data: %d \n", td->a, td->b, td->nkeep,td->emis);
 
   if(!do_2dsfs_only)
     analyse_j9(td->pars,td->freq,td->gls,td->keeplist,td->emis,td->nkeep,td->a,td->b,td->ll,td->best,td->bestll,td->niter);    
   
   emislike_2dsfs_gen(td->gls, td->emis,td->keeplist, td->nkeep, td->a, td->b);
-
+  
   if (model == 0){
     td->niter_2dsfs = em1(td->pars_2dsfs, td->emis, td->nkeep,9);
   }else if (model == 1){
     td->niter_2dsfs = em2(td->pars_2dsfs, td->emis, td->nkeep,9);  
   }
   td->ll_2dsfs = loglike(td->pars_2dsfs, td->emis, td->nkeep,9);
+  
+
+}
 
 
+void * do_work(void *threadarg){
+
+  // https://www.tutorialspoint.com/cplusplus/cpp_multithreading.htm
+  struct worker_args * td;
+  td = ( worker_args * ) threadarg;
+  anal1(td->a,td->b,td,minMaf);
   pthread_exit(NULL);
 }
 
