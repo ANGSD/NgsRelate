@@ -683,84 +683,25 @@ void * do_work(void *threadarg){
   td = ( worker_args * ) threadarg;
 
   assert(td->nsites>0);
-
   td->nkeep = populate_keeplist(td->a,td->b,td->nsites,td->gls,minMaf,td->freq,td->keeplist);
-  int *keeplist=td->keeplist;
+
+  
   if (td->nkeep==0)
     fprintf(stderr, "sites with both %d and %d having data: %d\n", td->a, td->b, td->nkeep);
 
-  // fprintf(stderr, "\t-> keeping %d sites for downstream analyses", td->nkeep++);
-  double **emis=td->emis;
-  if(!do_2dsfs_only){
-    emis = new double *[td->nkeep];
-    for (int i = 0; i < td->nkeep; i++) {
-      emis[i] = new double[9];
-    }
-  }
-
-  double **emislike_2dsfs = new double *[td->nkeep];
-  for (int i = 0; i < td->nkeep; i++) {
-    emislike_2dsfs[i] = new double[9];
-  }
-
-  if(!do_2dsfs_only){
-    emission_ngsrelate9(td->freq, td->gls, emis, keeplist, td->nkeep, td->a, td->b);
-
-    if (model == 0){
-      td->niter = em1(td->pars, emis, td->nkeep,9);
-    }else if (model == 1){
-      td->niter = em2(td->pars, emis, td->nkeep,9);
-    }
-
-    double l100000000 = loglike(p100000000, emis, td->nkeep,9);
-    double l010000000 = loglike(p010000000, emis, td->nkeep,9);
-    double l001000000 = loglike(p001000000, emis, td->nkeep,9);
-    double l000100000 = loglike(p000100000, emis, td->nkeep,9);
-    double l000010000 = loglike(p000010000, emis, td->nkeep,9);
-    double l000001000 = loglike(p000001000, emis, td->nkeep,9);
-    double l000000100 = loglike(p000000100, emis, td->nkeep,9);
-    double l000000010 = loglike(p000000010, emis, td->nkeep,9);
-    double l000000001 = loglike(p000000001, emis, td->nkeep,9);
-    double lopt = loglike(td->pars, emis, td->nkeep,9);
-    td->ll = lopt;
-
-    double likes[10] = {l100000000, l010000000, l001000000, l000100000,
-                        l000010000, l000001000, l000000100, l000000010,
-                        l000000001, lopt};
-    td->best = 0;
-    td->bestll = likes[0];
-    for (int i = 1; i < 10; i++) {
-      if (likes[i] > likes[td->best]){
-        td->best = i;
-        td->bestll = likes[i];
-      }
-    }
-  }
-
-  emislike_2dsfs_gen(td->gls, emislike_2dsfs, keeplist, td->nkeep, td->a, td->b);
+  if(!do_2dsfs_only)
+    analyse_j9(td->pars,td->freq,td->gls,td->keeplist,td->emis,td->nkeep,td->a,td->b,td->ll,td->best,td->bestll,td->niter);    
+  
+  emislike_2dsfs_gen(td->gls, td->emis,td->keeplist, td->nkeep, td->a, td->b);
 
   if (model == 0){
-    td->niter_2dsfs = em1(td->pars_2dsfs, emislike_2dsfs, td->nkeep,9);
+    td->niter_2dsfs = em1(td->pars_2dsfs, td->emis, td->nkeep,9);
   }else if (model == 1){
-    td->niter_2dsfs = em2(td->pars_2dsfs, emislike_2dsfs, td->nkeep,9);  
+    td->niter_2dsfs = em2(td->pars_2dsfs, td->emis, td->nkeep,9);  
   }
-  td->ll_2dsfs = loglike(td->pars_2dsfs, emislike_2dsfs, td->nkeep,9);
+  td->ll_2dsfs = loglike(td->pars_2dsfs, td->emis, td->nkeep,9);
 
-  // end of work. Teardown
 
-  if(do_2dsfs_only){
-    for (int i = 0; i < td->nkeep; i++) {
-      delete[] emislike_2dsfs[i];
-    }
-    delete[] emislike_2dsfs;
-  } else {
-    for (int i = 0; i < td->nkeep; i++) {
-      delete[] emis[i];
-      delete[] emislike_2dsfs[i];
-    }
-    delete[] emis;
-    delete[] emislike_2dsfs;
-  }
   pthread_exit(NULL);
 }
 
