@@ -618,6 +618,27 @@ struct worker_args {
   }
 };
 
+// function will update pk_keeplist and return the number of sites that should be retained for analysis
+int populate_keeplist(int pk_a,int pk_b,int pk_nsites,double **pk_gls,int pk_minmaf,std::vector<double> *pk_freq,int *pk_keeplist){
+  int *keeplist = pk_keeplist;
+  int nkeep=0;
+  for (size_t i = 0; i < pk_nsites; i++) {
+
+    if(is_missing(&pk_gls[i][3*pk_a]))
+      continue;
+    if(is_missing(&pk_gls[i][3*pk_b]))
+      continue;
+
+    // removing minor allele frequencies
+    if ( !do_2dsfs_only && (*pk_freq)[i] < minMaf || (1 - (*pk_freq)[i] < minMaf))
+      continue;
+
+    keeplist[nkeep] = i;//dont forget
+    nkeep++;
+  }
+  return nkeep;
+}
+
 
 void * do_work(void *threadarg){
 
@@ -626,28 +647,11 @@ void * do_work(void *threadarg){
   td = ( worker_args * ) threadarg;
 
   assert(td->nsites>0);
-  // init all in each thread
-  int *keeplist = td->keeplist;
 
-  for (size_t i = 0; i < td->nsites; i++) {
-
-    if(is_missing(&td->gls[i][3*td->a]))
-      continue;
-    if(is_missing(&td->gls[i][3*td->b]))
-      continue;
-
-    // removing minor allele frequencies
-    if ( !do_2dsfs_only && (td->freq->at(i) < minMaf || (1 - td->freq->at(i)) < minMaf))
-      continue;
-
-    keeplist[td->nkeep] = i;//dont forget
-    td->nkeep++;
-  }
-  //  fprintf(stderr,"td->nkeep:%d\n",td->nkeep);exit(0);
-  if (td->nkeep==0){
+  td->nkeep = populate_keeplist(td->a,td->b,td->nsites,td->gls,minMaf,td->freq,td->keeplist);
+  int *keeplist=td->keeplist;
+  if (td->nkeep==0)
     fprintf(stderr, "sites with both %d and %d having data: %d\n", td->a, td->b, td->nkeep);
-  }
- 
 
   // fprintf(stderr, "\t-> keeping %d sites for downstream analyses", td->nkeep++);
   double **emis=td->emis;
