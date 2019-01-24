@@ -111,7 +111,7 @@ int do_2dsfs_only = 0;
 int do_inbred=0;
 int do_simple=0;
 int switchMaf = 0;
-int verbose = 0;
+
 double minMaf =0.05;
 int hasDef = 0;
 double ttol=1e-6;
@@ -121,15 +121,6 @@ std::string vcf_allele_field = "AFngsrelate"; // can take any tag value e.g. AF 
 std::vector<char *> ids;
 
 float emTole=1e-12;
-
-void stayin(double *post){
-  for(int i=0;i<9;i++){
-    if(post[i]<emTole)
-      post[i] = emTole;
-    if(post[i]>(1-emTole))
-      post[i] =1- emTole;
-  }
-}
 
 size_t nlines(const char *fname){
   FILE *fp = NULL;
@@ -263,32 +254,11 @@ void normalize(double *tmp,int len){
     tmp[i] /=s;
 }
 
-
-void print(FILE *fp,int x,int y,double **m){
-  for(int i=0;i<x;i++){
-    for(int j=0;j<y;j++)
-      fprintf(fp,"%f ",m[i][j]);
-    fprintf(fp,"\n");
-  }
-
-}
-
-void print(FILE *fp,int x,double *m){
-  for(int i=0;i<x;i++)
-    fprintf(fp,"%f ",m[i]);
-  fprintf(fp,"\n");
-}
-
 double loglike(double *p,double **emis,int len,int dim){
   double ret =0;
-#if 0
-  fprintf(stderr,"loglike: ");
-  for(int i=0;i<dim;i++)
-    fprintf(stderr," %f",p[i]);
-  fprintf(stderr,"\n");
-#endif
+
   for(int i=0;i<len;i++){
-    double tmp = dim;
+    double tmp = 0;
     for(int j=0;j<dim;j++)
       tmp += p[j]*emis[i][j];
     ret +=log(tmp);
@@ -339,11 +309,10 @@ void emStep1_inbred(double *pre,double **emis,double *post,int len){
 void emStep(double *pre,double **emis,double *post,int len,int len2){
   for(int i=0;i<len2;i++){
     if(pre[i]<0||pre[i]>1){
-      fprintf(
-          stderr,
-          "Problem with gues in emStep1: pres:(%f,%f,%f,%f,%f,%f,%f,%f,%f)\n",
-          pre[0], pre[1], pre[2], pre[3], pre[4], pre[5], pre[6], pre[7],
-          pre[8]);
+      fprintf(stderr,"Problem with gues in emStep: ");
+      for(int j=0;j<len2;j++)
+	fprintf(stderr," %f ",pre[0]);
+      fprintf(stderr,"\n");
       exit(0);
     }
   }
@@ -361,11 +330,7 @@ void emStep(double *pre,double **emis,double *post,int len,int len2){
     }
 
   }
-  //set bounds
-  // fprintf(stderr,"halli haloo\n");
-#if 0
-  stayin(post);
-#endif
+
   normalize(post,len2);
 #if 0
   fprintf(stderr,"emstep1post: ");
@@ -386,8 +351,8 @@ void emStep(double *pre,double **emis,double *post,int len,int len2){
   }
 }
 
-void minus(double * fst,double * sec,double * res){
-  for(int i=0;i<9;i++)
+void minus(double * fst,double * sec,double * res,int dim){
+  for(int i=0;i<dim;i++)
     res[i] = fst[i]-sec[i];
 }
 void minus2(double fst[2],double sec[2],double res[2]){
@@ -395,9 +360,9 @@ void minus2(double fst[2],double sec[2],double res[2]){
     res[i] = fst[i]-sec[i];
 }
 
-double sumSquare(double * mat){
+double sumSquare(double * mat,int dim){
   double tmp=0;
-  for(size_t i=0;i<9;i++){
+  for(size_t i=0;i<dim;i++){
     tmp += mat[i]*mat[i];
   }
   return tmp;
@@ -422,56 +387,53 @@ int emAccel(double *F,double **emis,double *F_new,int len, int & niter,int dim){
   //  double objfnInc=1;
 
 
-  double F_em1[9];
-  double F_diff1[9];
-  double F_em2[9];
-  double F_diff2[9];
-  double F_diff3[9];
-  double F_tmp[9];
+  double F_em1[dim];
+  double F_diff1[dim];
+  double F_em2[dim];
+  double F_diff2[dim];
+  double F_diff3[dim];
+  double F_tmp[dim];
   niter++;
   emStep(F, emis, F_em1, len,dim);
   // stayin(F_em1);
   
-  minus(F_em1, F, F_diff1);
+  minus(F_em1, F, F_diff1,dim);
 
-  // for (int ix=0; ix<9;ix++)
-  //   fprintf(stderr,"F_diff1: %d: %lf, %lf, %lf\n",ix,F_diff1[ix], F_em1[ix], F[ix]);
-
-  double sr2 = sumSquare(F_diff1);
+  double sr2 = sumSquare(F_diff1,dim);
   
   if(sqrt(sr2)<ttol){
     //     fprintf(stderr,"sr2 break: %e\n", sqrt(sr2));
-    for(int i=0;0&&i<9;i++)
+    for(int i=0;0&&i<dim;i++)
       F_new[i]  = F_em1[i];
     return 0;
   }
   niter++;
   emStep(F_em1, emis, F_em2, len,dim);
-  minus(F_em2, F_em1, F_diff2);
+  minus(F_em2, F_em1, F_diff2,dim);
 
-  double sq2 = sumSquare(F_diff2);
+  double sq2 = sumSquare(F_diff2,dim);
 
   if(sqrt(sq2)<ttol){
     //    fprintf(stderr,"sq2 break: %e\n", sqrt(sq2));
-    for(int i=0;0&&i<9;i++)
+    for(int i=0;0&&i<dim;i++)
       F_new[i]  = F_em2[i];
     return 0;
   }
 
-  minus(F_diff2,F_diff1, F_diff3);
+  minus(F_diff2,F_diff1, F_diff3,dim);
 
-  double sv2 = sumSquare(F_diff3);
+  double sv2 = sumSquare(F_diff3,dim);
 
   double alpha = sqrt(sr2/sv2);
   alpha = std::max(stepMin,std::min(stepMax,alpha));
-  for(size_t i=0;i<9;i++){
+  for(size_t i=0;i<dim;i++){
     F_new[i] = F[i]+2*alpha*F_diff1[i]+alpha*alpha*F_diff3[i];
   }
   
   // fprintf(stderr,"%d: F_new (this the linear jump: (%f,%f,%f,%f,%f,%f,%f,%f,%f)\n", niter,F_new[0],F_new[1],F_new[2],F_new[3],F_new[4],F_new[5],F_new[6],F_new[7],F_new[8]);
   
   int outofparspace =0;
-  for(int i=0;i<9;i++){
+  for(int i=0;i<dim;i++){
     if(F_new[i]<0||F_new[i]>1){
       outofparspace++;
       // break;
@@ -479,14 +441,14 @@ int emAccel(double *F,double **emis,double *F_new,int len, int & niter,int dim){
   }
   if(outofparspace){
     // fprintf(stderr,"outofparspace will use second emstep as jump\n");
-    for(int i=0;i<9;i++)
+    for(int i=0;i<dim;i++)
       F_new[i] = F_em2[i];
   }
 
   if (fabs(alpha - 1) > 0.01){
     niter++;
     emStep(F_new,emis,F_tmp,len,dim);
-    for(int i=0;i<9;i++)
+    for(int i=0;i<dim;i++)
       std::swap(F_new[i],F_tmp[i]);
   }
 
@@ -580,9 +542,6 @@ int em1(double *sfs,double  **emis, int len, int dim){
       sfs[i]= tmp[i];
     lik = loglike(sfs,emis,len,dim);
 
-    if(verbose)
-      fprintf(stderr,"[%d] lik=%f diff=%g\n",it,lik,fabs(lik-oldLik));
-
     if(fabs(lik-oldLik)<tole){
 
       oldLik=lik;
@@ -594,27 +553,21 @@ int em1(double *sfs,double  **emis, int len, int dim){
 }
 
 //   niter=em_inbred(pars,emis,tole,maxIter,nkeep,model,verbose);
-int em_inbred(double *pars,double  **emis,double tole,int maxIter,int len,int model,int verbose){
+int em_inbred(double *pars,double  **emis,double tole,int maxIter,int len,int model){
   double oldLik,lik;
   oldLik = loglike_inbred(pars,emis,len);
-  if(verbose){
-    fprintf(stderr,"startlik=%f %f %f\n",oldLik,pars[0],pars[1]);
-    fflush(stderr);
-  }
 
   double tmp[2];
   int it;
   for(it=0;it<maxIter;it++) {
     if(model==0)
-      emStep1_inbred(pars,emis,tmp,len);
+      emStep(pars,emis,tmp,len,2);
     else
       emAccel_inbred(pars,emis,tmp,len);
     for(int i=0;i<2;i++)
       pars[i]= tmp[i];
     lik = loglike_inbred(pars,emis,len);
-    if(verbose)
-      fprintf(stderr,"[%d] lik=%f diff=%g\n",it,lik,fabs(lik-oldLik));
-
+    
     if(fabs(lik-oldLik)<tole){
      
       oldLik=lik;
@@ -630,10 +583,6 @@ int em2(double *sfs,double  **emis, int len,int dim){
   int niter=0;
   double oldLik,lik;
   oldLik = loglike(sfs,emis,len,dim);
-  if(verbose){
-    fprintf(stderr,"startlik=%f\n",oldLik);
-    fflush(stderr);
-  }
 
   double tmp[dim];
   int it;
@@ -660,9 +609,7 @@ int em2(double *sfs,double  **emis, int len,int dim){
       exit(0);
       break;
       //  exit(0);
-    }if(verbose)
-      fprintf(stderr,"[%d] lik=%f diff=%e\n",it,lik,fabs(lik-oldLik));
-
+    }
     if(fabs(lik-oldLik)<tole){
       // fprintf(stderr,"breaking\n");
       oldLik=lik;
@@ -882,52 +829,7 @@ void emission_ngs_inbred(std::vector<double> * freq, double **gls, double **emis
     // G_real=(aa)
     emis[x][0] += pow(freqa,2)*aa;
     emis[x][1] += freqa*aa;
-
-#if 0
-    if(x==280874&&ind1==0){
-      fprintf(stderr,"\n\nNEW: emis[%d]:freq:%f %f %f\nGENO: %f %f %f",x,freqa,emis[x][0],emis[x][1], AA, Aa, aa);
-    }
-    // 280874
-    if(x==280873&&ind1==0){
-      fprintf(stderr,"\n\nNEW: emis[%d]:freq:%f %f %f\nGENO: %f %f %f",x,freqa,emis[x][0],emis[x][1], AA, Aa, aa);
-    }
-#endif
   }
-
-  
-#if 0
-  if(ind1==0){
-    // this is just to test compare the emission matrix of the first x snps.
-    // https://overiq.com/c-programming/101/fwrite-function-in-c/
-    FILE *fp;
-    fp = fopen("new.txt", "wb");
-    if(fp == NULL){
-      printf("Error opening file\n");
-      exit(1);
-    }
-    for(int x=0;x<nkeep;x++){
-      i = keeplist[x];
-      for(int y=0;y<2;y++){
-        fwrite(&emis[i][y], sizeof(double), 1, fp);
-      }
-    }
-    fclose(fp);
-    fp = fopen("new.allelefreq.txt", "wb");
-    if(fp == NULL){
-      printf("Error opening file\n");
-      exit(1);
-    }
-    for(int x=0;x<nkeep;x++){
-      i = keeplist[x];
-      freqa=freq->at(i);  // alternative allele frequency
-      freqA=1-freqa;
-      fprintf(fp, "%f %f\n", freqA, freqa);
-    }
-    fclose(fp);
-    exit(0);
-  }
-#endif
-
 }
 
 
@@ -1541,10 +1443,10 @@ void * do_work_inbred(void *threadarg){
   }
 
   emission_ngs_inbred(td->freq,td->gls, emis, keeplist, td->nkeep, td->a);
-  td->niter=em_inbred(td->pars,emis,tole,maxIter,td->nkeep,model,verbose);
-  td->ll = loglike_inbred(td->pars,emis,td->nkeep);
-  double l01= loglike_inbred(p01,emis,td->nkeep);
-  double l10= loglike_inbred(p10,emis,td->nkeep);
+  td->niter=em_inbred(td->pars,emis,tole,maxIter,td->nkeep,model);
+  td->ll = loglike(td->pars,emis,td->nkeep,2);
+  double l01= loglike(p01,emis,td->nkeep,2);
+  double l10= loglike(p10,emis,td->nkeep,2);
   double likes[3] ={l10,l01,td->ll};
   td->best = 0;
   td->bestll = likes[0];
@@ -1580,7 +1482,7 @@ int main(int argc, char **argv){
   char *htsfile=NULL;
   char *plinkfile=NULL;
   char *outname=NULL;
-  while ((n = getopt(argc, argv, "f:i:t:r:g:m:v:s:F:o:c:e:a:b:n:l:z:p:h:L:T:A:P:O:")) >= 0) {
+  while ((n = getopt(argc, argv, "f:i:t:r:g:m:s:F:o:c:e:a:b:n:l:z:p:h:L:T:A:P:O:")) >= 0) {
     switch (n) {
     case 'f': freqname = strdup(optarg); break;
     case 'P': plinkfile = strdup(optarg); break;
@@ -1590,7 +1492,6 @@ int main(int argc, char **argv){
     case 'r': seed = atoi(optarg); break;
     case 'g': gname = strdup(optarg); break;
     case 'm': model = atoi(optarg); break;
-    case 'v': verbose = atoi(optarg); break;
     case 's': switchMaf = atoi(optarg); break;
     case 'F': do_inbred = atoi(optarg); break;
     case 'o': do_simple = atoi(optarg); break;

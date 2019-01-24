@@ -36,6 +36,9 @@ do
     ${PRG} -h small.bcf          -p 1 -c ${c} -r 100 >${ODIR}/vcf7.c${c}.res 2>>${LOG} 
 done
 
+${PRG} -h small.bcf  -p 1 -r 100 -c 0 -F 1 >${ODIR}/vcf8.res
+
+
 echo -e "\t test all done "  >>${LOG} 2>&1
 
 #md5sum odir/* >test1.md5
