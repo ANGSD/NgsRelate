@@ -440,7 +440,7 @@ int emAccel(double *F,double **emis,double *F_new,int len, int & niter){
   double sr2 = sumSquare(F_diff1);
   
   if(sqrt(sr2)<ttol){
-     fprintf(stderr,"sr2 break: %e\n", sqrt(sr2));
+    //     fprintf(stderr,"sr2 break: %e\n", sqrt(sr2));
     for(int i=0;0&&i<9;i++)
       F_new[i]  = F_em1[i];
     return 0;
@@ -452,7 +452,7 @@ int emAccel(double *F,double **emis,double *F_new,int len, int & niter){
   double sq2 = sumSquare(F_diff2);
 
   if(sqrt(sq2)<ttol){
-    fprintf(stderr,"sq2 break: %e\n", sqrt(sq2));
+    //    fprintf(stderr,"sq2 break: %e\n", sqrt(sq2));
     for(int i=0;0&&i<9;i++)
       F_new[i]  = F_em2[i];
     return 0;

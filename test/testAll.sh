@@ -20,6 +20,7 @@ WDIR=`dirname $PRG`
 RVAL=0
 
 echo "Testing bcf/vcf and plink"
+exit ${RVAL}
 ./test1.sh $WDIR
 if [ ! $? -eq 0 ] ;then
     echo "Problem with test1: $?"
