@@ -23,7 +23,7 @@ echo "1) part1" >>${LOG}
 
 for c in 1 2 ##with gc
 do
-    echo "${PRG} -h small.vcf.gz -T GT -p 1 -c ${c} -r 100 >${ODIR}/vcf1.c${c}.res 2>>${LOG} "
+    ${PRG} -h small.vcf.gz -T GT -p 1 -c ${c} -r 100 >${ODIR}/vcf1.c${c}.res 2>>${LOG}
     ${PRG} -h small.bcf    -T GT -p 1 -c ${c} -r 100 >${ODIR}/vcf2.c${c}.res 2>>${LOG} 
     ${PRG} -h small.vcf.gz       -p 1 -c ${c} -r 100 >${ODIR}/vcf3.c${c}.res 2>>${LOG} 
     ${PRG} -h small.bcf          -p 1 -c ${c} -r 100 >${ODIR}/vcf4.c${c}.res 2>>${LOG} 

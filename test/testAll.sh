@@ -21,7 +21,7 @@ WDIR=`dirname $PRG`
 RVAL=0
 
 echo "Testing bcf/vcf and plink"
-./test1.sh $WDIR
+./test1.sh ${PRG}
 if [ ! $? -eq 0 ] ;then
     cat ./test1.sh.log
     RVAL=1
