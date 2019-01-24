@@ -279,17 +279,17 @@ void print(FILE *fp,int x,double *m){
   fprintf(fp,"\n");
 }
 
-double loglike9(double *p,double **emis,int len){
+double loglike(double *p,double **emis,int len,int dim){
   double ret =0;
 #if 0
   fprintf(stderr,"loglike: ");
-  for(int i=0;i<9;i++)
+  for(int i=0;i<dim;i++)
     fprintf(stderr," %f",p[i]);
   fprintf(stderr,"\n");
 #endif
   for(int i=0;i<len;i++){
-    double tmp = 0;
-    for(int j=0;j<9;j++)
+    double tmp = dim;
+    for(int j=0;j<dim;j++)
       tmp += p[j]*emis[i][j];
     ret +=log(tmp);
   }
@@ -336,8 +336,8 @@ void emStep1_inbred(double *pre,double **emis,double *post,int len){
 }
 
 
-void emStep1(double *pre,double **emis,double *post,int len){
-  for(int i=0;i<9;i++){
+void emStep(double *pre,double **emis,double *post,int len,int len2){
+  for(int i=0;i<len2;i++){
     if(pre[i]<0||pre[i]>1){
       fprintf(
           stderr,
@@ -347,16 +347,16 @@ void emStep1(double *pre,double **emis,double *post,int len){
       exit(0);
     }
   }
-  double inner[9];
-  for(int x=0;x<9;x++){
+  double inner[len2];
+  for(int x=0;x<len2;x++){
     post[x] =0.0;
   }
   for(int i=0;i<len;i++){
-    for(int x=0;x<9;x++){
+    for(int x=0;x<len2;x++){
       inner[x] = pre[x]*emis[i][x];
     }
-    normalize(inner,9);
-    for(int x=0;x<9;x++){
+    normalize(inner,len2);
+    for(int x=0;x<len2;x++){
       post[x] += inner[x];
     }
 
@@ -366,15 +366,15 @@ void emStep1(double *pre,double **emis,double *post,int len){
 #if 0
   stayin(post);
 #endif
-  normalize(post,9);
+  normalize(post,len2);
 #if 0
   fprintf(stderr,"emstep1post: ");
-  for(int i=0;i<9;i++)
+  for(int i=0;i<len2;i++)
     fprintf(stderr," %f",post[i]);
   fprintf(stderr,"\n");
 #endif
   
-  for(int i=0;i<9;i++){
+  for(int i=0;i<len2;i++){
     if(post[i]<0||post[i]>1){
       fprintf(stderr,
               "Probable after normalizing: pres:(%f,%f,%f,%f,%f,%f,%f,%f,%f) "
@@ -412,7 +412,7 @@ double sumSquare2(double mat[2]){
   return tmp;
 }
 
-int emAccel(double *F,double **emis,double *F_new,int len, int & niter){
+int emAccel(double *F,double **emis,double *F_new,int len, int & niter,int dim){
   //  maybe these should be usersettable?
 
   double stepMin =1;
@@ -429,7 +429,7 @@ int emAccel(double *F,double **emis,double *F_new,int len, int & niter){
   double F_diff3[9];
   double F_tmp[9];
   niter++;
-  emStep1(F, emis, F_em1, len);
+  emStep(F, emis, F_em1, len,dim);
   // stayin(F_em1);
   
   minus(F_em1, F, F_diff1);
@@ -446,7 +446,7 @@ int emAccel(double *F,double **emis,double *F_new,int len, int & niter){
     return 0;
   }
   niter++;
-  emStep1(F_em1, emis, F_em2, len);
+  emStep(F_em1, emis, F_em2, len,dim);
   minus(F_em2, F_em1, F_diff2);
 
   double sq2 = sumSquare(F_diff2);
@@ -485,7 +485,7 @@ int emAccel(double *F,double **emis,double *F_new,int len, int & niter){
 
   if (fabs(alpha - 1) > 0.01){
     niter++;
-    emStep1(F_new,emis,F_tmp,len);
+    emStep(F_new,emis,F_tmp,len,dim);
     for(int i=0;i<9;i++)
       std::swap(F_new[i],F_tmp[i]);
   }
@@ -566,22 +566,19 @@ int emAccel_inbred(double *F,double **emis,double *F_new,int len){
 }
 
 
-int em1(double *sfs,double  **emis, int len){
+int em1(double *sfs,double  **emis, int len, int dim){
   int niter = 0;
   double oldLik,lik;
-  oldLik = loglike9(sfs,emis,len);
-  if(verbose)
-    fprintf(stderr,"startlik=%f est: %f %f %f %f %f %f %f %f %f\n",oldLik,sfs[0],sfs[1],sfs[2],sfs[3],sfs[4],sfs[5],sfs[6],sfs[7],sfs[8]);
-  fflush(stderr);
+  oldLik = loglike(sfs,emis,len,dim);
 
-  double tmp[9];
+  double tmp[dim];
   int it;
   for(it=0;niter<maxIter;it++) {
     niter++;
-    emStep1(sfs,emis,tmp,len);
-    for(int i=0;i<9;i++)
+    emStep(sfs,emis,tmp,len,dim);
+    for(int i=0;i<dim;i++)
       sfs[i]= tmp[i];
-    lik = loglike9(sfs,emis,len);
+    lik = loglike(sfs,emis,len,dim);
 
     if(verbose)
       fprintf(stderr,"[%d] lik=%f diff=%g\n",it,lik,fabs(lik-oldLik));
@@ -629,35 +626,35 @@ int em_inbred(double *pars,double  **emis,double tole,int maxIter,int len,int mo
 }
 
 
-int em2(double *sfs,double  **emis, int len){
+int em2(double *sfs,double  **emis, int len,int dim){
   int niter=0;
   double oldLik,lik;
-  oldLik = loglike9(sfs,emis,len);
+  oldLik = loglike(sfs,emis,len,dim);
   if(verbose){
     fprintf(stderr,"startlik=%f\n",oldLik);
     fflush(stderr);
   }
 
-  double tmp[9];
+  double tmp[dim];
   int it;
   for(it=0;niter<maxIter;it++) {
 #if 0
   fprintf(stderr,"sfsemacclpre: ");
-  for(int i=0;i<9;i++)
+  for(int i=0;i<dim;i++)
     fprintf(stderr," %f",sfs[i]);
   fprintf(stderr,"\n");
 #endif
-    emAccel(sfs,emis,tmp,len, niter);
-    for(int i=0;i<9;i++)
+  emAccel(sfs,emis,tmp,len, niter,dim);
+    for(int i=0;i<dim;i++)
       sfs[i]= tmp[i];
 #if 0
   fprintf(stderr,"sfsemacclpost: ");
-  for(int i=0;i<9;i++)
+  for(int i=0;i<dim;i++)
     fprintf(stderr," %f",sfs[i]);
   fprintf(stderr,"\n");
 #endif
 
-    lik = loglike9(sfs,emis,len);
+  lik = loglike(sfs,emis,len,dim);
     if(isnan(lik)){
       fprintf(stderr,"em2 evaluates like to NaN\n");
       exit(0);
@@ -1438,7 +1435,7 @@ void * do_work(void *threadarg){
   }
   exit(0);
 #endif
-
+ 
 
   // fprintf(stderr, "\t-> keeping %d sites for downstream analyses", td->nkeep++);
   double **emis;
@@ -1458,21 +1455,21 @@ void * do_work(void *threadarg){
     emission_ngsrelate9(td->freq, td->gls, emis, keeplist, td->nkeep, td->a, td->b);
 
     if (model == 0){
-      td->niter = em1(td->pars, emis, td->nkeep);
+      td->niter = em1(td->pars, emis, td->nkeep,9);
     }else if (model == 1){
-      td->niter = em2(td->pars, emis, td->nkeep);
+      td->niter = em2(td->pars, emis, td->nkeep,9);
     }
 
-    double l100000000 = loglike9(p100000000, emis, td->nkeep);
-    double l010000000 = loglike9(p010000000, emis, td->nkeep);
-    double l001000000 = loglike9(p001000000, emis, td->nkeep);
-    double l000100000 = loglike9(p000100000, emis, td->nkeep);
-    double l000010000 = loglike9(p000010000, emis, td->nkeep);
-    double l000001000 = loglike9(p000001000, emis, td->nkeep);
-    double l000000100 = loglike9(p000000100, emis, td->nkeep);
-    double l000000010 = loglike9(p000000010, emis, td->nkeep);
-    double l000000001 = loglike9(p000000001, emis, td->nkeep);
-    double lopt = loglike9(td->pars, emis, td->nkeep);
+    double l100000000 = loglike(p100000000, emis, td->nkeep,9);
+    double l010000000 = loglike(p010000000, emis, td->nkeep,9);
+    double l001000000 = loglike(p001000000, emis, td->nkeep,9);
+    double l000100000 = loglike(p000100000, emis, td->nkeep,9);
+    double l000010000 = loglike(p000010000, emis, td->nkeep,9);
+    double l000001000 = loglike(p000001000, emis, td->nkeep,9);
+    double l000000100 = loglike(p000000100, emis, td->nkeep,9);
+    double l000000010 = loglike(p000000010, emis, td->nkeep,9);
+    double l000000001 = loglike(p000000001, emis, td->nkeep,9);
+    double lopt = loglike(td->pars, emis, td->nkeep,9);
     td->ll = lopt;
 
     double likes[10] = {l100000000, l010000000, l001000000, l000100000,
@@ -1491,11 +1488,11 @@ void * do_work(void *threadarg){
   emislike_2dsfs_gen(td->gls, emislike_2dsfs, keeplist, td->nkeep, td->a, td->b);
 
   if (model == 0){
-    td->niter_2dsfs = em1(td->pars_2dsfs, emislike_2dsfs, td->nkeep);
+    td->niter_2dsfs = em1(td->pars_2dsfs, emislike_2dsfs, td->nkeep,9);
   }else if (model == 1){
-    td->niter_2dsfs = em2(td->pars_2dsfs, emislike_2dsfs, td->nkeep);  
+    td->niter_2dsfs = em2(td->pars_2dsfs, emislike_2dsfs, td->nkeep,9);  
   }
-  td->ll_2dsfs = loglike9(td->pars_2dsfs, emislike_2dsfs, td->nkeep);
+  td->ll_2dsfs = loglike(td->pars_2dsfs, emislike_2dsfs, td->nkeep,9);
 
   // end of work. Teardown
 
