@@ -775,242 +775,8 @@ void * do_work_inbred(void *threadarg){
   pthread_exit(NULL);
 }
 
-
-int main(int argc, char **argv){
-  if(argc==1)
-    print_info(stderr);
-
-  if(strcasecmp(argv[1],"extract_freq_bim")==0)
-    return extract_freq_bim(--argc,++argv);
-  if(strcasecmp(argv[1],"extract_freq")==0)
-    return extract_freq(--argc,++argv);
-#if 0
-  fprintf(stdout,"#");
-  for(int i=0;i<argc;i++)
-    fprintf(stdout," %s",argv[i]);
-  fprintf(stdout,"\n");
-#endif
-
-  char *htsfile=NULL;
-  char *plinkfile=NULL;
-  const char *outname=NULL;
-  while ((n = getopt(argc, argv, "f:i:t:r:g:m:s:F:o:c:e:a:b:n:l:z:p:h:L:T:A:P:O:")) >= 0) {
-    switch (n) {
-    case 'f': freqname = strdup(optarg); break;
-    case 'P': plinkfile = strdup(optarg); break;
-    case 'O': outname = strdup(optarg); break;
-    case 'i': maxIter = atoi(optarg); break;
-    case 't': tole = atof(optarg); break;
-    case 'r': seed = atoi(optarg); break;
-    case 'g': gname = strdup(optarg); break;
-    case 'm': model = atoi(optarg); break;
-    case 's': switchMaf = atoi(optarg); break;
-    case 'F': do_inbred = atoi(optarg); break;
-    case 'o': do_simple = atoi(optarg); break;
-    case 'c': gc = atoi(optarg); break;
-    case 'a': pair1 = atoi(optarg); break;
-    case 'b': pair2 = atoi(optarg); break;
-    case 'n': {nind = atoi(optarg); hasDef=1; break;}
-    case 'p': num_threads = atoi(optarg);break;
-    case 'e': errate = atof(optarg); break;
-    case 'l': minMaf = atof(optarg); break;
-    case 'h': htsfile = strdup(optarg); break;
-    case 'T': vcf_format_field = strdup(optarg); break;
-    case 'A': vcf_allele_field = strdup(optarg); break;            
-    case 'z': readids(ids,optarg); break;
-    case 'L': nsites_2dsfs = atoi(optarg); break;
-    default: {fprintf(stderr,"unknown arg:\n");return 0;}
-      print_info(stderr);
-    }
-  }
-  std::string plink_fam,plink_bim,plink_bed;
-  if(plinkfile){
-    fprintf(stderr,"\t-P %s\n",plinkfile);
-    std::string p_str =std::string(plinkfile);
-    if(p_str.length()>4){
-      std::string ext = p_str.substr(p_str.length()-4,p_str.length());
-      if (!ext.compare(".bed")||!ext.compare(".bim")||!ext.compare(".fam")){
-	std::string front = p_str.substr(0,p_str.length()-4);
-	plink_bim = (front+".bim");
-	plink_fam = (front+".fam");
-	plink_bed = (front+".bed");
-      }else{
-	plink_bim = (p_str+".bim");
-	plink_fam = (p_str+".fam");
-	plink_bed = (p_str+".bed");	
-      }}else{
-      plink_bim = (p_str+".bim");
-      plink_fam = (p_str+".fam");
-      plink_bed = (p_str+".bed");
-    }
-    fprintf(stderr,"\t NB make sure plink file only contains autosomes");
-    fprintf(stderr,"\t-P %s -> bed:\'%s\' fam:\'%s\' bim:\'%s\'\n",plinkfile,plink_bed.c_str(),plink_fam.c_str(),plink_bim.c_str());
-
-  }
-#ifndef __WITH_BCF__
-  if(htsfile){
-    fprintf(stderr,"\t-> Must compile with -D__WITH_BCF__ for using htsfiles\n");
-    return 0;
-  }
-#endif
-
-  if (hasDef == 0&&htsfile==NULL &&plinkfile==NULL) {
-  fprintf(stderr, "\t-> -n parameter has not been supplied. Will assume that "
-    "file contains 2 samples...\n");
-  }
-  if (ids.size() != 0 && ids.size() != nind) {
-    fprintf(stderr, "\t-> Number of names doesnt match the -n parameter\n");
-  }
-
-  srand(time(NULL));
-  if (seed ==  std::numeric_limits<int>::max()){
-    seed=rand();
-  }
-  fprintf(stderr,"\t-> Seed is: %d\n",seed);
-
-  if (htsfile!=NULL){
-    fprintf(stderr, "\t-> Will use TAG: '%s' from the VCF file\n", vcf_format_field.c_str());
-    fprintf(stderr, "\t-> Will use TAG: '%s' in the VCF file as allele frequency if present. Otherwise allele frequencies are estimated from the data\n", vcf_allele_field.c_str());
-  }
-  srand48(seed);
-
-  if ((nind == -1 || gname == NULL)&&htsfile==NULL&&plinkfile==NULL) {
-    fprintf(stderr, "\t-> Must supply -n -g parameters (%d,%s) OR -h file.[vb]cf\n", nind,gname);
-    return 0;
-  }
-
-  if ( freqname == NULL && ( do_simple || do_inbred ) && htsfile==NULL ) {
-    fprintf(stderr, "\t-> Must supply -f (allele frequency file) if '-o 1' or '-F 1' are enabled\n");
-    return 0;
-    }
-  
-  if (freqname == NULL && htsfile==NULL &&plinkfile==NULL){
-    fprintf(stderr, "\t-> Allele frequencies file (-f) is not provided. Only summary statistitics based on 2dsfs will be reported\n");
-    do_2dsfs_only = 1;
-    if(!nsites_2dsfs){
-      fprintf(stderr, "\t-> Number of genomic sites must be provided (-L <INT>)\n");
-      return 0;
-    }
-  }
-
-  
+int main_analysis1(std::vector<double> &freq,double **gls,int num_threads,FILE *output,int total_sites){
   pthread_t threads[num_threads];
-
-  std::vector<double> freq;
-  double **gls=NULL;
-
-  if(plinkfile){
-    fprintf(stderr,"\t-> Starting to read plinkfiles\n");
-    int famnlines=nlines(plink_fam.c_str());
-    int bimnlines=nlines(plink_bim.c_str());
-    nind = famnlines;
-    overall_number_of_sites = bimnlines;
-    fprintf(stderr,"\t-> nlines in .fam:%d\t nlines in .bim:%d\n",famnlines,bimnlines);
-    int **imat = bed_to_intMatrix(plink_bed.c_str(),famnlines,bimnlines);//leak
-    //imat[ind][site]
-    for(int i=0;i<bimnlines;i++){
-      double hit =0;
-      double asum =0;
-      for(int j=0;j<famnlines;j++)
-	if(imat[j][i]!=3){
-	  hit+=1.0;
-	  asum+=imat[j][i];
-	}
-      freq.push_back(1-asum/hit/2.0);//flip
-    }
-#if 0 //validated with plink --freq
-    for(int i=0;i<bimnlines;i++)
-      fprintf(stderr,"freq[%d]:\t%f\n",i,freq[i]);
-#endif
-    gls = new double*[bimnlines];
-    for(int i=0;i<bimnlines;i++){
-      gls[i] = new double[3*famnlines];
-      for(int j=0;j<famnlines;j++){
-	double *pi = gls[i]+j*3;
-	if(imat[j][i]==3)
-	  pi[0]=pi[1]=pi[2] = 1;
-	else if(imat[j][i]==2){
-	  pi[0] =1;
-	  pi[1]=pi[2] =0;
-	}
-	else if(imat[j][i]==1){
-	  pi[1] =1;
-	  pi[0]=pi[2] =0;
-	}
-	else if(imat[j][i]==0){
-	  pi[2] =1;
-	  pi[0]=pi[1] =0;
-	}
-      }
-    }
-  }else{  
-    if(htsfile==NULL && !do_2dsfs_only){
-      getDouble(freqname,freq);
-      gls = getGL(gname, freq.size(), nind);
-      overall_number_of_sites = freq.size();
-    }
-    if(htsfile==NULL && do_2dsfs_only){
-      gls = getGL(gname, nsites_2dsfs, nind);
-      overall_number_of_sites = nsites_2dsfs;
-    }
-  }
-
-#ifdef __WITH_BCF__
-  if(htsfile){
-    std::vector<double *> tmpgl;
-    nind=getgls(htsfile,tmpgl,freq,2,minMaf, vcf_format_field, vcf_allele_field, errate,posinfo);
-    gls=new double *[tmpgl.size()];
-    for(int i=0;i<tmpgl.size();i++){
-      gls[i] = tmpgl[i];
-      for(int ii=0;ii<3*nind;ii++)
-	gls[i][ii]=exp(gls[i][ii]);
-    }
-    overall_number_of_sites = freq.size();
-  }
-#endif
-
-  double total_sites = overall_number_of_sites * 1.0;
-
-  //all data read from either 1) glf/freq 2) hts/vcf/bcf 3)plink
-  //now call genotypes if needed
-
-  fprintf(stderr,"\t-> nind:%d overall_number_of_sites:%d\n",nind,overall_number_of_sites);
-  if (switchMaf) {
-    fprintf(stderr, "\t-> switching frequencies\n");
-    for (size_t i = 0; i < overall_number_of_sites; i++)
-      freq[i] = 1 - freq[i];
-  }
-  
-  if (gc) {
-    if (gc> 1) {
-      fprintf(stderr,"\t-> Calling genotypes assuming hwe\n");
-      callgenotypesHwe(gls, overall_number_of_sites, nind, freq);
-    }
-    
-    if (gc > 0){
-      fprintf(stderr,"\t-> Modelling errors for genotypes (should only be used for called genotypes)\n");    
-      callgenotypesEps(gls, overall_number_of_sites, nind, errate);
-    }
-  }
-
-#if 0 //for printout everything
-  for(int i=0;i<freq.size();i++){
-    fprintf(stdout,"%f",freq[i]);
-    for(int ii=0;ii<3*nind;ii++)
-      fprintf(stdout,"\t%f",gls[i][ii]);
-    fprintf(stdout, "\n");
-  }
-  return 0;
-#endif
-  if(outname==NULL){
-    fprintf(stderr,"\t-> No output filename declared please supply filename with -O output.res\n");
-    return 0;
-  }
-  FILE *output = NULL;
-  output = fopen(outname,"wb");
-  assert(output);
-  
-  
   if(do_inbred){
     fprintf(output,"Ind\tZ=0\tZ=1\tloglh\tnIter\tcoverage\tsites\n");
     int comparison_ids_inbred = 0;
@@ -1290,6 +1056,244 @@ int main(int argc, char **argv){
     }
   }
   fprintf(stderr,"\n");
+}
+
+int main(int argc, char **argv){
+  if(argc==1)
+    print_info(stderr);
+
+  if(strcasecmp(argv[1],"extract_freq_bim")==0)
+    return extract_freq_bim(--argc,++argv);
+  if(strcasecmp(argv[1],"extract_freq")==0)
+    return extract_freq(--argc,++argv);
+#if 0
+  fprintf(stdout,"#");
+  for(int i=0;i<argc;i++)
+    fprintf(stdout," %s",argv[i]);
+  fprintf(stdout,"\n");
+#endif
+
+  char *htsfile=NULL;
+  char *plinkfile=NULL;
+  const char *outname=NULL;
+  while ((n = getopt(argc, argv, "f:i:t:r:g:m:s:F:o:c:e:a:b:n:l:z:p:h:L:T:A:P:O:")) >= 0) {
+    switch (n) {
+    case 'f': freqname = strdup(optarg); break;
+    case 'P': plinkfile = strdup(optarg); break;
+    case 'O': outname = strdup(optarg); break;
+    case 'i': maxIter = atoi(optarg); break;
+    case 't': tole = atof(optarg); break;
+    case 'r': seed = atoi(optarg); break;
+    case 'g': gname = strdup(optarg); break;
+    case 'm': model = atoi(optarg); break;
+    case 's': switchMaf = atoi(optarg); break;
+    case 'F': do_inbred = atoi(optarg); break;
+    case 'o': do_simple = atoi(optarg); break;
+    case 'c': gc = atoi(optarg); break;
+    case 'a': pair1 = atoi(optarg); break;
+    case 'b': pair2 = atoi(optarg); break;
+    case 'n': {nind = atoi(optarg); hasDef=1; break;}
+    case 'p': num_threads = atoi(optarg);break;
+    case 'e': errate = atof(optarg); break;
+    case 'l': minMaf = atof(optarg); break;
+    case 'h': htsfile = strdup(optarg); break;
+    case 'T': vcf_format_field = strdup(optarg); break;
+    case 'A': vcf_allele_field = strdup(optarg); break;            
+    case 'z': readids(ids,optarg); break;
+    case 'L': nsites_2dsfs = atoi(optarg); break;
+    default: {fprintf(stderr,"unknown arg:\n");return 0;}
+      print_info(stderr);
+    }
+  }
+  std::string plink_fam,plink_bim,plink_bed;
+  if(plinkfile){
+    fprintf(stderr,"\t-P %s\n",plinkfile);
+    std::string p_str =std::string(plinkfile);
+    if(p_str.length()>4){
+      std::string ext = p_str.substr(p_str.length()-4,p_str.length());
+      if (!ext.compare(".bed")||!ext.compare(".bim")||!ext.compare(".fam")){
+	std::string front = p_str.substr(0,p_str.length()-4);
+	plink_bim = (front+".bim");
+	plink_fam = (front+".fam");
+	plink_bed = (front+".bed");
+      }else{
+	plink_bim = (p_str+".bim");
+	plink_fam = (p_str+".fam");
+	plink_bed = (p_str+".bed");	
+      }}else{
+      plink_bim = (p_str+".bim");
+      plink_fam = (p_str+".fam");
+      plink_bed = (p_str+".bed");
+    }
+    fprintf(stderr,"\t NB make sure plink file only contains autosomes");
+    fprintf(stderr,"\t-P %s -> bed:\'%s\' fam:\'%s\' bim:\'%s\'\n",plinkfile,plink_bed.c_str(),plink_fam.c_str(),plink_bim.c_str());
+
+  }
+#ifndef __WITH_BCF__
+  if(htsfile){
+    fprintf(stderr,"\t-> Must compile with -D__WITH_BCF__ for using htsfiles\n");
+    return 0;
+  }
+#endif
+
+  if (hasDef == 0&&htsfile==NULL &&plinkfile==NULL) {
+  fprintf(stderr, "\t-> -n parameter has not been supplied. Will assume that "
+    "file contains 2 samples...\n");
+  }
+  if (ids.size() != 0 && ids.size() != nind) {
+    fprintf(stderr, "\t-> Number of names doesnt match the -n parameter\n");
+  }
+
+  srand(time(NULL));
+  if (seed ==  std::numeric_limits<int>::max()){
+    seed=rand();
+  }
+  fprintf(stderr,"\t-> Seed is: %d\n",seed);
+
+  if (htsfile!=NULL){
+    fprintf(stderr, "\t-> Will use TAG: '%s' from the VCF file\n", vcf_format_field.c_str());
+    fprintf(stderr, "\t-> Will use TAG: '%s' in the VCF file as allele frequency if present. Otherwise allele frequencies are estimated from the data\n", vcf_allele_field.c_str());
+  }
+  srand48(seed);
+
+  if ((nind == -1 || gname == NULL)&&htsfile==NULL&&plinkfile==NULL) {
+    fprintf(stderr, "\t-> Must supply -n -g parameters (%d,%s) OR -h file.[vb]cf\n", nind,gname);
+    return 0;
+  }
+
+  if ( freqname == NULL && ( do_simple || do_inbred ) && htsfile==NULL ) {
+    fprintf(stderr, "\t-> Must supply -f (allele frequency file) if '-o 1' or '-F 1' are enabled\n");
+    return 0;
+    }
+  
+  if (freqname == NULL && htsfile==NULL &&plinkfile==NULL){
+    fprintf(stderr, "\t-> Allele frequencies file (-f) is not provided. Only summary statistitics based on 2dsfs will be reported\n");
+    do_2dsfs_only = 1;
+    if(!nsites_2dsfs){
+      fprintf(stderr, "\t-> Number of genomic sites must be provided (-L <INT>)\n");
+      return 0;
+    }
+  }
+
+  
+  
+
+  std::vector<double> freq;
+  double **gls=NULL;
+
+  if(plinkfile){
+    fprintf(stderr,"\t-> Starting to read plinkfiles\n");
+    int famnlines=nlines(plink_fam.c_str());
+    int bimnlines=nlines(plink_bim.c_str());
+    nind = famnlines;
+    overall_number_of_sites = bimnlines;
+    fprintf(stderr,"\t-> nlines in .fam:%d\t nlines in .bim:%d\n",famnlines,bimnlines);
+    int **imat = bed_to_intMatrix(plink_bed.c_str(),famnlines,bimnlines);//leak
+    //imat[ind][site]
+    for(int i=0;i<bimnlines;i++){
+      double hit =0;
+      double asum =0;
+      for(int j=0;j<famnlines;j++)
+	if(imat[j][i]!=3){
+	  hit+=1.0;
+	  asum+=imat[j][i];
+	}
+      freq.push_back(1-asum/hit/2.0);//flip
+    }
+#if 0 //validated with plink --freq
+    for(int i=0;i<bimnlines;i++)
+      fprintf(stderr,"freq[%d]:\t%f\n",i,freq[i]);
+#endif
+    gls = new double*[bimnlines];
+    for(int i=0;i<bimnlines;i++){
+      gls[i] = new double[3*famnlines];
+      for(int j=0;j<famnlines;j++){
+	double *pi = gls[i]+j*3;
+	if(imat[j][i]==3)
+	  pi[0]=pi[1]=pi[2] = 1;
+	else if(imat[j][i]==2){
+	  pi[0] =1;
+	  pi[1]=pi[2] =0;
+	}
+	else if(imat[j][i]==1){
+	  pi[1] =1;
+	  pi[0]=pi[2] =0;
+	}
+	else if(imat[j][i]==0){
+	  pi[2] =1;
+	  pi[0]=pi[1] =0;
+	}
+      }
+    }
+  }else{  
+    if(htsfile==NULL && !do_2dsfs_only){
+      getDouble(freqname,freq);
+      gls = getGL(gname, freq.size(), nind);
+      overall_number_of_sites = freq.size();
+    }
+    if(htsfile==NULL && do_2dsfs_only){
+      gls = getGL(gname, nsites_2dsfs, nind);
+      overall_number_of_sites = nsites_2dsfs;
+    }
+  }
+
+#ifdef __WITH_BCF__
+  if(htsfile){
+    std::vector<double *> tmpgl;
+    nind=getgls(htsfile,tmpgl,freq,2,minMaf, vcf_format_field, vcf_allele_field, errate,posinfo);
+    gls=new double *[tmpgl.size()];
+    for(int i=0;i<tmpgl.size();i++){
+      gls[i] = tmpgl[i];
+      for(int ii=0;ii<3*nind;ii++)
+	gls[i][ii]=exp(gls[i][ii]);
+    }
+    overall_number_of_sites = freq.size();
+  }
+#endif
+
+  double total_sites = overall_number_of_sites * 1.0;
+
+  //all data read from either 1) glf/freq 2) hts/vcf/bcf 3)plink
+  //now call genotypes if needed
+
+  fprintf(stderr,"\t-> nind:%d overall_number_of_sites:%d\n",nind,overall_number_of_sites);
+  if (switchMaf) {
+    fprintf(stderr, "\t-> switching frequencies\n");
+    for (size_t i = 0; i < overall_number_of_sites; i++)
+      freq[i] = 1 - freq[i];
+  }
+  
+  if (gc) {
+    if (gc> 1) {
+      fprintf(stderr,"\t-> Calling genotypes assuming hwe\n");
+      callgenotypesHwe(gls, overall_number_of_sites, nind, freq);
+    }
+    
+    if (gc > 0){
+      fprintf(stderr,"\t-> Modelling errors for genotypes (should only be used for called genotypes)\n");    
+      callgenotypesEps(gls, overall_number_of_sites, nind, errate);
+    }
+  }
+
+#if 0 //for printout everything
+  for(int i=0;i<freq.size();i++){
+    fprintf(stdout,"%f",freq[i]);
+    for(int ii=0;ii<3*nind;ii++)
+      fprintf(stdout,"\t%f",gls[i][ii]);
+    fprintf(stdout, "\n");
+  }
+  return 0;
+#endif
+  if(outname==NULL){
+    fprintf(stderr,"\t-> No output filename declared please supply filename with -O output.res\n");
+    return 0;
+  }
+  FILE *output = NULL;
+  output = fopen(outname,"wb");
+  assert(output);
+
+  
+  main_analysis1(freq,gls,num_threads,output,total_sites);
   fflush(output);
   for (size_t i = 0; i < overall_number_of_sites; i++) {
     delete[] gls[i];
