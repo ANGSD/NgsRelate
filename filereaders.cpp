@@ -5,6 +5,7 @@
 #include <cstdlib>
 #include <zlib.h>
 #include <vector>
+#include <cmath>
 #define LENS  4096
 
 int refToInt[256] = {
@@ -388,4 +389,78 @@ void readids(std::vector<char *> &ids,char *fname){
   }
   fprintf(stderr,"\t-> Number of file names read:%lu\n",ids.size());
   fclose(fp);
+}
+
+
+double **getGL(const char *fname, int sites, int nInd) {
+  gzFile gz = Z_NULL;
+  if (((gz = gzopen(fname, "rb"))) == Z_NULL) {
+    fprintf(stderr, "\t-> Problem opening file: \'%s\'\n", fname);
+    exit(0);
+  }
+
+  double **ret = new double *[sites + 10];
+
+  int i = 0;
+  while (1) {
+    //   for(int i=0;i<sites;i++){
+    ret[i] = new double[3 * nInd];
+    unsigned nbit = gzread(gz, ret[i], sizeof(double) * nInd * 3);
+    if (nbit == 0)
+      break;
+    if (sizeof(double) * nInd * 3 != nbit) {
+      fprintf(stderr, "\t-> Problem reading full chunk\n");
+      exit(0);
+    }
+    for (int g = 0; g < 3 * nInd; g++)
+      ret[i][g] = exp(ret[i][g]);
+#if 0
+    for(int g=0;g<nInd;g++){
+      double ts = 0;
+      for(int gg=0;gg<3;gg++)
+        ts += ret[i][g*3+gg];
+      for(int gg=0;gg<3;gg++)
+        ret[i][g*3+gg] /= ts;
+    }
+#endif
+    i++;
+    if (i > sites) {
+      fprintf(stderr, "\t-> Too many sites in glf file. Looks outof sync, or "
+                      "make sure you supplied correct number of individuals "
+                      "(-n)\n");
+      extern int do_2dsfs_only;
+      if(do_2dsfs_only){
+        fprintf(stderr, "\t-> Or that the number of sites provided (-L) it is correct\n");
+      }
+      exit(0);
+    }
+
+
+  }
+  if (i != sites) {
+    fprintf(stderr, "nsites: %d assumed but %d read\n", sites, i);
+    exit(0);
+  }
+  gzclose(gz);
+  return ret;
+}
+
+size_t getDouble(const char *fname,std::vector<double> &ret) {
+  assert(ret.size()==0);
+  gzFile gz = Z_NULL;
+  if (((gz = gzopen(fname, "r"))) == Z_NULL) {
+    fprintf(stderr, "[%s]\t-> Problem opening file:%s\n",__FUNCTION__, fname);
+    exit(0);
+  }
+  int nbytes=10000;
+  char *buf = new char[nbytes];
+  while (gzgets(gz, buf, nbytes)) {
+    // reads line by line
+    ret.push_back(atof(buf));
+  }
+  fprintf(stderr, "\t-> Frequency file: \'%s\' contain %lu number of sites\n",
+          fname, ret.size());
+  gzclose(gz);
+  delete[] buf;
+  return ret.size();
 }

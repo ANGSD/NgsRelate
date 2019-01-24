@@ -2,9 +2,6 @@
   NgsRelateV2
   http://www.popgen.dk/software/
   https://github.com/ANGSD/NgsRelate/
-
-  g++ NgsRelate.cpp -O3 -o ngsrelate -lz -lpthread
-
 */
 
 #include <vector>
@@ -21,6 +18,7 @@
 #include <limits>
 #include <string>
 #include "filereaders.h"
+
 #ifdef __WITH_BCF__
 #include "vcf.h"
 #endif
@@ -102,18 +100,6 @@ std::vector<char *> ids;
 
 float emTole=1e-12;
 
-// bool same_double(double x, double y)
-// {
-//   double maxX = std::max(1.0, std::fabs(x));
-//   double maxY = std::max(1.0, std::fabs(y));
-//   double maxXYOne = std::max( maxX, maxY );
-//   return std::fabs(x - y) <= std::numeric_limits<double>::epsilon()*maxXYOne ;
-// }
-// https://stackoverflow.com/a/15012792/2788987
-bool same_double(double a, double b) {
-  return std::fabs(a - b) < std::numeric_limits<double>::epsilon();  
-}
-
 // https://en.cppreference.com/w/c/numeric/math/isnan
 bool is_nan(double x) { return x != x; }
 
@@ -165,9 +151,7 @@ void emStep(double *pre,double **emis,double *post,int len,int len2){
     }
 
   }
-
   normalize(post,len2);
-  
 }
 
 void minus(double * fst,double * sec,double * res,int dim){
@@ -236,8 +220,6 @@ int emAccel(double *F,double **emis,double *F_new,int len, int & niter,int dim){
     F_new[i] = F[i]+2*alpha*F_diff1[i]+alpha*alpha*F_diff3[i];
   }
   
-  // fprintf(stderr,"%d: F_new (this the linear jump: (%f,%f,%f,%f,%f,%f,%f,%f,%f)\n", niter,F_new[0],F_new[1],F_new[2],F_new[3],F_new[4],F_new[5],F_new[6],F_new[7],F_new[8]);
-  
   int outofparspace =0;
   for(int i=0;i<dim;i++){
     if(F_new[i]<0||F_new[i]>1){
@@ -246,7 +228,6 @@ int emAccel(double *F,double **emis,double *F_new,int len, int & niter,int dim){
     }
   }
   if(outofparspace){
-    // fprintf(stderr,"outofparspace will use second emstep as jump\n");
     for(int i=0;i<dim;i++)
       F_new[i] = F_em2[i];
   }
@@ -507,79 +488,6 @@ void emission_ngs_inbred(std::vector<double> * freq, double **gls, double **emis
 }
 
 
-double **getGL(const char *fname, int sites, int nInd) {
-  gzFile gz = Z_NULL;
-  if (((gz = gzopen(fname, "rb"))) == Z_NULL) {
-    fprintf(stderr, "\t-> Problem opening file: \'%s\'\n", fname);
-    exit(0);
-  }
-
-  double **ret = new double *[sites + 10];
-
-  int i = 0;
-  while (1) {
-    //   for(int i=0;i<sites;i++){
-    ret[i] = new double[3 * nInd];
-    unsigned nbit = gzread(gz, ret[i], sizeof(double) * nInd * 3);
-    if (nbit == 0)
-      break;
-    if (sizeof(double) * nInd * 3 != nbit) {
-      fprintf(stderr, "\t-> Problem reading full chunk\n");
-      exit(0);
-    }
-    for (int g = 0; g < 3 * nInd; g++)
-      ret[i][g] = exp(ret[i][g]);
-#if 0
-    for(int g=0;g<nInd;g++){
-      double ts = 0;
-      for(int gg=0;gg<3;gg++)
-        ts += ret[i][g*3+gg];
-      for(int gg=0;gg<3;gg++)
-        ret[i][g*3+gg] /= ts;
-    }
-#endif
-    i++;
-    if (i > sites) {
-      fprintf(stderr, "\t-> Too many sites in glf file. Looks outof sync, or "
-                      "make sure you supplied correct number of individuals "
-                      "(-n)\n");
-
-      if(do_2dsfs_only){
-        fprintf(stderr, "\t-> Or that the number of sites provided (-L) it is correct\n");
-      }
-      exit(0);
-    }
-
-
-  }
-  if (i != sites) {
-    fprintf(stderr, "nsites: %d assumed but %d read\n", sites, i);
-    exit(0);
-  }
-  gzclose(gz);
-  return ret;
-}
-
-size_t getDouble(const char *fname,std::vector<double> &ret) {
-  assert(ret.size()==0);
-  gzFile gz = Z_NULL;
-  if (((gz = gzopen(fname, "r"))) == Z_NULL) {
-    fprintf(stderr, "[%s]\t-> Problem opening file:%s\n",__FUNCTION__, fname);
-    exit(0);
-  }
-  int nbytes=10000;
-  char *buf = new char[nbytes];
-  while (gzgets(gz, buf, nbytes)) {
-    // reads line by line
-    ret.push_back(atof(buf));
-  }
-  fprintf(stderr, "\t-> Frequency file: \'%s\' contain %lu number of sites\n",
-          fname, ret.size());
-  gzclose(gz);
-  delete[] buf;
-  return ret.size();
-}
-
 
 void print_info(FILE *fp){
   fprintf(fp, "\n");
@@ -691,6 +599,7 @@ struct worker_args {
   double ll, bestll, ll_2dsfs;
   double pars[9], pars_2dsfs[9];
   int *keeplist;
+  double **emis;
   worker_args(int & id_a, int & id_b, std::vector<double> * f, double ** gls_arg, size_t & s ){
     a=id_a;
     b=id_b;
@@ -702,6 +611,9 @@ struct worker_args {
     gls=gls_arg;
     nsites = s;
     keeplist = new int[nsites];
+    emis = new double*[s];
+    for(int i=0;i<s;i++)
+      new double[9];//<- will hold, 2dsfs,F and 9jacq emissions depending on context
   }
 };
 
@@ -711,9 +623,7 @@ void * do_work(void *threadarg){
   // https://www.tutorialspoint.com/cplusplus/cpp_multithreading.htm
   struct worker_args * td;
   td = ( worker_args * ) threadarg;
-#if 0
-  fprintf(stderr,"ID:%d THREAD:%d\n",td->id, td->thread_id);
-#endif
+
   assert(td->nsites>0);
   // init all in each thread
   int *keeplist = td->keeplist;
@@ -736,29 +646,10 @@ void * do_work(void *threadarg){
   if (td->nkeep==0){
     fprintf(stderr, "sites with both %d and %d having data: %d\n", td->a, td->b, td->nkeep);
   }
-#if 0
-  for(int x=0;x<td->nkeep;x++){
-    int at = keeplist[x];
-    fprintf(stderr,"postfiltergls[%d]:\t",at);
-    for(int j=0;j<3;j++)
-      fprintf(stderr,"%f ",td->gls[at][td->a*3+j]);
-    for(int j=0;j<3;j++)
-      fprintf(stderr,"%f ",td->gls[at][td->b*3+j]);
-    fprintf(stderr,"\n");
-  }
-#endif
-
-#if 0
-  for(int x=0;x<td->nkeep;x++){
-    int at = keeplist[x];
-    fprintf(stderr,"posinfo\t%s\n",posinfo[at]);
-  }
-  exit(0);
-#endif
  
 
   // fprintf(stderr, "\t-> keeping %d sites for downstream analyses", td->nkeep++);
-  double **emis;
+  double **emis=td->emis;
   if(!do_2dsfs_only){
     emis = new double *[td->nkeep];
     for (int i = 0; i < td->nkeep; i++) {
@@ -902,7 +793,7 @@ int main(int argc, char **argv){
 
   char *htsfile=NULL;
   char *plinkfile=NULL;
-  char *outname=NULL;
+  const char *outname=NULL;
   while ((n = getopt(argc, argv, "f:i:t:r:g:m:s:F:o:c:e:a:b:n:l:z:p:h:L:T:A:P:O:")) >= 0) {
     switch (n) {
     case 'f': freqname = strdup(optarg); break;
@@ -1111,9 +1002,17 @@ int main(int argc, char **argv){
   }
   return 0;
 #endif
-
+  if(outname==NULL){
+    fprintf(stderr,"\t-> No output filename declared please supply filename with -O output.res\n");
+    return 0;
+  }
+  FILE *output = NULL;
+  output = fopen(outname,"wb");
+  assert(output);
+  
+  
   if(do_inbred){
-    fprintf(stdout,"Ind\tZ=0\tZ=1\tloglh\tnIter\tcoverage\tsites\n");
+    fprintf(output,"Ind\tZ=0\tZ=1\tloglh\tnIter\tcoverage\tsites\n");
     int comparison_ids_inbred = 0;
     std::vector<worker_args> all_args_inbred;
     int fake_person = -1;
@@ -1154,12 +1053,12 @@ int main(int argc, char **argv){
         pthread_join(threads[i], NULL);
         worker_args * td_out_inbred = &all_args_inbred[cnt_inbred + i];
         if(td_out_inbred->best==0)
-          fprintf(stdout,"%d\t%f\t%f\t%f\t%d\t%f\t%d\n",td_out_inbred->a, p10[0],p10[1],td_out_inbred->bestll,-1,((double)td_out_inbred->nkeep)/((double)overall_number_of_sites), td_out_inbred->nkeep);
+          fprintf(output,"%d\t%f\t%f\t%f\t%d\t%f\t%d\n",td_out_inbred->a, p10[0],p10[1],td_out_inbred->bestll,-1,((double)td_out_inbred->nkeep)/((double)overall_number_of_sites), td_out_inbred->nkeep);
         if(td_out_inbred->best==1)
-          fprintf(stdout,"%d\t%f\t%f\t%f\t%d\t%f\t%d\n",td_out_inbred->a,p01[0],p01[1],td_out_inbred->bestll,-1,((double)td_out_inbred->nkeep)/((double)overall_number_of_sites), td_out_inbred->nkeep);
+          fprintf(output,"%d\t%f\t%f\t%f\t%d\t%f\t%d\n",td_out_inbred->a,p01[0],p01[1],td_out_inbred->bestll,-1,((double)td_out_inbred->nkeep)/((double)overall_number_of_sites), td_out_inbred->nkeep);
         if(td_out_inbred->best==2)
-          fprintf(stdout,"%d\t%f\t%f\t%f\t%d\t%f\t%d\n",td_out_inbred->a,td_out_inbred->pars[0],td_out_inbred->pars[1],td_out_inbred->bestll,td_out_inbred->niter,((double)td_out_inbred->nkeep)/((double)overall_number_of_sites), td_out_inbred->nkeep);
-      fflush(stdout);
+          fprintf(output,"%d\t%f\t%f\t%f\t%d\t%f\t%d\n",td_out_inbred->a,td_out_inbred->pars[0],td_out_inbred->pars[1],td_out_inbred->bestll,td_out_inbred->niter,((double)td_out_inbred->nkeep)/((double)overall_number_of_sites), td_out_inbred->nkeep);
+      fflush(output);
       }
       cnt_inbred += nTimes_inbred;
       fprintf(stderr, "\t-> Processed %d out of %d\r", cnt_inbred, comparison_ids_inbred);
@@ -1170,11 +1069,11 @@ int main(int argc, char **argv){
     }
     
     if (ids.size()){
-      // fprintf(stdout,"a\tb\tida\tidb\tnSites\tJ9\tJ8\tJ7\tJ6\tJ5\tJ4\tJ3\tJ2\tJ1\trab\tFa\tFb\ttheta\tloglh\tnIter\tcoverage\n");
-      fprintf(stdout,
+      // fprintf(output,"a\tb\tida\tidb\tnSites\tJ9\tJ8\tJ7\tJ6\tJ5\tJ4\tJ3\tJ2\tJ1\trab\tFa\tFb\ttheta\tloglh\tnIter\tcoverage\n");
+      fprintf(output,
               "a\tb\tida\tidb\tnSites\tJ9\tJ8\tJ7\tJ6\tJ5\tJ4\tJ3\tJ2\tJ1\trab\tFa\tFb\ttheta\tinbred_relatedness_1_2\tinbred_relatedness_2_1\tfraternity\tidentity\tzygosity\t2of3_IDB\tF_diff_a_b\tloglh\tnIter\tcoverage\t2dsfs\tR0\tR1\tKING\t2dsfs_loglike\t2dsfsf_niter\n");
     } else {
-      fprintf(stdout, "a\tb\tnSites\tJ9\tJ8\tJ7\tJ6\tJ5\tJ4\tJ3\tJ2\tJ1\trab\tFa\tFb\ttheta\tinbred_relatedness_1_2\tinbred_relatedness_2_1\tfraternity\tidentity\tzygosity\t2of3IDB\tFDiff\tloglh\tnIter\tcoverage\t2dsfs\tR0\tR1\tKING\t2dsfs_loglike\t2dsfsf_niter\n");
+      fprintf(output, "a\tb\tnSites\tJ9\tJ8\tJ7\tJ6\tJ5\tJ4\tJ3\tJ2\tJ1\trab\tFa\tFb\ttheta\tinbred_relatedness_1_2\tinbred_relatedness_2_1\tfraternity\tidentity\tzygosity\t2of3IDB\tFDiff\tloglh\tnIter\tcoverage\t2dsfs\tR0\tR1\tKING\t2dsfs_loglike\t2dsfsf_niter\n");
     }
     int comparison_ids = 0;
     std::vector<worker_args> all_args;
@@ -1254,11 +1153,11 @@ int main(int argc, char **argv){
         worker_args * td_out = &all_args[cnt + i];
         // printing results for threads[i]
         if (ids.size()) {
-          fprintf(stdout, "%d\t%d\t%s\t%s\t%d", td_out->a,
+          fprintf(output, "%d\t%d\t%s\t%s\t%d", td_out->a,
                   td_out->b, ids[td_out->a],
                   ids[td_out->b], td_out->nkeep);
         } else {
-          fprintf(stdout, "%d\t%d\t%d", td_out->a, td_out->b,
+          fprintf(output, "%d\t%d\t%d", td_out->a, td_out->b,
                   td_out->nkeep);
         }
         /////////////////////////
@@ -1275,7 +1174,7 @@ int main(int argc, char **argv){
         /////////////////////////
 
         for (int j = 0; j < 9; j++) {
-          fprintf(stdout, "\t%f", td_out->pars[j]);
+          fprintf(output, "\t%f", td_out->pars[j]);
         }
 
         //////////////////////////////////////////////////////////////////////
@@ -1286,7 +1185,7 @@ int main(int argc, char **argv){
         double rab = (td_out->pars[8] + td_out->pars[2]) +
                      (0.75 * (td_out->pars[6] + td_out->pars[4])) +
                      td_out->pars[1] * 0.5;
-        fprintf(stdout, "\t%f", rab);
+        fprintf(output, "\t%f", rab);
 
         /////////////////////////////////////////////////
         // Fa - inbreeding coefficient of individual a //
@@ -1294,7 +1193,7 @@ int main(int argc, char **argv){
         /////////////////////////////////////////////////
         double Fa = td_out->pars[8] + td_out->pars[7] + td_out->pars[6] +
                     td_out->pars[5];
-        fprintf(stdout, "\t%f", Fa);
+        fprintf(output, "\t%f", Fa);
         
         /////////////////////////////////////////////////
         // Fb - inbreeding coefficient of individual b //
@@ -1302,7 +1201,7 @@ int main(int argc, char **argv){
         /////////////////////////////////////////////////
         double Fb = td_out->pars[8] + td_out->pars[7] + td_out->pars[4] +
                     td_out->pars[3];
-        fprintf(stdout, "\t%f", Fb);
+        fprintf(output, "\t%f", Fb);
 
         /////////////////////////////////////////////////////
         // theta / coancestry / kinship coefficient / f_XY //
@@ -1312,7 +1211,7 @@ int main(int argc, char **argv){
             td_out->pars[8] +
             0.5 * (td_out->pars[6] + td_out->pars[4] + td_out->pars[2]) +
             0.25 * td_out->pars[1];
-        fprintf(stdout, "\t%f", theta);
+        fprintf(output, "\t%f", theta);
 
         /////////////////////////////////////////////
         // summary statistics from ackerman et al. //
@@ -1322,7 +1221,7 @@ int main(int argc, char **argv){
         double fraternity = td_out->pars[7] + td_out->pars[2];
         double identity = td_out->pars[8];
         double zygosity = td_out->pars[8] + td_out->pars[7] + td_out->pars[2];
-        fprintf(stdout, "\t%f\t%f\t%f\t%f\t%f", inbred_relatedness_1_2,
+        fprintf(output, "\t%f\t%f\t%f\t%f\t%f", inbred_relatedness_1_2,
                 inbred_relatedness_2_1, fraternity, identity, zygosity);
 
         /////////////////////////////////////////////////////////////////////////////////////////////////////////////
@@ -1334,31 +1233,31 @@ int main(int argc, char **argv){
           td_out->pars[6] + td_out->pars[4] + td_out->pars[2] + 0.5 * (td_out->pars[5] + td_out->pars[3] + td_out->pars[1]);
         // 
         double eq_11f = 0.5 * (td_out->pars[5] - td_out->pars[3]);
-        fprintf(stdout, "\t%f\t%f", eq_11e, eq_11f);
+        fprintf(output, "\t%f\t%f", eq_11e, eq_11f);
         
         ///////////////////////////////
         // optimization of EM output //
         ///////////////////////////////
         if (td_out->best == 9) {
-          fprintf(stdout, "\t%f\t%d\t%f", td_out->ll, td_out->niter,
+          fprintf(output, "\t%f\t%d\t%f", td_out->ll, td_out->niter,
                   (1.0 * td_out->nkeep) / total_sites);
         } else {
-          fprintf(stdout, "\t%f;s%d_%f\t%d\t%f", td_out->ll, 9 - td_out->best,
+          fprintf(output, "\t%f;s%d_%f\t%d\t%f", td_out->ll, 9 - td_out->best,
                   td_out->bestll, -1, (1.0 * td_out->nkeep) / total_sites);
         }
 
         ////////////////////
         // printing 2dsfs //
         ////////////////////
-        fprintf(stdout, "\t%e", td_out->pars_2dsfs[0]);
+        fprintf(output, "\t%e", td_out->pars_2dsfs[0]);
         for (int j = 1; j < 9; j++) {
-          fprintf(stdout, ",%e", td_out->pars_2dsfs[j]);
+          fprintf(output, ",%e", td_out->pars_2dsfs[j]);
         }
-        // fprintf(stdout, "%f\t%f\t%f\n",
+        // fprintf(output, "%f\t%f\t%f\n",
         // td_out->pars_2dsfs[0],td_out->pars_2dsfs[1],td_out->pars_2dsfs[2]);
-        // fprintf(stdout, "%f\t%f\t%f\n",
+        // fprintf(output, "%f\t%f\t%f\n",
         // td_out->pars_2dsfs[3],td_out->pars_2dsfs[4],td_out->pars_2dsfs[5]);
-        // fprintf(stdout, "%f\t%f\t%f\n",
+        // fprintf(output, "%f\t%f\t%f\n",
         // td_out->pars_2dsfs[6],td_out->pars_2dsfs[7],td_out->pars_2dsfs[8]);
 
 
@@ -1382,16 +1281,16 @@ int main(int argc, char **argv){
         // printing 2dsfs based statistics //
         /////////////////////////////////////
        
-        fprintf(stdout, "\t%f\t%f\t%f", r0, r1, king);
+        fprintf(output, "\t%f\t%f\t%f", r0, r1, king);
 
-        fprintf(stdout, "\t%f\t%d\n", td_out->ll_2dsfs, td_out->niter_2dsfs);
+        fprintf(output, "\t%f\t%d\n", td_out->ll_2dsfs, td_out->niter_2dsfs);
       }
       cnt += nTimes;
       fprintf(stderr, "\t-> Processed     %d out of       %d\r", cnt, comparison_ids);
     }
   }
   fprintf(stderr,"\n");
-  fflush(stdout);
+  fflush(output);
   for (size_t i = 0; i < overall_number_of_sites; i++) {
     delete[] gls[i];
   }
@@ -1399,5 +1298,6 @@ int main(int argc, char **argv){
   free(freqname);
   free(gname);
   free(htsfile);
+  fclose(output);
   return 0;
 }
