@@ -44,4 +44,4 @@ clean:
 
 test:
 	echo "Only subset of analyses is being tested"
-	cd test;./test1.sh ../ngsRelate
+	cd test;./testAll.sh ../ngsRelate
