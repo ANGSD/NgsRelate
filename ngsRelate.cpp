@@ -459,75 +459,6 @@ int emAccel(double *F,double **emis,double *F_new,int len, int & niter,int dim){
   return 1;
 }
 
-
-int emAccel_inbred(double *F,double **emis,double *F_new,int len){
-  //  fprintf(stderr,"calling emaccel \n");
-  double ttol=0.0000001;
-
-  //  fprintf(stderr,"tol:%f\n",tol);
-  //maybe these should be usersettable?
-  double stepMin =1;
-  double stepMax0 = 1;
-  static double stepMax=stepMax0;
-  double mstep=4;
-  //  double objfnInc=1;
-
-
-  double F_em1[2];
-  double F_diff1[2];
-  double F_em2[2];
-  double F_diff2[2];
-  double F_diff3[2];
-  double F_tmp[2];
-
-  emStep1_inbred(F,emis,F_em1,len);
-  minus2(F_em1,F,F_diff1);
-  double sr2 = sumSquare2(F_diff1);
-  
-  if(sqrt(sr2)<ttol){
-    //    fprintf(stderr,"sr2 break:%f\n",sr2);
-    return 0;
-    //break;
-  }
-  emStep1_inbred(F_em1,emis,F_em2,len);
-  minus2(F_em2,F_em1, F_diff2);
-
-  double sq2 = sumSquare2(F_diff2);
-  if(sqrt(sq2)<ttol){
-    //fprintf(stderr,"sq2\n");
-    return 0;
-    //    break;
-  }
-
-
-  minus2(F_diff2,F_diff1, F_diff3);
-  
-  double sv2 = sumSquare2(F_diff3);
-  
-  double alpha = sqrt(sr2/sv2);
-  alpha = std::max(stepMin,std::min(stepMax,alpha));
-  for(size_t i=0;i<2;i++)
-      F_new[i] = F[i]+2*alpha*F_diff1[i]+alpha*alpha*F_diff3[i];
-
-  if (fabs(alpha - 1) > 0.01){
-    emStep1_inbred(F_new,emis,F_tmp,len);
-    for(int i=0;i<2;i++)
-      std::swap(F_new[i],F_tmp[i]);
-  }
-
-  //  double lnew = 1;
-  if ((alpha - stepMax) > -0.001) {
-    stepMax = mstep*stepMax;
-  }
-  //  print(stderr,3,F_new);
-  //  fprintf(stderr,"alpha %f stepMax %f\n",alpha,stepMax);
-
-  // fprintf(stderr,"calling emaccel \n");
-  return 1;
- 
-}
-
-
 int em1(double *sfs,double  **emis, int len, int dim){
   int niter = 0;
   double oldLik,lik;
@@ -550,32 +481,6 @@ int em1(double *sfs,double  **emis, int len, int dim){
     oldLik=lik;
   }
   return niter;
-}
-
-//   niter=em_inbred(pars,emis,tole,maxIter,nkeep,model,verbose);
-int em_inbred(double *pars,double  **emis,double tole,int maxIter,int len,int model){
-  double oldLik,lik;
-  oldLik = loglike_inbred(pars,emis,len);
-
-  double tmp[2];
-  int it;
-  for(it=0;it<maxIter;it++) {
-    if(model==0)
-      emStep(pars,emis,tmp,len,2);
-    else
-      emAccel_inbred(pars,emis,tmp,len);
-    for(int i=0;i<2;i++)
-      pars[i]= tmp[i];
-    lik = loglike_inbred(pars,emis,len);
-    
-    if(fabs(lik-oldLik)<tole){
-     
-      oldLik=lik;
-      break;
-    }
-    oldLik=lik;
-  }
-  return it;
 }
 
 
@@ -1443,7 +1348,10 @@ void * do_work_inbred(void *threadarg){
   }
 
   emission_ngs_inbred(td->freq,td->gls, emis, keeplist, td->nkeep, td->a);
-  td->niter=em_inbred(td->pars,emis,tole,maxIter,td->nkeep,model);
+  if (model == 0)
+    td->niter=em1(td->pars,emis,td->nkeep,2);
+  else
+    td->niter=em2(td->pars,emis,td->nkeep,2);
   td->ll = loglike(td->pars,emis,td->nkeep,2);
   double l01= loglike(p01,emis,td->nkeep,2);
   double l10= loglike(p10,emis,td->nkeep,2);
