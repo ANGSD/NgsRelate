@@ -266,46 +266,6 @@ double loglike(double *p,double **emis,int len,int dim){
   return ret;
 }
 
-// megatest
-
-double loglike_inbred(double *p,double **emis,int len){
-  //  fprintf(stderr,"%f %f %f\n",p[0],p[1],p[2]);
-  double ret =0;
-  
-  for(int i=0;i<len;i++){
-    double tmp = 0;
-    for(int j=0;j<2;j++)
-      tmp += p[j]*emis[i][j];
-    ret +=log(tmp);
-  }
-  return ret;
-}
-
-
-
-void emStep1_inbred(double *pre,double **emis,double *post,int len){
-  // fprintf(stderr,"%f %f\n",pre[0],pre[1]);
-  double inner[2];
-  for(int x=0;x<2;x++)
-    post[x] =0.0;
-  
-  for(int i=0;i<len;i++){
-    for(int x=0;x<2;x++){
-      inner[x] = pre[x]*emis[i][x];
-      //fprintf(stderr,"%f %f\n",emis[i][0],emis[i][1]);
-    }
-  
-    normalize(inner,2);
-    for(int x=0;x<2;x++)
-      post[x] += inner[x];
-    //   fprintf(stderr,"%f %f %f\n",post[0],post[1],post[2]);
-  }
-  //set bounds
-  normalize(post,2);
-  //  fprintf(stderr,"%f %f %f\n",post[0],post[1],post[2]);
-}
-
-
 void emStep(double *pre,double **emis,double *post,int len,int len2){
   for(int i=0;i<len2;i++){
     if(pre[i]<0||pre[i]>1){
@@ -355,25 +315,12 @@ void minus(double * fst,double * sec,double * res,int dim){
   for(int i=0;i<dim;i++)
     res[i] = fst[i]-sec[i];
 }
-void minus2(double fst[2],double sec[2],double res[2]){
-  for(int i=0;i<2;i++)
-    res[i] = fst[i]-sec[i];
-}
 
 double sumSquare(double * mat,int dim){
   double tmp=0;
   for(size_t i=0;i<dim;i++){
     tmp += mat[i]*mat[i];
   }
-  return tmp;
-}
-double sumSquare2(double mat[2]){
-  double tmp=0;
-  for(size_t i=0;i<2;i++){
-    //    fprintf(stderr,"%f \n",mat[i]);
-    tmp += mat[i]*mat[i];
-  }
-
   return tmp;
 }
 
@@ -686,31 +633,6 @@ void emission_ngsrelate9(std::vector<double> * freq, double **gls, double **emis
   }
 
   
-#if 0
-  // this is just to test compare the emission matrix of the first x snps.
-  // https://overiq.com/c-programming/101/fwrite-function-in-c/
-  FILE *fp;
-  fp = fopen("new.txt", "wb");
-  if(fp == NULL){
-    printf("Error opening file\n");
-    exit(1);
-  }
-  for(int i=0;i<nkeep;i++){
-    for(int x=0;x<9;x++){
-      fwrite(&emis[i][x], sizeof(double), 1, fp);
-    }
-  }
-  fclose(fp);
-  
-  // for(int i=0;i<nkeep;i++){
-  //   fprintf(stdout, "%f", emis[i][0]);
-  //   for (int x=1;x<9;x++){
-  //     fprintf(stdout, "\t%f", emis[i][x]);
-  //   }
-  //   fprintf(stdout, "\n");
-  // }
-  exit(0);
-#endif
 }
 
 void emission_ngs_inbred(std::vector<double> * freq, double **gls, double **emis, int *keeplist, int & nkeep, int & ind1){
