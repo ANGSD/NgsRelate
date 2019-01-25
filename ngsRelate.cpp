@@ -24,6 +24,7 @@
 #include "vcf.h"
 #endif
 
+int faster = 0;
 std::vector<char *> posinfo;//<- debug
 
 
@@ -138,7 +139,7 @@ double loglike(double *p,double **emis,int len,int dim){
     double tmp = 0;
     for(int j=0;j<dim;j++)
       tmp += p[j]*emis[i][j];
-    ret +=log(tmp);
+    ret += log(tmp);
   }
   return ret;
 }
@@ -265,9 +266,13 @@ int emAccel(double *F,double **emis,double *F_new,int len, int & niter,int dim){
 int em1(double *sfs,double  **emis, int len, int dim){
   int niter = 0;
   double oldLik,lik;
+  if(faster==1)
+    sample48(sfs,dim);
+
   oldLik = loglike(sfs,emis,len,dim);
 
   double tmp[dim];
+
   int it;
   for(it=0;niter<maxIter;it++) {
     niter++;
@@ -290,9 +295,12 @@ int em1(double *sfs,double  **emis, int len, int dim){
 int em2(double *sfs,double  **emis, int len,int dim){
   int niter=0;
   double oldLik,lik;
+  if(faster==1)
+    sample48(sfs,dim);
+
   oldLik = loglike(sfs,emis,len,dim);
-  //  exit(0)
   double tmp[dim];
+
   int it;
   for(it=0;niter<maxIter;it++) {
   emAccel(sfs,emis,tmp,len, niter,dim);
@@ -636,6 +644,7 @@ typedef struct worker_args_t worker_args;
 
 // function will update pk_keeplist and return the number of sites that should be retained for analysis
 int populate_keeplist(int pk_a,int pk_b,int pk_nsites,double **pk_gls,int pk_minmaf,std::vector<double> *pk_freq,int *pk_keeplist){
+
   int *keeplist = pk_keeplist;
   int nkeep=0;
   for (size_t i = 0; i < pk_nsites; i++) {
@@ -657,10 +666,12 @@ int populate_keeplist(int pk_a,int pk_b,int pk_nsites,double **pk_gls,int pk_min
 
 //this one does both inbreeding and the j9, the j3 is obtained by setting the j1-6 to zero
 int analyse_jaq(double *pk_pars,std::vector<double> *pk_freq,double **pk_gls,int *pk_keeplist,double **pk_emis,int pk_nkeep,int pk_a,int pk_b,double &pk_ll,int &pk_best,double &pk_bestll,int &pk_niter){
+
   if(do_inbred==0)
     emission_ngsrelate9(pk_freq, pk_gls, pk_emis, pk_keeplist, pk_nkeep, pk_a, pk_b);
   else
     emission_ngs_inbred(pk_freq,  pk_gls, pk_emis, pk_keeplist, pk_nkeep, pk_a);
+
   if (model == 0){
     pk_niter = em1(pk_pars, pk_emis, pk_nkeep,do_inbred?2:9);
   }else if (model == 1){
@@ -710,17 +721,17 @@ int analyse_jaq(double *pk_pars,std::vector<double> *pk_freq,double **pk_gls,int
 
 void anal1(int a,int b,worker_args * td,double minMaf){
   assert(td->nsites>0);
-  td->nkeep = populate_keeplist(td->a,td->b,td->nsites,td->gls,minMaf,td->freq,td->keeplist);
+  td->nkeep = populate_keeplist(a,b,td->nsites,td->gls,minMaf,td->freq,td->keeplist);
   
   
   if (td->nkeep==0)
-    fprintf(stderr, "\t->Sites with both %d and %d having data: %d \n", td->a, td->b, td->nkeep,td->emis);
+    fprintf(stderr, "\t->Sites with both %d and %d having data: %d \n", a, b, td->nkeep,td->emis);
 
   if(!do_2dsfs_only)
-    analyse_jaq(td->pars,td->freq,td->gls,td->keeplist,td->emis,td->nkeep,td->a,td->b,td->ll,td->best,td->bestll,td->niter);    
+    analyse_jaq(td->pars,td->freq,td->gls,td->keeplist,td->emis,td->nkeep,a,b,td->ll,td->best,td->bestll,td->niter);    
   
   if(do_inbred==0){
-    emislike_2dsfs_gen(td->gls, td->emis,td->keeplist, td->nkeep, td->a, td->b);
+    emislike_2dsfs_gen(td->gls, td->emis,td->keeplist, td->nkeep, a, b);
     
     if (model == 0){
       td->niter_2dsfs = em1(td->pars_2dsfs, td->emis, td->nkeep,9);
@@ -745,13 +756,25 @@ void * do_work(void *threadarg){
 void *turbothread(void *threadarg){
   worker_args * td;
   td = ( worker_args * ) threadarg;
+
   for(int i=td->a;i<td->b;i++){
     anal1(mp[i].a,mp[i].b,td,minMaf);
     //collate results
+    char buf[4096];
+    if(do_inbreed){
+      if(td->best==0)
+	snprintf(buf,4096,"%d\t%f\t%f\t%f\t%d\t%f\t%d\n",i, p10[0],p10[1],td->bestll,-1,((double)td->nkeep)/((double)overall_number_of_sites), td->nkeep);
+      if(td->best==1)
+	snprintf(buf,4096,"%d\t%f\t%f\t%f\t%d\t%f\t%d\n",i,p01[0],p01[1],td->bestll,-1,((double)td->nkeep)/((double)overall_number_of_sites), td->nkeep);
+      if(td->best==2)
+	snprintf(buf,4096,"%d\t%f\t%f\t%f\t%d\t%f\t%d\n",i,td->pars[0],td->pars[1],td->bestll,td->niter,((double)td->nkeep)/((double)overall_number_of_sites), td->nkeep);
+      mp[i].res=strdup(buf);
+    }else{
+
+
+
+    }
   }
-  
-
-
 }
 
 
@@ -1038,8 +1061,9 @@ int main_analysis1(std::vector<double> &freq,double **gls,int num_threads,FILE *
   fprintf(stderr,"\n");
 }
 
-int main_analysis2(std::vector<double> &freq,double **gls,int num_threads,FILE *output,int total_sites){
+int main_analysis2(std::vector<double> &freq,double **gls,int num_threads,FILE *output,int total_sites,FILE *outfile){
 
+  //initalize jobids
   if(do_inbred==0){
     for(int i=0;i<nind;i++)
       for(int j=(i+1);j<nind;j++){
@@ -1054,20 +1078,42 @@ int main_analysis2(std::vector<double> &freq,double **gls,int num_threads,FILE *
       mp.push_back(tmp);
     }
   }
-  std::random_shuffle(mp.begin(),mp.end());
+  //  std::random_shuffle(mp.begin(),mp.end());
   fprintf(stderr,"\t-> length of joblist:%lu\n",mp.size());
-  
-  //initialize threads;
+#if 0
+  for(int i=0;i<mp.size();i++)
+    fprintf(stderr,"i:%d (%d,%d)\n",i,mp[i].a,mp[i].b);
+#endif
+  //initialize threads ids
   pthread_t threads[num_threads];
   worker_args **all_args = new worker_args*[num_threads];
+  fprintf(stderr,"all_args:%p\n",all_args);
   int block=mp.size()/num_threads;
-  fprintf(stderr,"block:%d\n",block);
+
   for(int i=0;i<num_threads;i++){
     int first = i==0?0:all_args[i-1]->b;
     int second = first+block;
     all_args[i] = new worker_args(first, second, &freq, gls, overall_number_of_sites);
-
+    fprintf(stderr,"all_args[%d]:%p\n",i,all_args[i]);
+    all_args[i]->thread_id=i;
   }
+  all_args[num_threads-1]->b = mp.size();
+#if 1
+  for(int i=0;i<num_threads;i++)
+    fprintf(stderr,"%d %d %d gls:%p\n",i,all_args[i]->a,all_args[i]->b,gls);
+#endif
+
+   for(int i=0;i<num_threads;i++)
+     assert(pthread_create(&threads[i],NULL,turbothread,all_args[i])==0);
+
+   for(int i=0;i<num_threads;i++)
+     assert(pthread_join(threads[i], NULL)==0);
+   
+   if(do_inbred){
+     fprintf(output,"Ind\tZ=0\tZ=1\tloglh\tnIter\tcoverage\tsites\n");
+     for(int i=0;i<mp.size();i++)
+       fwrite(mp[i].res,sizeof(char),strlen(mp[i].res),output);
+   }
   return 0;
 
 
@@ -1371,7 +1417,7 @@ int main(int argc, char **argv){
   char *htsfile=NULL;
   char *plinkfile=NULL;
   const char *outname=NULL;
-  int faster =0;
+
   while ((n = getopt(argc, argv, "f:i:t:r:g:m:s:F:o:c:e:a:b:n:l:z:p:h:L:T:A:P:O:X:")) >= 0) {
     switch (n) {
     case 'f': freqname = strdup(optarg); break;
@@ -1592,7 +1638,7 @@ int main(int argc, char **argv){
   if(faster==0)
     main_analysis1(freq,gls,num_threads,output,total_sites);
   else
-    main_analysis2(freq,gls,num_threads,output,total_sites);
+    main_analysis2(freq,gls,num_threads,output,total_sites,output);
   fflush(output);
   for (size_t i = 0; i < overall_number_of_sites; i++) {
     delete[] gls[i];
