@@ -27,6 +27,15 @@
 std::vector<char *> posinfo;//<- debug
 
 
+typedef struct{
+  int a;
+  int b;
+  char *res;
+}mypair;
+
+
+
+
 //this is as close to the bound we will allow
 double TINY=1e-8;
 double p100000000[9] = {1 - TINY,   TINY / 8.0, TINY / 8.0,
@@ -591,7 +600,7 @@ void callgenotypesHwe(double **gls,int nsites,int nind,std::vector<double> freq)
 
 
 
-struct worker_args {
+struct worker_args_t {
   int thread_id, nkeep, a,b, niter, best, niter_2dsfs;
   double **gls;
   std::vector<double> * freq;
@@ -600,7 +609,7 @@ struct worker_args {
   double pars[9], pars_2dsfs[9];
   int *keeplist;
   double **emis;
-  worker_args(int & id_a, int & id_b, std::vector<double> * f, double ** gls_arg, size_t & s ){
+  worker_args_t(int & id_a, int & id_b, std::vector<double> * f, double ** gls_arg, size_t & s ){
     a=id_a;
     b=id_b;
     nkeep=0;
@@ -616,6 +625,8 @@ struct worker_args {
       emis[i] = new double[9];//<- will hold, 2dsfs,F and 9jacq emissions depending on context
   }
 };
+
+typedef struct worker_args_t worker_args;
 
 // function will update pk_keeplist and return the number of sites that should be retained for analysis
 int populate_keeplist(int pk_a,int pk_b,int pk_nsites,double **pk_gls,int pk_minmaf,std::vector<double> *pk_freq,int *pk_keeplist){
@@ -719,7 +730,7 @@ void anal1(int a,int b,worker_args * td,double minMaf){
 void * do_work(void *threadarg){
 
   // https://www.tutorialspoint.com/cplusplus/cpp_multithreading.htm
-  struct worker_args * td;
+  worker_args * td;
   td = ( worker_args * ) threadarg;
   anal1(td->a,td->b,td,minMaf);
   pthread_exit(NULL);
@@ -1008,12 +1019,6 @@ int main_analysis1(std::vector<double> &freq,double **gls,int num_threads,FILE *
   }
   fprintf(stderr,"\n");
 }
-
-typedef struct{
-  int a;
-  int b;
-}mypair;
-
 
 int main_analysis2(std::vector<double> &freq,double **gls,int num_threads,FILE *output,int total_sites){
   std::vector<mypair> mp;
