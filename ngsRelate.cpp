@@ -125,6 +125,12 @@ void normalize(double *tmp,int len){
     tmp[i] /=s;
 }
 
+void sample48(double *ary,int dim){
+  for(int i=0;i<dim;i++)
+    ary[i] =TINY+drand48()*(1-2*TINY);
+  
+  normalize(ary,dim);
+}
 double loglike(double *p,double **emis,int len,int dim){
   double ret =0;
 
