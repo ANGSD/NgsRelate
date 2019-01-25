@@ -29,11 +29,11 @@ std::vector<char *> posinfo;//<- debug
 
 typedef struct{
   int a;
-  int b;
-  char *res;
+  int b;//<-if inbreding a=b
+  char *res;//<-results as char*
 }mypair;
 
-
+std::vector<mypair> mp;
 
 
 //this is as close to the bound we will allow
@@ -732,8 +732,20 @@ void * do_work(void *threadarg){
   // https://www.tutorialspoint.com/cplusplus/cpp_multithreading.htm
   worker_args * td;
   td = ( worker_args * ) threadarg;
-  anal1(td->a,td->b,td,minMaf);
+  anal1(td->a,td->b,td,minMaf); 
   pthread_exit(NULL);
+}
+
+void *turbothread(void *threadarg){
+  worker_args * td;
+  td = ( worker_args * ) threadarg;
+  for(int i=td->a;i<td->b;i++){
+    anal1(mp[i].a,mp[i].b,td,minMaf);
+    //collate results
+  }
+  
+
+
 }
 
 
@@ -1021,17 +1033,38 @@ int main_analysis1(std::vector<double> &freq,double **gls,int num_threads,FILE *
 }
 
 int main_analysis2(std::vector<double> &freq,double **gls,int num_threads,FILE *output,int total_sites){
-  std::vector<mypair> mp;
-  for(int i=0;i<nind;i++)
-    for(int j=(i+1);j<nind;j++){
-      mypair tmp;tmp.a=i;tmp.b=j;
+
+  if(do_inbred==0){
+    for(int i=0;i<nind;i++)
+      for(int j=(i+1);j<nind;j++){
+	mypair tmp;
+	tmp.a=i;tmp.b=i;
+	mp.push_back(tmp);
+      }
+  }else{
+    for(int i=0;i<nind;i++){
+      mypair tmp;
+      tmp.a=tmp.b=i;
       mp.push_back(tmp);
     }
+  }
   std::random_shuffle(mp.begin(),mp.end());
   fprintf(stderr,"\t-> length of joblist:%lu\n",mp.size());
+  
+  //initialize threads;
+  pthread_t threads[num_threads];
+  worker_args **all_args = new worker_args*[num_threads];
+  int block=mp.size()/num_threads;
+  fprintf(stderr,"block:%d\n",block);
+  for(int i=0;i<num_threads;i++){
+    int first = i==0?0:all_args[i-1]->b;
+    int second = first+block;
+    all_args[i] = new worker_args(first, second, &freq, gls, overall_number_of_sites);
+
+  }
   return 0;
 
-  pthread_t threads[num_threads];
+
   if(do_inbred){
     fprintf(output,"Ind\tZ=0\tZ=1\tloglh\tnIter\tcoverage\tsites\n");
     int comparison_ids_inbred = 0;
