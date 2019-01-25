@@ -638,39 +638,56 @@ int populate_keeplist(int pk_a,int pk_b,int pk_nsites,double **pk_gls,int pk_min
   return nkeep;
 }
 
-int analyse_j9(double *pk_pars,std::vector<double> *pk_freq,double **pk_gls,int *pk_keeplist,double **pk_emis,int pk_nkeep,int pk_a,int pk_b,double &pk_ll,int &pk_best,double &pk_bestll,int &pk_niter){
-  emission_ngsrelate9(pk_freq, pk_gls, pk_emis, pk_keeplist, pk_nkeep, pk_a, pk_b);
-  
+int analyse_jaq(double *pk_pars,std::vector<double> *pk_freq,double **pk_gls,int *pk_keeplist,double **pk_emis,int pk_nkeep,int pk_a,int pk_b,double &pk_ll,int &pk_best,double &pk_bestll,int &pk_niter){
+  if(do_inbred==0)
+    emission_ngsrelate9(pk_freq, pk_gls, pk_emis, pk_keeplist, pk_nkeep, pk_a, pk_b);
+  else
+    emission_ngs_inbred(pk_freq,  pk_gls, pk_emis, pk_keeplist, pk_nkeep, pk_a);
   if (model == 0){
     pk_niter = em1(pk_pars, pk_emis, pk_nkeep,9);
   }else if (model == 1){
-    pk_niter = em2(pk_pars, pk_emis, pk_nkeep,9);
+    pk_niter = em2(pk_pars, pk_emis, pk_nkeep,do_inbred?2:9);
   }
-  
-  double l100000000 = loglike(p100000000, pk_emis, pk_nkeep,9);
-  double l010000000 = loglike(p010000000, pk_emis, pk_nkeep,9);
-  double l001000000 = loglike(p001000000, pk_emis, pk_nkeep,9);
-  double l000100000 = loglike(p000100000, pk_emis, pk_nkeep,9);
-  double l000010000 = loglike(p000010000, pk_emis, pk_nkeep,9);
-  double l000001000 = loglike(p000001000, pk_emis, pk_nkeep,9);
-  double l000000100 = loglike(p000000100, pk_emis, pk_nkeep,9);
-  double l000000010 = loglike(p000000010, pk_emis, pk_nkeep,9);
-  double l000000001 = loglike(p000000001, pk_emis, pk_nkeep,9);
-  double lopt = loglike(pk_pars, pk_emis, pk_nkeep,9);
-  pk_ll = lopt;
-  
-  double likes[10] = {l100000000, l010000000, l001000000, l000100000,
-		      l000010000, l000001000, l000000100, l000000010,
-		      l000000001, lopt};
-  pk_best = 0;
-  pk_bestll = likes[0];
-  for (int i = 1; i < 10; i++) {
-    if (likes[i] > likes[pk_best]){
-      pk_best = i;
-      pk_bestll = likes[i];
+
+  if(do_inbred==0){
+    double l100000000 = loglike(p100000000, pk_emis, pk_nkeep,9);
+    double l010000000 = loglike(p010000000, pk_emis, pk_nkeep,9);
+    double l001000000 = loglike(p001000000, pk_emis, pk_nkeep,9);
+    double l000100000 = loglike(p000100000, pk_emis, pk_nkeep,9);
+    double l000010000 = loglike(p000010000, pk_emis, pk_nkeep,9);
+    double l000001000 = loglike(p000001000, pk_emis, pk_nkeep,9);
+    double l000000100 = loglike(p000000100, pk_emis, pk_nkeep,9);
+    double l000000010 = loglike(p000000010, pk_emis, pk_nkeep,9);
+    double l000000001 = loglike(p000000001, pk_emis, pk_nkeep,9);
+    pk_ll = loglike(pk_pars, pk_emis, pk_nkeep,9);
+        
+    double likes[10] = {l100000000, l010000000, l001000000, l000100000,
+			l000010000, l000001000, l000000100, l000000010,
+			l000000001, pk_ll};
+    pk_best = 0;
+    pk_bestll = likes[0];
+    for (int i = 1; i < 10; i++) {
+      if (likes[i] > likes[pk_best]){
+	pk_best = i;
+	pk_bestll = likes[i];
+      }
+    }
+  }else{
+    pk_ll = loglike(pk_pars,pk_emis,pk_nkeep,2);
+    double l01= loglike(p01,pk_emis,pk_nkeep,2);
+    double l10= loglike(p10,pk_emis,pk_nkeep,2);
+    double likes[3] ={l10,l01,pk_ll};
+    pk_best = 0;
+    pk_bestll = likes[0];
+    for(int i=1;i<3;i++){
+      if(likes[i]>likes[pk_best]){
+	pk_best=i;
+	pk_bestll = likes[i];
+      }
     }
   }
 }
+
 
 void anal1(int a,int b,worker_args * td,double minMaf){
   assert(td->nsites>0);
@@ -681,7 +698,7 @@ void anal1(int a,int b,worker_args * td,double minMaf){
     fprintf(stderr, "\t->Sites with both %d and %d having data: %d \n", td->a, td->b, td->nkeep,td->emis);
 
   if(!do_2dsfs_only)
-    analyse_j9(td->pars,td->freq,td->gls,td->keeplist,td->emis,td->nkeep,td->a,td->b,td->ll,td->best,td->bestll,td->niter);    
+    analyse_jaq(td->pars,td->freq,td->gls,td->keeplist,td->emis,td->nkeep,td->a,td->b,td->ll,td->best,td->bestll,td->niter);    
   
   emislike_2dsfs_gen(td->gls, td->emis,td->keeplist, td->nkeep, td->a, td->b);
   
