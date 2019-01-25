@@ -276,7 +276,7 @@ int em2(double *sfs,double  **emis, int len,int dim){
   int niter=0;
   double oldLik,lik;
   oldLik = loglike(sfs,emis,len,dim);
-
+  //  exit(0)
   double tmp[dim];
   int it;
   for(it=0;niter<maxIter;it++) {
@@ -645,7 +645,7 @@ int analyse_jaq(double *pk_pars,std::vector<double> *pk_freq,double **pk_gls,int
   else
     emission_ngs_inbred(pk_freq,  pk_gls, pk_emis, pk_keeplist, pk_nkeep, pk_a);
   if (model == 0){
-    pk_niter = em1(pk_pars, pk_emis, pk_nkeep,9);
+    pk_niter = em1(pk_pars, pk_emis, pk_nkeep,do_inbred?2:9);
   }else if (model == 1){
     pk_niter = em2(pk_pars, pk_emis, pk_nkeep,do_inbred?2:9);
   }
@@ -687,6 +687,7 @@ int analyse_jaq(double *pk_pars,std::vector<double> *pk_freq,double **pk_gls,int
       }
     }
   }
+
 }
 
 
@@ -701,15 +702,16 @@ void anal1(int a,int b,worker_args * td,double minMaf){
   if(!do_2dsfs_only)
     analyse_jaq(td->pars,td->freq,td->gls,td->keeplist,td->emis,td->nkeep,td->a,td->b,td->ll,td->best,td->bestll,td->niter);    
   
-  emislike_2dsfs_gen(td->gls, td->emis,td->keeplist, td->nkeep, td->a, td->b);
-  
-  if (model == 0){
-    td->niter_2dsfs = em1(td->pars_2dsfs, td->emis, td->nkeep,9);
-  }else if (model == 1){
-    td->niter_2dsfs = em2(td->pars_2dsfs, td->emis, td->nkeep,9);  
+  if(do_inbred==0){
+    emislike_2dsfs_gen(td->gls, td->emis,td->keeplist, td->nkeep, td->a, td->b);
+    
+    if (model == 0){
+      td->niter_2dsfs = em1(td->pars_2dsfs, td->emis, td->nkeep,9);
+    }else if (model == 1){
+      td->niter_2dsfs = em2(td->pars_2dsfs, td->emis, td->nkeep,9);  
+    }
+    td->ll_2dsfs = loglike(td->pars_2dsfs, td->emis, td->nkeep,9);
   }
-  td->ll_2dsfs = loglike(td->pars_2dsfs, td->emis, td->nkeep,9);
-  
 
 }
 
@@ -723,69 +725,17 @@ void * do_work(void *threadarg){
   pthread_exit(NULL);
 }
 
-void * do_work_inbred(void *threadarg){
-  // https://www.tutorialspoint.com/cplusplus/cpp_multithreading.htm
-  struct worker_args * td;
-  td = ( worker_args * ) threadarg;
-#if 0
-  fprintf(stderr,"ID:%d THREAD:%d\n",td->id, td->thread_id);
-#endif
-
-  // init all in each thread
-  int *keeplist = td->keeplist;
-  for (size_t i = 0; i < td->freq->size(); i++) {
-
-    if(is_missing(&td->gls[i][3*td->a]))
-      continue;
-
-    // removing minor allele frequencies
-    if (td->freq->at(i) < minMaf || (1-td->freq->at(i)) < minMaf)
-      continue;
-
-    keeplist[td->nkeep] = i;
-    td->nkeep++;
-  }
-  // fprintf(stderr, "\t-> keeping %d sites for downstream analyses", td->nkeep++);
-  double **emis = new double *[td->nkeep];
-  for (int i = 0; i < td->nkeep; i++) {
-    emis[i] = new double[2];
-  }
-
-  emission_ngs_inbred(td->freq,td->gls, emis, keeplist, td->nkeep, td->a);
-  if (model == 0)
-    td->niter=em1(td->pars,emis,td->nkeep,2);
-  else
-    td->niter=em2(td->pars,emis,td->nkeep,2);
-  td->ll = loglike(td->pars,emis,td->nkeep,2);
-  double l01= loglike(p01,emis,td->nkeep,2);
-  double l10= loglike(p10,emis,td->nkeep,2);
-  double likes[3] ={l10,l01,td->ll};
-  td->best = 0;
-  td->bestll = likes[0];
-  for(int i=1;i<3;i++){
-    if(likes[i]>likes[td->best]){
-      td->best=i;
-      td->bestll = likes[i];
-    }
-  }
-  for (int i = 0; i < td->nkeep; i++) {
-    delete[] emis[i];
-  }
-  delete[] emis;
-  pthread_exit(NULL);
-}
 
 int main_analysis1(std::vector<double> &freq,double **gls,int num_threads,FILE *output,int total_sites){
   pthread_t threads[num_threads];
-  if(do_inbred){
+  if(do_inbred) {
     fprintf(output,"Ind\tZ=0\tZ=1\tloglh\tnIter\tcoverage\tsites\n");
     int comparison_ids_inbred = 0;
     std::vector<worker_args> all_args_inbred;
-    int fake_person = -1;
     for(int a=0;a<nind;a++){
       if (pair1 != -1)
         a = pair1;
-      worker_args td_args_inbred(a, fake_person, &freq, gls, overall_number_of_sites);
+      worker_args td_args_inbred(a, a, &freq, gls, overall_number_of_sites);
       td_args_inbred.pars[0]=drand48();
       td_args_inbred.pars[1]=1-td_args_inbred.pars[0];
       all_args_inbred.push_back(td_args_inbred);
@@ -813,7 +763,8 @@ int main_analysis1(std::vector<double> &freq,double **gls,int num_threads,FILE *
 #endif
       for(int i=0;i<nTimes_inbred;i++){
         all_args_inbred[cnt_inbred + i].thread_id = i;
-        pthread_create(&threads[i],NULL,do_work_inbred,&all_args_inbred[cnt_inbred+i]);
+	//        pthread_create(&threads[i],NULL,do_work_inbred,&all_args_inbred[cnt_inbred+i]);
+        pthread_create(&threads[i],NULL,do_work,&all_args_inbred[cnt_inbred+i]);
       }
       for(int i=0;i<nTimes_inbred;i++){
         pthread_join(threads[i], NULL);
