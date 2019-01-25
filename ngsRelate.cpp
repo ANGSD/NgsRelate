@@ -761,7 +761,7 @@ void *turbothread(void *threadarg){
     anal1(mp[i].a,mp[i].b,td,minMaf);
     //collate results
     char buf[4096];
-    if(do_inbreed){
+    if(do_inbred){
       if(td->best==0)
 	snprintf(buf,4096,"%d\t%f\t%f\t%f\t%d\t%f\t%d\n",i, p10[0],p10[1],td->bestll,-1,((double)td->nkeep)/((double)overall_number_of_sites), td->nkeep);
       if(td->best==1)
