@@ -638,6 +638,7 @@ int populate_keeplist(int pk_a,int pk_b,int pk_nsites,double **pk_gls,int pk_min
   return nkeep;
 }
 
+//this one does both inbreeding and the j9, the j3 is obtained by setting the j1-6 to zero
 int analyse_jaq(double *pk_pars,std::vector<double> *pk_freq,double **pk_gls,int *pk_keeplist,double **pk_emis,int pk_nkeep,int pk_a,int pk_b,double &pk_ll,int &pk_best,double &pk_bestll,int &pk_niter){
   if(do_inbred==0)
     emission_ngsrelate9(pk_freq, pk_gls, pk_emis, pk_keeplist, pk_nkeep, pk_a, pk_b);
@@ -1111,7 +1112,8 @@ int main_analysis2(std::vector<double> &freq,double **gls,int num_threads,FILE *
 #endif
       for(int i=0;i<nTimes_inbred;i++){
         all_args_inbred[cnt_inbred + i].thread_id = i;
-        pthread_create(&threads[i],NULL,do_work_inbred,&all_args_inbred[cnt_inbred+i]);
+	//        pthread_create(&threads[i],NULL,do_work_inbred,&all_args_inbred[cnt_inbred+i]);
+        pthread_create(&threads[i],NULL,do_work,&all_args_inbred[cnt_inbred+i]);
       }
       for(int i=0;i<nTimes_inbred;i++){
         pthread_join(threads[i], NULL);
