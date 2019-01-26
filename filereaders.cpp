@@ -71,7 +71,10 @@ typedef std::map<const gpos,datum,ltstr2> posMap;
 size_t nlines(const char *fname){
   FILE *fp = NULL;
   fp=fopen(fname,"rb");
-  assert(fp);
+  if(fp==NULL){
+    fprintf(stderr,"Problem opening file: %s");
+    return 0;
+  }
   size_t nlines = 0;
   while(!feof(fp)){
     char ch = fgetc(fp);

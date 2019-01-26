@@ -24,10 +24,14 @@
 #include "vcf.h"
 #endif
 
+
+int pooling_every = 4;
 int faster = 0;
 double total_sites;
 std::vector<char *> posinfo;//<- debug
-
+int FINISHED=0;
+std::vector<FILE *> spillfiles;
+std::vector<char *> spillfilesnames;
 
 typedef struct{
   int a;
@@ -714,7 +718,7 @@ int analyse_jaq(double *pk_pars,std::vector<double> *pk_freq,double **pk_gls,int
 
 
 void anal1(int a,int b,worker_args * td,double minMaf){
-    fprintf(stderr,"a:%d b:%d\n",a,b);
+  //    fprintf(stderr,"a:%d b:%d\n",a,b);
   assert(td->nsites>0);
   td->nkeep = populate_keeplist(a,b,td->nsites,td->gls,minMaf,td->freq,td->keeplist);
   
@@ -881,6 +885,21 @@ char *formatoutput(int a, int b,worker_args *td_out,double total_sites){
 }
 
 
+void *watch(void *){
+  while(!FINISHED){
+    sleep(pooling_every);
+    int inc=0;
+    for(int i=0;i<spillfilesnames.size();i++){
+      inc += nlines(spillfilesnames[i]);
+    }
+
+    fprintf(stderr,"\r\t->          %d out of %d",inc,mp.size());
+    fflush(stderr);
+  }
+  pthread_exit(NULL);
+}
+
+
 void *turbothread(void *threadarg){
   worker_args * td;
   td = ( worker_args * ) threadarg;
@@ -899,9 +918,8 @@ void *turbothread(void *threadarg){
       mp[i].res=strdup(buf);
     }else{
       mp[i].res =strdup(formatoutput(mp[i].a,mp[i].b,td,total_sites));
-
-
     }
+    fwrite(mp[i].res,sizeof(char),strlen(mp[i].res),spillfiles[td->thread_id]);
   }
 }
 
@@ -1071,27 +1089,29 @@ int main_analysis2(std::vector<double> &freq,double **gls,int num_threads,FILE *
       mp.push_back(tmp);
     }
   }
-  //  std::random_shuffle(mp.begin(),mp.end());
+  std::random_shuffle(mp.begin(),mp.end());
   fprintf(stderr,"\t-> length of joblist:%lu\n",mp.size());
 #if 0
   for(int i=0;i<mp.size();i++)
     fprintf(stderr,"i:%d (%d,%d)\n",i,mp[i].a,mp[i].b);
 #endif
+#if 0
+  pthread_t eye;
+  assert(pthread_create(&eye,NULL,watch,NULL)==0);//<- doesnt work yet
+#endif
   //initialize threads ids
   pthread_t threads[num_threads];
   worker_args **all_args = new worker_args*[num_threads];
-  fprintf(stderr,"all_args:%p\n",all_args);
   int block=mp.size()/num_threads;
 
   for(int i=0;i<num_threads;i++){
     int first = i==0?0:all_args[i-1]->b;
     int second = first+block;
     all_args[i] = new worker_args(first, second, &freq, gls, overall_number_of_sites);
-    fprintf(stderr,"all_args[%d]:%p\n",i,all_args[i]);
-    all_args[i]->thread_id=i;
+      all_args[i]->thread_id=i;
   }
   all_args[num_threads-1]->b = mp.size();
-#if 1
+#if 0
   for(int i=0;i<num_threads;i++)
     fprintf(stderr,"%d %d %d gls:%p\n",i,all_args[i]->a,all_args[i]->b,gls);
 #endif
@@ -1117,6 +1137,7 @@ int main_analysis2(std::vector<double> &freq,double **gls,int num_threads,FILE *
        fwrite(mp[i].res,sizeof(char),strlen(mp[i].res),output);
      
    }
+   FINISHED=1;
   return 0;
 
 
@@ -1128,6 +1149,10 @@ int main_analysis2(std::vector<double> &freq,double **gls,int num_threads,FILE *
 }
 
 int main(int argc, char **argv){
+   clock_t t=clock();
+   time_t t2=time(NULL);
+
+
   if(argc==1)
     print_info(stderr);
 
@@ -1311,7 +1336,7 @@ int main(int argc, char **argv){
 #ifdef __WITH_BCF__
   if(htsfile){
     std::vector<double *> tmpgl;
-    nind=getgls(htsfile,tmpgl,freq,2,minMaf, vcf_format_field, vcf_allele_field, errate,posinfo);
+    nind=getgls(htsfile,tmpgl,freq,2,minMaf, vcf_format_field, vcf_allele_field, posinfo);
     gls=new double *[tmpgl.size()];
     for(int i=0;i<tmpgl.size();i++){
       gls[i] = tmpgl[i];
@@ -1362,12 +1387,24 @@ int main(int argc, char **argv){
   FILE *output = NULL;
   output = fopen(outname,"wb");
   assert(output);
+  if(faster){
+    for(int i=0;i<num_threads;i++){
+      char buf[strlen(outname)+20];
+      snprintf(buf,strlen(outname)+20,"%s.spill%d.res",outname,i);
+      FILE *fp=NULL;
+      fp=fopen(buf,"wb");
+      assert(fp!=NULL);
+      spillfiles.push_back(fp);
+      spillfilesnames.push_back(strdup(buf));
+    }
+  }
+
 
   if(faster==0)
     main_analysis1(freq,gls,num_threads,output,total_sites);
   else
     main_analysis2(freq,gls,num_threads,output,total_sites,output);
-  fflush(output);
+  
   for (size_t i = 0; i < overall_number_of_sites; i++) {
     delete[] gls[i];
   }
@@ -1376,5 +1413,12 @@ int main(int argc, char **argv){
   free(gname);
   free(htsfile);
   fclose(output);
+  for(int i=0;i<spillfiles.size();i++)
+    fclose(spillfiles[i]);
+
+  fprintf(stderr, "\t[ALL done] cpu-time used =  %.2f sec\n", (float)(clock() - t) / CLOCKS_PER_SEC);
+  fprintf(stderr, "\t[ALL done] walltime used =  %.2f sec\n", (float)(time(NULL) - t2));  
+
+
   return 0;
 }

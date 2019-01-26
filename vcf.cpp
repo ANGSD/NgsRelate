@@ -135,8 +135,7 @@ double emFrequency(double *loglike,int numInds, int iter,double start,char *keep
 }
 
 
-size_t getgls(char*fname,std::vector<double *> &mygl, std::vector<double> &freqs,int minind,double minfreq, std::string &vcf_format_field, std::string &vcf_allele_field, const double & gt_epsilon,std::vector<char *> &posinfo){
-  //  fprintf(stderr,"\t-> [getgls] fname:%s minfreq:%f\n",fname,minfreq);
+size_t getgls(char*fname,std::vector<double *> &mygl, std::vector<double> &freqs,int minind,double minfreq, std::string &vcf_format_field, std::string &vcf_allele_field,std::vector<char *> &posinfo){
   for(int i=0;i<PHREDMAX;i++){    
     pl2ln[i] = log(pow(10.0,-0.1*i));
   }
@@ -207,7 +206,7 @@ size_t getgls(char*fname,std::vector<double *> &mygl, std::vector<double> &freqs
     if(rec->n_allele>=3||rec->n_allele==1)//last case shouldt happen
       continue;
 
-    float *ln_gl = new float[3*nsamples];    
+    float ln_gl[3*nsamples];    
 
     if(vcf_format_field == "PL") {
       npl = bcf_get_format_int32(hdr, rec, "PL", &pl, &npl_arr);
@@ -283,7 +282,7 @@ size_t getgls(char*fname,std::vector<double *> &mygl, std::vector<double> &freqs
       // fprintf(stderr, "TMP: %d %d: %f %f %f\n", ns+1, rec->pos+1, tmp[ns*3], tmp[ns*3+1], tmp[ns*3+2]);
     }
     //    fprintf(stderr,"keepind:%d\n",keepInd);
-    delete [] ln_gl;
+
     
     naf = bcf_get_info_float(hdr, rec, vcf_allele_field.c_str(), &af, &naf_arr);
     // fprintf(stderr,"rec->pos:%d npl:%d ngl:%d naf:%d rec->n_allele:%d\n",rec->pos,npl,ngl,naf,rec->n_allele);    
@@ -354,16 +353,16 @@ size_t getgls(char*fname,std::vector<double *> &mygl, std::vector<double> &freqs
 #ifdef __WITH_MAIN__
 
 int main(int argc, char **argv) {
-  
- 
-
   if (argc != 2) {
     usage();
     return 1;
   }
   std::vector<double *> gls;
   std::vector<double> freqs;
-  int nsites = getgls(argv[1],gls,freqs,2,0.04);
+  std::vector<char *> posinfo;
+  std::string pl=std::string("PL");
+  std::string fr=std::string("AFngsrelate");
+  int nsites = getgls(argv[1],gls,freqs,2,0.04,pl,fr,posinfo);
   return 0;
 }
 
