@@ -1336,7 +1336,7 @@ int main(int argc, char **argv){
 #ifdef __WITH_BCF__
   if(htsfile){
     std::vector<double *> tmpgl;
-    nind=getgls(htsfile,tmpgl,freq,2,minMaf, vcf_format_field, vcf_allele_field, posinfo);
+    nind=readbcfvcf(htsfile,tmpgl,freq,2,minMaf, vcf_format_field, vcf_allele_field, posinfo,NULL);
     gls=new double *[tmpgl.size()];
     for(int i=0;i<tmpgl.size();i++){
       gls[i] = tmpgl[i];

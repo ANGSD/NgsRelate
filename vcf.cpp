@@ -135,9 +135,19 @@ double emFrequency(double *loglike,int numInds, int iter,double start,char *keep
 }
 
 
-size_t getgls(char*fname,std::vector<double *> &mygl, std::vector<double> &freqs,int minind,double minfreq, std::string &vcf_format_field, std::string &vcf_allele_field,std::vector<char *> &posinfo){
+size_t getgls(char*fname,std::vector<double *> &mygl, std::vector<double> &freqs,int minind,double minfreq, std::string &vcf_format_field, std::string &vcf_allele_field,std::vector<char *> &posinfo,char *seek){
   for(int i=0;i<PHREDMAX;i++){    
     pl2ln[i] = log(pow(10.0,-0.1*i));
+  }
+  htsFile * inf = NULL;inf=hts_open(fname, "r");assert(inf);
+  bcf_hdr_t *hdr = bcf_hdr_read(inf);
+  bcf1_t *rec = NULL;rec=bcf_init();assert(rec);
+  hts_idx_t *idx=NULL;
+  hts_itr_t *iter=NULL;
+
+  if(seek){
+    idx=bcf_index_load(fname);
+    iter=bcf_itr_querys(idx,hdr,seek);
   }
   //   http://wresch.github.io/2014/11/18/process-vcf-file-with-htslib.html
   // counters
@@ -162,40 +172,16 @@ size_t getgls(char*fname,std::vector<double *> &mygl, std::vector<double> &freqs
   int naf     = 0;
   float *af     = NULL;
 
-  
-  htsFile * inf = hts_open(fname, "r");
-  if (inf == NULL) {
-    fprintf(stderr,"bcf_open is null:");
-    exit(0);
-  }
-  
   // read header
-  bcf_hdr_t *hdr = bcf_hdr_read(inf);
   nsamples = bcf_hdr_nsamples(hdr);
   fprintf(stderr, "\t-> File %s contains %i samples\n", fname, nsamples);
   const char **seqnames = NULL;
-  seqnames = bcf_hdr_seqnames(hdr, &nseq);
-#if __WITH_MAIN__
+  seqnames = bcf_hdr_seqnames(hdr, &nseq); assert(seqnames);//bcf_hdr_id2name(hdr,i)
 
-  if (seqnames == NULL) {
-    fprintf(stderr," error1\n");
-    exit(0);
-  }
-  //        fprintf(stderr, "Sequence names:\n");
-  for (int i = 0;0&& i < nseq; i++) {
-    // bcf_hdr_id2name is another way to get the name of a sequence
-    fprintf(stderr, "  [%2i] %s (bcf_hdr_id2name -> %s)\n", i, seqnames[i],
-	    bcf_hdr_id2name(hdr, i));
-  }
-#endif
   char *chr;
   // struc for storing each record
-  bcf1_t *rec = bcf_init();
-  if (rec == NULL) {
-    fprintf(stderr,"\t-> problem making bcf1_t\n");
-    exit(0);
-  }
-  
+  int ret = bcf_itr_next(inf, iter, rec);
+  fprintf(stderr,"ret:%d\n",ret);
   while (bcf_read(inf, hdr, rec) == 0) {
     n++;
     if (!bcf_is_snp(rec))
@@ -350,6 +336,12 @@ size_t getgls(char*fname,std::vector<double *> &mygl, std::vector<double> &freqs
  
 }
 
+size_t readbcfvcf(char*fname,std::vector<double *> &mygl, std::vector<double> &freqs,int minind,double minfreq, std::string &vcf_format_field, std::string &vcf_allele_field,std::vector<char *> &posinfo,char *seek){
+  
+  getgls(fname, mygl,freqs, minind, minfreq,vcf_format_field,vcf_allele_field,posinfo,seek);
+}
+
+
 #ifdef __WITH_MAIN__
 
 int main(int argc, char **argv) {
@@ -360,10 +352,10 @@ int main(int argc, char **argv) {
   std::vector<double *> gls;
   std::vector<double> freqs;
   std::vector<char *> posinfo;
-  std::string pl=std::string("PL");
+  std::string pl=std::string("GT");
   std::string fr=std::string("AFngsrelate");
-  int nsites = getgls(argv[1],gls,freqs,2,0.04,pl,fr,posinfo);
+  int nsites = getgls(argv[1],gls,freqs,2,0.04,pl,fr,posinfo,NULL);
   return 0;
-}
+}aergsg
 
 #endif
