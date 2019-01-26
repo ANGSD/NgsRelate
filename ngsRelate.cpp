@@ -1336,14 +1336,8 @@ int main(int argc, char **argv){
 
 #ifdef __WITH_BCF__
   if(htsfile){
-    std::vector<double *> tmpgl;
-    nind=readbcfvcf(htsfile,tmpgl,freq,2,minMaf, vcf_format_field, vcf_allele_field,region);
-    gls=new double *[tmpgl.size()];
-    for(int i=0;i<tmpgl.size();i++){
-      gls[i] = tmpgl[i];
-      for(int ii=0;ii<3*nind;ii++)
-	gls[i][ii]=exp(gls[i][ii]);
-    }
+    gls=readbcfvcf(htsfile,nind,freq,2,minMaf, vcf_format_field, vcf_allele_field,region);
+  
     overall_number_of_sites = freq.size();
   }
 #endif

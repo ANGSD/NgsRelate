@@ -328,9 +328,9 @@ typedef struct satan_t{
   std::string vcf_format_field;
   std::string vcf_allele_field;
   char *seek;
-  std::vector<double *> &mygl;
+  std::vector<double *> mygl;
   std::vector<double> &freqs;
-  satan_t(std::vector<double *> &mygl_a,std::vector<double > &freqs_a):mygl(mygl_a),freqs(freqs_a){}
+  satan_t(std::vector<double > &freqs_a):freqs(freqs_a){}
   int nind;
 }satan;
 
@@ -340,7 +340,7 @@ void wrap(satan &god){
 }
 
 
-size_t readbcfvcf(char*fname,std::vector<double *> &mygl, std::vector<double> &freqs,int minind,double minfreq, std::string vcf_format_field, std::string vcf_allele_field,char *seek){
+double ** readbcfvcf(char*fname,int &nind, std::vector<double> &freqs,int minind,double minfreq, std::string vcf_format_field, std::string vcf_allele_field,char *seek){
   fprintf(stderr,"\t-> seek:%s\n",seek);
   htsFile * inf = NULL;inf=hts_open(fname, "r");assert(inf);  
   int isbcf=0;
@@ -350,7 +350,7 @@ size_t readbcfvcf(char*fname,std::vector<double *> &mygl, std::vector<double> &f
     fprintf(stderr,"\t-> if choosing region then input file has to be bcf\n");
     exit(0);
   }
-  satan god(mygl,freqs);
+  satan god(freqs);
   god.fname=fname;
   god.minind=minind;
   god.minfreq=minfreq;
@@ -358,7 +358,18 @@ size_t readbcfvcf(char*fname,std::vector<double *> &mygl, std::vector<double> &f
   god.vcf_allele_field=vcf_allele_field;
   god.seek=seek;
   wrap(god);
-  return god.nind;
+  nind=god.nind;
+
+  double **gls=new double *[god.mygl.size()];
+  for(int i=0;i<god.mygl.size();i++){
+    gls[i] = god.mygl[i];
+    for(int ii=0;ii<3*nind;ii++)
+      gls[i][ii]=exp(gls[i][ii]);
+  }
+
+
+
+ return gls;
 }
 
 
@@ -368,7 +379,8 @@ int main(int argc, char **argv) {
   if (argc == 1)
     return 1;
 
-  std::vector<double *> gls;
+  double **gls=NULL;
+  int nind;
   std::vector<double> freqs;
   std::string pl=std::string("PL");
   std::string fr=std::string("AFngsrelate");
@@ -376,7 +388,7 @@ int main(int argc, char **argv) {
   if(argc==3)
     reg=strdup(argv[2]);
   fprintf(stderr,"reg:%s\n",reg);
-  int nsites = readbcfvcf(argv[1],gls,freqs,2,0.04,pl,fr,reg);
+  gls = readbcfvcf(argv[1],nind,freqs,2,0.04,pl,fr,reg);
   return 0;
 }
 
