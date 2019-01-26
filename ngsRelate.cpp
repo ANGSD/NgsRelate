@@ -777,13 +777,14 @@ void *turbothread(void *threadarg){
   }
 }
 
-void formatoutput(FILE *output,worker_args *td_out,double total_sites){
+char *formatoutput(worker_args *td_out,double total_sites){
+  char retbuf[4096];
  if (ids.size()) {
-   fprintf(output, "%d\t%d\t%s\t%s\t%d", td_out->a,
+   snprintf(retbuf,4096, "%d\t%d\t%s\t%s\t%d", td_out->a,
 	   td_out->b, ids[td_out->a],
 	   ids[td_out->b], td_out->nkeep);
  } else {
-   fprintf(output, "%d\t%d\t%d", td_out->a, td_out->b,
+   snprintf(retbuf,4096, "%d\t%d\t%d", td_out->a, td_out->b,
 	   td_out->nkeep);
  }
  /////////////////////////
@@ -800,7 +801,7 @@ void formatoutput(FILE *output,worker_args *td_out,double total_sites){
  /////////////////////////
  
  for (int j = 0; j < 9; j++) {
-   fprintf(output, "\t%f", td_out->pars[j]);
+   snprintf(retbuf,4096, "\t%f", td_out->pars[j]);
  }
  
  //////////////////////////////////////////////////////////////////////
@@ -811,7 +812,7 @@ void formatoutput(FILE *output,worker_args *td_out,double total_sites){
  double rab = (td_out->pars[8] + td_out->pars[2]) +
    (0.75 * (td_out->pars[6] + td_out->pars[4])) +
    td_out->pars[1] * 0.5;
- fprintf(output, "\t%f", rab);
+ snprintf(retbuf,4096, "\t%f", rab);
  
  /////////////////////////////////////////////////
  // Fa - inbreeding coefficient of individual a //
@@ -819,7 +820,7 @@ void formatoutput(FILE *output,worker_args *td_out,double total_sites){
  /////////////////////////////////////////////////
  double Fa = td_out->pars[8] + td_out->pars[7] + td_out->pars[6] +
    td_out->pars[5];
- fprintf(output, "\t%f", Fa);
+ snprintf(retbuf,4096, "\t%f", Fa);
  
  /////////////////////////////////////////////////
  // Fb - inbreeding coefficient of individual b //
@@ -827,7 +828,7 @@ void formatoutput(FILE *output,worker_args *td_out,double total_sites){
  /////////////////////////////////////////////////
  double Fb = td_out->pars[8] + td_out->pars[7] + td_out->pars[4] +
    td_out->pars[3];
- fprintf(output, "\t%f", Fb);
+ snprintf(retbuf,4096, "\t%f", Fb);
  
  /////////////////////////////////////////////////////
  // theta / coancestry / kinship coefficient / f_XY //
@@ -837,7 +838,7 @@ void formatoutput(FILE *output,worker_args *td_out,double total_sites){
    td_out->pars[8] +
    0.5 * (td_out->pars[6] + td_out->pars[4] + td_out->pars[2]) +
    0.25 * td_out->pars[1];
- fprintf(output, "\t%f", theta);
+ snprintf(retbuf,4096, "\t%f", theta);
  
  /////////////////////////////////////////////
  // summary statistics from ackerman et al. //
@@ -847,7 +848,7 @@ void formatoutput(FILE *output,worker_args *td_out,double total_sites){
  double fraternity = td_out->pars[7] + td_out->pars[2];
  double identity = td_out->pars[8];
  double zygosity = td_out->pars[8] + td_out->pars[7] + td_out->pars[2];
- fprintf(output, "\t%f\t%f\t%f\t%f\t%f", inbred_relatedness_1_2,
+ snprintf(retbuf,4096, "\t%f\t%f\t%f\t%f\t%f", inbred_relatedness_1_2,
 	 inbred_relatedness_2_1, fraternity, identity, zygosity);
  
  /////////////////////////////////////////////////////////////////////////////////////////////////////////////
@@ -859,31 +860,31 @@ void formatoutput(FILE *output,worker_args *td_out,double total_sites){
    td_out->pars[6] + td_out->pars[4] + td_out->pars[2] + 0.5 * (td_out->pars[5] + td_out->pars[3] + td_out->pars[1]);
  // 
  double eq_11f = 0.5 * (td_out->pars[5] - td_out->pars[3]);
- fprintf(output, "\t%f\t%f", eq_11e, eq_11f);
+ snprintf(retbuf,4096, "\t%f\t%f", eq_11e, eq_11f);
  
  ///////////////////////////////
  // optimization of EM output //
  ///////////////////////////////
  if (td_out->best == 9) {
-   fprintf(output, "\t%f\t%d\t%f", td_out->ll, td_out->niter,
+   snprintf(retbuf,4096, "\t%f\t%d\t%f", td_out->ll, td_out->niter,
 	   (1.0 * td_out->nkeep) / total_sites);
  } else {
-   fprintf(output, "\t%f;s%d_%f\t%d\t%f", td_out->ll, 9 - td_out->best,
+   snprintf(retbuf,4096, "\t%f;s%d_%f\t%d\t%f", td_out->ll, 9 - td_out->best,
 	   td_out->bestll, -1, (1.0 * td_out->nkeep) / total_sites);
  }
  
  ////////////////////
  // printing 2dsfs //
  ////////////////////
- fprintf(output, "\t%e", td_out->pars_2dsfs[0]);
+ snprintf(retbuf,4096, "\t%e", td_out->pars_2dsfs[0]);
  for (int j = 1; j < 9; j++) {
-   fprintf(output, ",%e", td_out->pars_2dsfs[j]);
+   snprintf(retbuf,4096, ",%e", td_out->pars_2dsfs[j]);
  }
- // fprintf(output, "%f\t%f\t%f\n",
+ // snprintf(retbuf,4096, "%f\t%f\t%f\n",
  // td_out->pars_2dsfs[0],td_out->pars_2dsfs[1],td_out->pars_2dsfs[2]);
- // fprintf(output, "%f\t%f\t%f\n",
+ // snprintf(retbuf,4096, "%f\t%f\t%f\n",
  // td_out->pars_2dsfs[3],td_out->pars_2dsfs[4],td_out->pars_2dsfs[5]);
- // fprintf(output, "%f\t%f\t%f\n",
+ // snprintf(retbuf,4096, "%f\t%f\t%f\n",
  // td_out->pars_2dsfs[6],td_out->pars_2dsfs[7],td_out->pars_2dsfs[8]);
  
  
@@ -907,9 +908,10 @@ void formatoutput(FILE *output,worker_args *td_out,double total_sites){
  // printing 2dsfs based statistics //
  /////////////////////////////////////
  
- fprintf(output, "\t%f\t%f\t%f", r0, r1, king);
+ snprintf(retbuf,4096, "\t%f\t%f\t%f", r0, r1, king);
  
- fprintf(output, "\t%f\t%d\n", td_out->ll_2dsfs, td_out->niter_2dsfs);
+ snprintf(retbuf,4096, "\t%f\t%d\n", td_out->ll_2dsfs, td_out->niter_2dsfs);
+ return strdup(retbuf);
 }
 
 int main_analysis1(std::vector<double> &freq,double **gls,int num_threads,FILE *output,double total_sites){
@@ -1041,11 +1043,7 @@ int main_analysis1(std::vector<double> &freq,double **gls,int num_threads,FILE *
         nTimes = num_threads;
       else
         nTimes = comparison_ids-cnt;
-#if 0
-      for(int i=0;1 && i<nTimes;i++){
-        fprintf(stderr,"cnt:%d i:%d\n",cnt+i,i);
-      }
-#endif
+
       for(int i=0;i<nTimes;i++){
         all_args[cnt + i].thread_id = i;
         pthread_create(&threads[i],NULL,do_work,&all_args[cnt+i]);
@@ -1054,139 +1052,9 @@ int main_analysis1(std::vector<double> &freq,double **gls,int num_threads,FILE *
       for(int i=0;i<nTimes;i++){
         pthread_join(threads[i], NULL);
         worker_args * td_out = &all_args[cnt + i];
-        // printing results for threads[i]
-        if (ids.size()) {
-          fprintf(output, "%d\t%d\t%s\t%s\t%d", td_out->a,
-                  td_out->b, ids[td_out->a],
-                  ids[td_out->b], td_out->nkeep);
-        } else {
-          fprintf(output, "%d\t%d\t%d", td_out->a, td_out->b,
-                  td_out->nkeep);
-        }
-        /////////////////////////
-        // Jacquard = ArrayPos //
-        //        1 = 8;       //
-        //        2 = 7;       //
-        //        3 = 6;       //
-        //        4 = 5;       //
-        //        5 = 4;       //
-        //        6 = 3;       //
-        //        7 = 2;       //
-        //        8 = 1;       //
-        //        9 = 0;       //
-        /////////////////////////
-
-        for (int j = 0; j < 9; j++) {
-          fprintf(output, "\t%f", td_out->pars[j]);
-        }
-
-        //////////////////////////////////////////////////////////////////////
-        // Measuring Relatedness between Inbred Individuals by Hedrick 2015 //
-        // return(x[1]+x[7]+3/4*(x[3]+x[5])+x[8]*0.5)                       //
-        // r_xy                                                             //
-        //////////////////////////////////////////////////////////////////////
-        double rab = (td_out->pars[8] + td_out->pars[2]) +
-                     (0.75 * (td_out->pars[6] + td_out->pars[4])) +
-                     td_out->pars[1] * 0.5;
-        fprintf(output, "\t%f", rab);
-
-        /////////////////////////////////////////////////
-        // Fa - inbreeding coefficient of individual a //
-        // sum(x[1]+x[2],x[3],x[4])                    //
-        /////////////////////////////////////////////////
-        double Fa = td_out->pars[8] + td_out->pars[7] + td_out->pars[6] +
-                    td_out->pars[5];
-        fprintf(output, "\t%f", Fa);
-        
-        /////////////////////////////////////////////////
-        // Fb - inbreeding coefficient of individual b //
-        // sum(x[1],x[2],x[5],x[6])                    //
-        /////////////////////////////////////////////////
-        double Fb = td_out->pars[8] + td_out->pars[7] + td_out->pars[4] +
-                    td_out->pars[3];
-        fprintf(output, "\t%f", Fb);
-
-        /////////////////////////////////////////////////////
-        // theta / coancestry / kinship coefficient / f_XY //
-        /////////////////////////////////////////////////////
-
-        double theta =
-            td_out->pars[8] +
-            0.5 * (td_out->pars[6] + td_out->pars[4] + td_out->pars[2]) +
-            0.25 * td_out->pars[1];
-        fprintf(output, "\t%f", theta);
-
-        /////////////////////////////////////////////
-        // summary statistics from ackerman et al. //
-        /////////////////////////////////////////////
-        double inbred_relatedness_1_2 = td_out->pars[8] + (td_out->pars[6] / 2.0);
-        double inbred_relatedness_2_1 = td_out->pars[8] + (td_out->pars[4] / 2.0);
-        double fraternity = td_out->pars[7] + td_out->pars[2];
-        double identity = td_out->pars[8];
-        double zygosity = td_out->pars[8] + td_out->pars[7] + td_out->pars[2];
-        fprintf(output, "\t%f\t%f\t%f\t%f\t%f", inbred_relatedness_1_2,
-                inbred_relatedness_2_1, fraternity, identity, zygosity);
-
-        /////////////////////////////////////////////////////////////////////////////////////////////////////////////
-        // summary statistics from Non-identifiability of identity coefficients at biallelic loci by miklos csuros //
-        /////////////////////////////////////////////////////////////////////////////////////////////////////////////
-        
-        // at least one pair of IBD alleles among three randomly selected ones:
-        double eq_11e = td_out->pars[8] + td_out->pars[7] +
-          td_out->pars[6] + td_out->pars[4] + td_out->pars[2] + 0.5 * (td_out->pars[5] + td_out->pars[3] + td_out->pars[1]);
-        // 
-        double eq_11f = 0.5 * (td_out->pars[5] - td_out->pars[3]);
-        fprintf(output, "\t%f\t%f", eq_11e, eq_11f);
-        
-        ///////////////////////////////
-        // optimization of EM output //
-        ///////////////////////////////
-        if (td_out->best == 9) {
-          fprintf(output, "\t%f\t%d\t%f", td_out->ll, td_out->niter,
-                  (1.0 * td_out->nkeep) / total_sites);
-        } else {
-          fprintf(output, "\t%f;s%d_%f\t%d\t%f", td_out->ll, 9 - td_out->best,
-                  td_out->bestll, -1, (1.0 * td_out->nkeep) / total_sites);
-        }
-
-        ////////////////////
-        // printing 2dsfs //
-        ////////////////////
-        fprintf(output, "\t%e", td_out->pars_2dsfs[0]);
-        for (int j = 1; j < 9; j++) {
-          fprintf(output, ",%e", td_out->pars_2dsfs[j]);
-        }
-        // fprintf(output, "%f\t%f\t%f\n",
-        // td_out->pars_2dsfs[0],td_out->pars_2dsfs[1],td_out->pars_2dsfs[2]);
-        // fprintf(output, "%f\t%f\t%f\n",
-        // td_out->pars_2dsfs[3],td_out->pars_2dsfs[4],td_out->pars_2dsfs[5]);
-        // fprintf(output, "%f\t%f\t%f\n",
-        // td_out->pars_2dsfs[6],td_out->pars_2dsfs[7],td_out->pars_2dsfs[8]);
-
-
-        //////////////////////////////////////
-        // computing 2dsfs based statistics //
-        //////////////////////////////////////
-        double r0, r1, king;
-        r0 = (td_out->pars_2dsfs[2] + td_out->pars_2dsfs[6]) /
-             td_out->pars_2dsfs[4];
-        r1 = td_out->pars_2dsfs[4] /
-             (td_out->pars_2dsfs[1] + td_out->pars_2dsfs[2] +
-              td_out->pars_2dsfs[3] + td_out->pars_2dsfs[5] +
-              td_out->pars_2dsfs[6] + td_out->pars_2dsfs[7]);
-        king = (td_out->pars_2dsfs[4] -
-                (2 * (td_out->pars_2dsfs[2] + td_out->pars_2dsfs[6]))) /
-               (2 * td_out->pars_2dsfs[4] + td_out->pars_2dsfs[1] +
-                td_out->pars_2dsfs[3] + td_out->pars_2dsfs[5] +
-                td_out->pars_2dsfs[7]);
-
-        /////////////////////////////////////
-        // printing 2dsfs based statistics //
-        /////////////////////////////////////
-       
-        fprintf(output, "\t%f\t%f\t%f", r0, r1, king);
-
-        fprintf(output, "\t%f\t%d\n", td_out->ll_2dsfs, td_out->niter_2dsfs);
+	char *str=formatoutput(td_out,total_sites);
+	fwrite(output,sizeof(char),strlen(str),output);
+	free(str);
       }
       cnt += nTimes;
       fprintf(stderr, "\t-> Processed     %d out of       %d\r", cnt, comparison_ids);
