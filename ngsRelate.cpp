@@ -40,41 +40,6 @@ std::vector<mypair> mp;
 
 //this is as close to the bound we will allow
 double TINY=1e-8;
-double p100000000[9] = {1 - TINY,   TINY / 8.0, TINY / 8.0,
-                        TINY / 8.0, TINY / 8.0, TINY / 8.0,
-                        TINY / 8.0, TINY / 8.0, TINY / 8.0};
-
-double p010000000[9] = {TINY / 8.0, 1 - TINY,   TINY / 8.0,
-                        TINY / 8.0, TINY / 8.0, TINY / 8.0,
-                        TINY / 8.0, TINY / 8.0, TINY / 8.0};
-
-double p001000000[9] = {TINY / 8.0, TINY / 8.0, 1 - TINY,
-                        TINY / 8.0, TINY / 8.0, TINY / 8.0,
-                        TINY / 8.0, TINY / 8.0, TINY / 8.0};
-
-double p000100000[9] = {TINY / 8.0, TINY / 8.0, TINY / 8.0,
-                        1 - TINY,   TINY / 8.0, TINY / 8.0,
-                        TINY / 8.0, TINY / 8.0, TINY / 8.0};
-
-double p000010000[9] = {TINY / 8.0, TINY / 8.0, TINY / 8.0,
-                        TINY / 8.0, 1 - TINY,   TINY / 8.0,
-                        TINY / 8.0, TINY / 8.0, TINY / 8.0};
-
-double p000001000[9] = {TINY / 8.0, TINY / 8.0, TINY / 8.0,
-                        TINY / 8.0, TINY / 8.0, 1 - TINY,
-                        TINY / 8.0, TINY / 8.0, TINY / 8.0};
-
-double p000000100[9] = {TINY / 8.0, TINY / 8.0, TINY / 8.0,
-                        TINY / 8.0, TINY / 8.0, TINY / 8.0,
-                        1 - TINY,   TINY / 8.0, TINY / 8.0};
-
-double p000000010[9] = {TINY / 8.0, TINY / 8.0, TINY / 8.0,
-                        TINY / 8.0, TINY / 8.0, TINY / 8.0,
-                        TINY / 8.0, 1 - TINY,   TINY / 8.0};
-
-double p000000001[9] = {TINY / 8.0, TINY / 8.0, TINY / 8.0,
-                        TINY / 8.0, TINY / 8.0, TINY / 8.0,
-                        TINY / 8.0, TINY / 8.0, 1 - TINY};
 
 double p10[2]={1-TINY,TINY};
 double p01[2]={TINY,1-TINY};
@@ -668,6 +633,33 @@ int populate_keeplist(int pk_a,int pk_b,int pk_nsites,double **pk_gls,int pk_min
 
 //this one does both inbreeding and the j9, the j3 is obtained by setting the j1-6 to zero
 int analyse_jaq(double *pk_pars,std::vector<double> *pk_freq,double **pk_gls,int *pk_keeplist,double **pk_emis,int pk_nkeep,int pk_a,int pk_b,double &pk_ll,int &pk_best,double &pk_bestll,int &pk_niter){
+  double p100000000[9] = {1 - TINY,   TINY / 8.0, TINY / 8.0,
+			  TINY / 8.0, TINY / 8.0, TINY / 8.0,
+			  TINY / 8.0, TINY / 8.0, TINY / 8.0};
+  double p010000000[9] = {TINY / 8.0, 1 - TINY,   TINY / 8.0,
+			  TINY / 8.0, TINY / 8.0, TINY / 8.0,
+			  TINY / 8.0, TINY / 8.0, TINY / 8.0};
+  double p001000000[9] = {TINY / 8.0, TINY / 8.0, 1 - TINY,
+			  TINY / 8.0, TINY / 8.0, TINY / 8.0,
+			  TINY / 8.0, TINY / 8.0, TINY / 8.0};
+  double p000100000[9] = {TINY / 8.0, TINY / 8.0, TINY / 8.0,
+			  1 - TINY,   TINY / 8.0, TINY / 8.0,
+			  TINY / 8.0, TINY / 8.0, TINY / 8.0};
+  double p000010000[9] = {TINY / 8.0, TINY / 8.0, TINY / 8.0,
+			  TINY / 8.0, 1 - TINY,   TINY / 8.0,
+			  TINY / 8.0, TINY / 8.0, TINY / 8.0};
+  double p000001000[9] = {TINY / 8.0, TINY / 8.0, TINY / 8.0,
+			  TINY / 8.0, TINY / 8.0, 1 - TINY,
+			  TINY / 8.0, TINY / 8.0, TINY / 8.0};
+  double p000000100[9] = {TINY / 8.0, TINY / 8.0, TINY / 8.0,
+			  TINY / 8.0, TINY / 8.0, TINY / 8.0,
+			  1 - TINY,   TINY / 8.0, TINY / 8.0};
+  double p000000010[9] = {TINY / 8.0, TINY / 8.0, TINY / 8.0,
+			  TINY / 8.0, TINY / 8.0, TINY / 8.0,
+			  TINY / 8.0, 1 - TINY,   TINY / 8.0};
+  double p000000001[9] = {TINY / 8.0, TINY / 8.0, TINY / 8.0,
+			  TINY / 8.0, TINY / 8.0, TINY / 8.0,
+			  TINY / 8.0, TINY / 8.0, 1 - TINY};
 
   if(do_inbred==0)
     emission_ngsrelate9(pk_freq, pk_gls, pk_emis, pk_keeplist, pk_nkeep, pk_a, pk_b);
