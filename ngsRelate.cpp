@@ -264,6 +264,7 @@ int emAccel(double *F,double **emis,double *F_new,int len, int & niter,int dim){
   return 1;
 }
 
+//std em along with control logic for breaking
 int em1(double *sfs,double  **emis, int len, int dim){
   int niter = 0;
   double oldLik,lik;
@@ -721,6 +722,7 @@ int analyse_jaq(double *pk_pars,std::vector<double> *pk_freq,double **pk_gls,int
 
 
 void anal1(int a,int b,worker_args * td,double minMaf){
+    fprintf(stderr,"a:%d b:%d\n",a,b);
   assert(td->nsites>0);
   td->nkeep = populate_keeplist(a,b,td->nsites,td->gls,minMaf,td->freq,td->keeplist);
   
@@ -754,14 +756,14 @@ void * do_work(void *threadarg){
   pthread_exit(NULL);
 }
 
-char *formatoutput(worker_args *td_out,double total_sites){
+char *formatoutput(int a, int b,worker_args *td_out,double total_sites){
   char retbuf[4096];
   if (ids.size()) {
-    snprintf(retbuf,4096, "%d\t%d\t%s\t%s\t%d", td_out->a,
-	     td_out->b, ids[td_out->a],
-	     ids[td_out->b], td_out->nkeep);
+    snprintf(retbuf,4096, "%d\t%d\t%s\t%s\t%d", a,
+	     b, ids[a],
+	     ids[b], td_out->nkeep);
   } else {
-    snprintf(retbuf,4096, "%d\t%d\t%d", td_out->a, td_out->b,
+    snprintf(retbuf,4096, "%d\t%d\t%d", a, b,
 	     td_out->nkeep);
   }
 
@@ -904,7 +906,7 @@ void *turbothread(void *threadarg){
 	snprintf(buf,4096,"%d\t%f\t%f\t%f\t%d\t%f\t%d\n",i,td->pars[0],td->pars[1],td->bestll,td->niter,((double)td->nkeep)/((double)overall_number_of_sites), td->nkeep);
       mp[i].res=strdup(buf);
     }else{
-      mp[i].res =strdup(formatoutput(td,total_sites));
+      mp[i].res =strdup(formatoutput(mp[i].a,mp[i].b,td,total_sites));
 
 
     }
@@ -1049,7 +1051,7 @@ int main_analysis1(std::vector<double> &freq,double **gls,int num_threads,FILE *
       for(int i=0;i<nTimes;i++){
         pthread_join(threads[i], NULL);
         worker_args * td_out = &all_args[cnt + i];
-	char *str=formatoutput(td_out,total_sites);
+	char *str=formatoutput(td_out->a,td_out->b,td_out,total_sites);
 	fwrite(str,sizeof(char),strlen(str),output);
 	free(str);
       }
@@ -1067,7 +1069,7 @@ int main_analysis2(std::vector<double> &freq,double **gls,int num_threads,FILE *
     for(int i=0;i<nind;i++)
       for(int j=(i+1);j<nind;j++){
 	mypair tmp;
-	tmp.a=i;tmp.b=i;
+	tmp.a=i;tmp.b=j;
 	mp.push_back(tmp);
       }
   }else{
