@@ -28,7 +28,6 @@
 int pooling_every = 4;
 int faster = 0;
 double total_sites;
-std::vector<char *> posinfo;//<- debug
 int FINISHED=0;
 std::vector<FILE *> spillfiles;
 std::vector<char *> spillfilesnames;
@@ -494,6 +493,7 @@ void print_info(FILE *fp){
   fprintf(fp, "   -i <UINTEGER>       Maximum number of EM iterations\n");
   fprintf(fp, "   -t <FLOAT>          Tolerance for breaking EM\n");
   fprintf(fp, "   -r <FLOAT>          Seed for rand\n");
+  fprintf(fp, "   -R <chr:from-to>    Region for analysis (only for bcf)\n");
   fprintf(fp, "   -g gfile            Name of genotypellh file\n");
   fprintf(fp, "   -p <INT>            threads (default 4)\n");
   fprintf(fp, "   -c <INT>            Should call genotypes instead?\n");
@@ -1170,12 +1170,13 @@ int main(int argc, char **argv){
   char *htsfile=NULL;
   char *plinkfile=NULL;
   const char *outname=NULL;
-
-  while ((n = getopt(argc, argv, "f:i:t:r:g:m:s:F:o:c:e:a:b:n:l:z:p:h:L:T:A:P:O:X:")) >= 0) {
+  char *region=NULL;
+  while ((n = getopt(argc, argv, "f:i:t:r:g:m:s:F:o:c:e:a:b:n:l:z:p:h:L:T:A:P:O:X:R:")) >= 0) {
     switch (n) {
     case 'f': freqname = strdup(optarg); break;
     case 'P': plinkfile = strdup(optarg); break;
     case 'O': outname = strdup(optarg); break;
+    case 'R': region = strdup(optarg); break;
     case 'i': maxIter = atoi(optarg); break;
     case 'X': faster = atoi(optarg); break;
     case 't': tole = atof(optarg); break;
@@ -1336,7 +1337,7 @@ int main(int argc, char **argv){
 #ifdef __WITH_BCF__
   if(htsfile){
     std::vector<double *> tmpgl;
-    nind=readbcfvcf(htsfile,tmpgl,freq,2,minMaf, vcf_format_field, vcf_allele_field, posinfo,NULL);
+    nind=readbcfvcf(htsfile,tmpgl,freq,2,minMaf, vcf_format_field, vcf_allele_field,region);
     gls=new double *[tmpgl.size()];
     for(int i=0;i<tmpgl.size();i++){
       gls[i] = tmpgl[i];
@@ -1348,11 +1349,13 @@ int main(int argc, char **argv){
 #endif
 
   total_sites = overall_number_of_sites * 1.0;
-
+  
   //all data read from either 1) glf/freq 2) hts/vcf/bcf 3)plink
   //now call genotypes if needed
-
   fprintf(stderr,"\t-> nind:%d overall_number_of_sites:%d\n",nind,overall_number_of_sites);
+  fflush(stderr);
+  if(overall_number_of_sites==0)
+    return 0;
   if (switchMaf) {
     fprintf(stderr, "\t-> switching frequencies\n");
     for (size_t i = 0; i < overall_number_of_sites; i++)

@@ -14,25 +14,10 @@
 #include <limits>
 #include <string>
 
-void usage() {
-        puts(
-        "NAME\n"
-        "    03_vcf - High quality calls for single sample\n"
-        "SYNOPSIS\n"
-        "    03_vcf vcf_file sample\n"
-        "DESCRIPTION\n"
-        "    Given a <vcf file>, extract all calls for <sample> and filter for\n"
-        "    high quality, homozygous SNPs. This will omit any positions\n"
-        "    that are homozygous ref (0/0) or heterozygous.  The exact filter\n"
-        "    used is\n"
-        "        FI == 1 & GQ > 20 & GT != '0/0'\n"
-        "        [NOTE: FI == 1 implies homozygous call]\n"
-        "        \n"
-        "    The returned format is\n"
-        "        chrom pos[0-based]  REF  ALT GQ|DP\n"
-        "    and can be used for Marei's personalizer.py\n"
-                );
-}
+
+#define diskio_treads 8
+
+
 
 // https://github.com/samtools/htslib/blob/57fe419344cb03e2ea46315443abd242489c32f2/vcf.c#L53
 // uint32_t bcf_float_missing    = 0x7F800001;
@@ -135,7 +120,7 @@ double emFrequency(double *loglike,int numInds, int iter,double start,char *keep
 }
 
 
-size_t getgls(char*fname,std::vector<double *> &mygl, std::vector<double> &freqs,int minind,double minfreq, std::string &vcf_format_field, std::string &vcf_allele_field,std::vector<char *> &posinfo,char *seek){
+size_t getgls(char*fname,std::vector<double *> &mygl, std::vector<double> &freqs,int minind,double minfreq, std::string &vcf_format_field, std::string &vcf_allele_field,char *seek){
   for(int i=0;i<PHREDMAX;i++){    
     pl2ln[i] = log(pow(10.0,-0.1*i));
   }
@@ -146,6 +131,7 @@ size_t getgls(char*fname,std::vector<double *> &mygl, std::vector<double> &freqs
   hts_itr_t *iter=NULL;
 
   if(seek){
+    fprintf(stderr,"\t-> setting iterator to: %s\n",seek);
     idx=bcf_index_load(fname);
     iter=bcf_itr_querys(idx,hdr,seek);
   }
@@ -179,10 +165,14 @@ size_t getgls(char*fname,std::vector<double *> &mygl, std::vector<double> &freqs
   seqnames = bcf_hdr_seqnames(hdr, &nseq); assert(seqnames);//bcf_hdr_id2name(hdr,i)
 
   char *chr;
-  // struc for storing each record
-  int ret = bcf_itr_next(inf, iter, rec);
-  fprintf(stderr,"ret:%d\n",ret);
-  while (bcf_read(inf, hdr, rec) == 0) {
+  while(1){
+    if(seek==NULL){
+      if(bcf_read(inf,hdr,rec)!=0)	
+	break;
+    }else{
+      if(bcf_itr_next(inf, iter, rec)!=0)
+	break;
+    }
     n++;
     if (!bcf_is_snp(rec))
       continue;
@@ -313,12 +303,7 @@ size_t getgls(char*fname,std::vector<double *> &mygl, std::vector<double> &freqs
       mygl.push_back(tmp);
       freqs.push_back(freq);
       //populate debug names
-#if 1
-      char ptmp[1024];
-      snprintf(ptmp,1024,"%s_%d", seqnames[rec->rid],rec->pos+1);
-      posinfo.push_back(strdup(ptmp));
-      //	fprintf(stderr,"pushhh\n");
-#endif
+
     } else {
       delete [] tmp;
     }
@@ -336,26 +321,63 @@ size_t getgls(char*fname,std::vector<double *> &mygl, std::vector<double> &freqs
  
 }
 
-size_t readbcfvcf(char*fname,std::vector<double *> &mygl, std::vector<double> &freqs,int minind,double minfreq, std::string &vcf_format_field, std::string &vcf_allele_field,std::vector<char *> &posinfo,char *seek){
-  
-  getgls(fname, mygl,freqs, minind, minfreq,vcf_format_field,vcf_allele_field,posinfo,seek);
+typedef struct satan_t{
+  char*fname;
+  int minind;
+  double minfreq;
+  std::string vcf_format_field;
+  std::string vcf_allele_field;
+  char *seek;
+  std::vector<double *> &mygl;
+  std::vector<double> &freqs;
+  satan_t(std::vector<double *> &mygl_a,std::vector<double > &freqs_a):mygl(mygl_a),freqs(freqs_a){}
+  int nind;
+}satan;
+
+void wrap(satan &god){
+
+  god.nind=getgls(god.fname, god.mygl,god.freqs, god.minind, god.minfreq,god.vcf_format_field,god.vcf_allele_field,god.seek);
+}
+
+
+size_t readbcfvcf(char*fname,std::vector<double *> &mygl, std::vector<double> &freqs,int minind,double minfreq, std::string vcf_format_field, std::string vcf_allele_field,char *seek){
+  fprintf(stderr,"\t-> seek:%s\n",seek);
+  htsFile * inf = NULL;inf=hts_open(fname, "r");assert(inf);  
+  int isbcf=0;
+  if(inf->format.format==bcf)
+    isbcf=1;
+  if(seek&&isbcf==0){
+    fprintf(stderr,"\t-> if choosing region then input file has to be bcf\n");
+    exit(0);
+  }
+  satan god(mygl,freqs);
+  god.fname=fname;
+  god.minind=minind;
+  god.minfreq=minfreq;
+  god.vcf_format_field=vcf_format_field;
+  god.vcf_allele_field=vcf_allele_field;
+  god.seek=seek;
+  wrap(god);
+  return god.nind;
 }
 
 
 #ifdef __WITH_MAIN__
 
 int main(int argc, char **argv) {
-  if (argc != 2) {
-    usage();
+  if (argc == 1)
     return 1;
-  }
+
   std::vector<double *> gls;
   std::vector<double> freqs;
-  std::vector<char *> posinfo;
-  std::string pl=std::string("GT");
+  std::string pl=std::string("PL");
   std::string fr=std::string("AFngsrelate");
-  int nsites = getgls(argv[1],gls,freqs,2,0.04,pl,fr,posinfo,NULL);
+  char *reg = NULL;
+  if(argc==3)
+    reg=strdup(argv[2]);
+  fprintf(stderr,"reg:%s\n",reg);
+  int nsites = readbcfvcf(argv[1],gls,freqs,2,0.04,pl,fr,reg);
   return 0;
-}aergsg
+}
 
 #endif
