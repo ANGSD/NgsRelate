@@ -359,18 +359,84 @@ typedef struct satan_t{
   std::string vcf_allele_field;
   char *seek;
   std::vector<double *> mygl;
-  std::vector<double> &freqs;
-  satan_t(std::vector<double > &freqs_a):freqs(freqs_a){}
+  std::vector<double> freqs;
   int nind;
 }satan;
 
 void wrap(satan &god){
-
   god.nind=getgls(god.fname, god.mygl,god.freqs, god.minind, god.minfreq,god.vcf_format_field,god.vcf_allele_field,god.seek);
 }
 
 
 double ** readbcfvcf(char*fname,int &nind, std::vector<double> &freqs,int minind,double minfreq, std::string vcf_format_field, std::string vcf_allele_field,char *seek){
+  fprintf(stderr,"\t->readbcfvcf seek:%s freqs.size()\n",seek);
+  htsFile * inf = NULL;inf=hts_open(fname, "r");assert(inf);  
+  bcf_hdr_t *hdr = NULL;hdr=bcf_hdr_read(inf);assert(hdr);
+  int isbcf=0;
+  if(inf->format.format==bcf)
+    isbcf=1;
+  if(seek&&isbcf==0){
+    fprintf(stderr,"\t-> if choosing region then input file has to be bcf\n");
+    exit(0);
+  }
+  satan god;
+  god.fname=fname;
+  god.minind=minind;
+  god.minfreq=minfreq;
+  god.vcf_format_field=vcf_format_field;
+  god.vcf_allele_field=vcf_allele_field;
+  god.seek=seek;
+
+  int nseq = 0;  // number of sequences
+  const char **seqnames = NULL;
+  seqnames = bcf_hdr_seqnames(hdr, &nseq); 
+  assert(seqnames);
+  
+  
+  //std::vector<satan> jobs(seek?1:)
+  double **gls=NULL;
+  if(seek!=NULL||isbcf==0){//single run
+    wrap(god);
+    nind=god.nind;
+    gls=new double *[god.mygl.size()];
+    for(int i=0;i<god.mygl.size();i++){
+      gls[i] = god.mygl[i];
+    }
+  }else{
+    fprintf(stderr,"full\n");
+    std::vector<char *> hd = hasdata(fname);
+    std::vector<satan> jobs(hd.size(),god);
+    for(int i=0;i<jobs.size();i++)
+      jobs[i].seek=hd[i];
+    
+    if(diskio_treads==1){
+      for(int i=0;i<jobs.size();i++){
+	wrap(jobs[i]);
+      }
+    }else{
+      
+    }
+    int nsites =0;
+    for(int i=0;i<jobs.size();i++)
+      nsites += jobs[i].mygl.size();
+    nind=jobs[0].nind;
+    fprintf(stderr,"nsites from all:%d nind:%d\n",nsites,nind);
+    //merge results
+    gls=new double *[nsites];
+    freqs.reserve(nsites);
+    int at =0;
+    for(int i=0;i<jobs.size();i++){
+      for(int j=0;j<jobs[i].mygl.size();j++)
+	gls[at++] = jobs[i].mygl[j];
+      freqs.insert(freqs.end(),jobs[i].freqs.begin(),jobs[i].freqs.end());
+    }
+    fprintf(stderr,"mergefreqsize:%lu\n",freqs.size());
+  }
+
+ return gls;
+}
+// 
+double ** readbcfvcfold(char*fname,int &nind, std::vector<double> &freqs,int minind,double minfreq, std::string vcf_format_field, std::string vcf_allele_field,char *seek){
   fprintf(stderr,"\t-> seek:%s\n",seek);
   htsFile * inf = NULL;inf=hts_open(fname, "r");assert(inf);  
   int isbcf=0;
@@ -380,7 +446,8 @@ double ** readbcfvcf(char*fname,int &nind, std::vector<double> &freqs,int minind
     fprintf(stderr,"\t-> if choosing region then input file has to be bcf\n");
     exit(0);
   }
-  satan god(freqs);
+  //generate default
+  satan god;
   god.fname=fname;
   god.minind=minind;
   god.minfreq=minfreq;
