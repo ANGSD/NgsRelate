@@ -15,8 +15,36 @@
 #include <string>
 
 
-#define diskio_treads 8
+#define diskio_treads 1
 
+
+//populates a vector with the names of which we have data
+std::vector<char *> hasdata(char *fname){
+  htsFile * inf = NULL;inf=hts_open(fname, "r");assert(inf);
+  bcf_hdr_t *hdr = NULL;hdr=bcf_hdr_read(inf);assert(hdr);
+  bcf1_t *rec = NULL;rec=bcf_init();assert(rec);
+  hts_idx_t *idx=NULL;idx=bcf_index_load(fname);assert(idx);
+  hts_itr_t *iter=NULL;
+  int nseq = 0;  // number of sequences
+  const char **seqnames = NULL;
+  seqnames = bcf_hdr_seqnames(hdr, &nseq); assert(seqnames);//bcf_hdr_id2name(hdr,i)  
+  std::vector<char *> ret;
+  for(int i=0;i<nseq;i++){
+    char buf[strlen(seqnames[i])+100];
+    snprintf(buf,strlen(seqnames[i])+100,"%s:1-1000000000",seqnames[i]);
+    iter=bcf_itr_querys(idx,hdr,buf);
+    if(bcf_itr_next(inf, iter, rec)==0)
+      ret.push_back(strdup(seqnames[i]));
+  }
+  
+  bcf_destroy1(rec);
+  bcf_hdr_destroy(hdr);
+  bcf_itr_destroy(iter);
+  hts_idx_destroy(idx);
+  hts_close(inf);
+  fprintf(stderr,"Done with preliminary parsing of file: we have data for %lu out of %d reference sequences\n",ret.size(),nseq);
+  return ret;
+}
 
 
 // https://github.com/samtools/htslib/blob/57fe419344cb03e2ea46315443abd242489c32f2/vcf.c#L53
