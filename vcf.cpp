@@ -364,12 +364,13 @@ typedef struct satan_t{
 }satan;
 
 void wrap(satan &god){
+  fprintf(stderr,"wrap god.seek:%s\n",god.seek);
   god.nind=getgls(god.fname, god.mygl,god.freqs, god.minind, god.minfreq,god.vcf_format_field,god.vcf_allele_field,god.seek);
 }
 
 
 double ** readbcfvcf(char*fname,int &nind, std::vector<double> &freqs,int minind,double minfreq, std::string vcf_format_field, std::string vcf_allele_field,char *seek){
-  fprintf(stderr,"\t->readbcfvcf seek:%s freqs.size()\n",seek);
+  fprintf(stderr,"\t->] readbcfvcf seek:%s freqs.size()\n",seek);
   htsFile * inf = NULL;inf=hts_open(fname, "r");assert(inf);  
   bcf_hdr_t *hdr = NULL;hdr=bcf_hdr_read(inf);assert(hdr);
   int isbcf=0;
@@ -398,10 +399,12 @@ double ** readbcfvcf(char*fname,int &nind, std::vector<double> &freqs,int minind
   if(seek!=NULL||isbcf==0){//single run
     wrap(god);
     nind=god.nind;
+    fprintf(stderr,"readbcf vcf nind:%d\n",nind);
     gls=new double *[god.mygl.size()];
     for(int i=0;i<god.mygl.size();i++){
       gls[i] = god.mygl[i];
     }
+    freqs=god.freqs;
   }else{
     fprintf(stderr,"full\n");
     std::vector<char *> hd = hasdata(fname);
