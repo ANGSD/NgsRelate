@@ -15,7 +15,7 @@
 #include <string>
 
 
-#define diskio_treads 1
+#define diskio_treads 4
 
 
 //populates a vector with the names of which we have data
@@ -363,9 +363,10 @@ typedef struct satan_t{
   int nind;
 }satan;
 
-void wrap(satan &god){
-  fprintf(stderr,"wrap god.seek:%s\n",god.seek);
-  god.nind=getgls(god.fname, god.mygl,god.freqs, god.minind, god.minfreq,god.vcf_format_field,god.vcf_allele_field,god.seek);
+void wrap(void *ptr){
+  satan *god = (satan*) ptr;
+  fprintf(stderr,"wrap god->seek:%s\n",god->seek);
+  god->nind=getgls(god->fname, god->mygl,god->freqs, god->minind, god->minfreq,god->vcf_format_field,god->vcf_allele_field,god->seek);
 }
 
 
@@ -397,7 +398,7 @@ double ** readbcfvcf(char*fname,int &nind, std::vector<double> &freqs,int minind
   //std::vector<satan> jobs(seek?1:)
   double **gls=NULL;
   if(seek!=NULL||isbcf==0){//single run
-    wrap(god);
+    wrap(&god);
     nind=god.nind;
     fprintf(stderr,"readbcf vcf nind:%d\n",nind);
     gls=new double *[god.mygl.size()];
@@ -414,10 +415,12 @@ double ** readbcfvcf(char*fname,int &nind, std::vector<double> &freqs,int minind
     
     if(diskio_treads==1){
       for(int i=0;i<jobs.size();i++){
-	wrap(jobs[i]);
+	wrap(&jobs[i]);
       }
     }else{
       
+
+
     }
     int nsites =0;
     for(int i=0;i<jobs.size();i++)
@@ -435,35 +438,6 @@ double ** readbcfvcf(char*fname,int &nind, std::vector<double> &freqs,int minind
     }
     fprintf(stderr,"mergefreqsize:%lu\n",freqs.size());
   }
-
- return gls;
-}
-// 
-double ** readbcfvcfold(char*fname,int &nind, std::vector<double> &freqs,int minind,double minfreq, std::string vcf_format_field, std::string vcf_allele_field,char *seek){
-  fprintf(stderr,"\t-> seek:%s\n",seek);
-  htsFile * inf = NULL;inf=hts_open(fname, "r");assert(inf);  
-  int isbcf=0;
-  if(inf->format.format==bcf)
-    isbcf=1;
-  if(seek&&isbcf==0){
-    fprintf(stderr,"\t-> if choosing region then input file has to be bcf\n");
-    exit(0);
-  }
-  //generate default
-  satan god;
-  god.fname=fname;
-  god.minind=minind;
-  god.minfreq=minfreq;
-  god.vcf_format_field=vcf_format_field;
-  god.vcf_allele_field=vcf_allele_field;
-  god.seek=seek;
-  wrap(god);
-  nind=god.nind;
-
-  double **gls=new double *[god.mygl.size()];
-  for(int i=0;i<god.mygl.size();i++)
-    gls[i] = god.mygl[i];
-
 
  return gls;
 }
