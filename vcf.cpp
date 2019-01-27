@@ -328,6 +328,8 @@ size_t getgls(char*fname,std::vector<double *> &mygl, std::vector<double> &freqs
 	fprintf(stdout," %f",ln_gl[i]);
       fprintf(stdout,"\n");
 #endif
+      for(int ns=0;ns<3*nsamples;ns++)
+	tmp[ns]=exp(tmp[ns]);
       mygl.push_back(tmp);
       freqs.push_back(freq);
       //populate debug names
@@ -389,12 +391,8 @@ double ** readbcfvcf(char*fname,int &nind, std::vector<double> &freqs,int minind
   nind=god.nind;
 
   double **gls=new double *[god.mygl.size()];
-  for(int i=0;i<god.mygl.size();i++){
+  for(int i=0;i<god.mygl.size();i++)
     gls[i] = god.mygl[i];
-    for(int ii=0;ii<3*nind;ii++)
-      gls[i][ii]=exp(gls[i][ii]);
-  }
-
 
 
  return gls;
