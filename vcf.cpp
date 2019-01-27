@@ -15,7 +15,7 @@
 #include <string>
 
 
-#define diskio_treads 4
+#define diskio_threads 1
 
 
 //populates a vector with the names of which we have data
@@ -413,13 +413,13 @@ double ** readbcfvcf(char*fname,int &nind, std::vector<double> &freqs,int minind
     for(int i=0;i<jobs.size();i++)
       jobs[i].seek=hd[i];
     
-    if(diskio_treads==1){
+    if(diskio_threads==1){
       for(int i=0;i<jobs.size();i++){
 	wrap(&jobs[i]);
       }
     }else{
+      int      at =0;
       
-
 
     }
     int nsites =0;
