@@ -15,7 +15,7 @@
 #include <string>
 
 
-#define diskio_threads 1
+#define diskio_threads 10
 
 
 //populates a vector with the names of which we have data
@@ -42,7 +42,7 @@ std::vector<char *> hasdata(char *fname){
   bcf_itr_destroy(iter);
   hts_idx_destroy(idx);
   hts_close(inf);
-  fprintf(stderr,"Done with preliminary parsing of file: we have data for %lu out of %d reference sequences\n",ret.size(),nseq);
+  fprintf(stderr,"\t-> Done with preliminary parsing of file: we have data for %lu out of %d reference sequences\n",ret.size(),nseq);
   return ret;
 }
 
@@ -159,7 +159,7 @@ size_t getgls(char*fname,std::vector<double *> &mygl, std::vector<double> &freqs
   hts_itr_t *iter=NULL;
 
   if(seek){
-    fprintf(stderr,"\t-> setting iterator to: %s\n",seek);
+    //    fprintf(stderr,"\t-> setting iterator to: %s\n",seek);
     idx=bcf_index_load(fname);
     iter=bcf_itr_querys(idx,hdr,seek);
   }
@@ -188,7 +188,7 @@ size_t getgls(char*fname,std::vector<double *> &mygl, std::vector<double> &freqs
 
   // read header
   nsamples = bcf_hdr_nsamples(hdr);
-  fprintf(stderr, "\t-> File %s contains %i samples\n", fname, nsamples);
+  //  fprintf(stderr, "\t-> File %s contains %i samples\n", fname, nsamples);
   const char **seqnames = NULL;
   seqnames = bcf_hdr_seqnames(hdr, &nseq); assert(seqnames);//bcf_hdr_id2name(hdr,i)
 
@@ -340,7 +340,7 @@ size_t getgls(char*fname,std::vector<double *> &mygl, std::vector<double> &freqs
     // fprintf(stderr,"rec->pos:%d npl:%d naf:%d rec->n_allele:%d af[0]:%f\n",rec->pos,npl,naf,rec->n_allele,freq);
     // exit(0);
   }
-  fprintf(stderr, "\t-> [vcf.cpp] Read %i records %i of which were SNPs number of sites with data:%lu\n", n, nsnp,mygl.size());
+  fprintf(stderr, "\t-> [file=\'%s\'][chr=\'%s\'] Read %i records %i of which were SNPs number of sites with data:%lu\n",fname,seek, n, nsnp,mygl.size()); 
   free(pl);
   free(gt);
   bcf_hdr_destroy(hdr);
@@ -363,15 +363,14 @@ typedef struct satan_t{
   int nind;
 }satan;
 
-void wrap(void *ptr){
+void *wrap(void *ptr){
   satan *god = (satan*) ptr;
-  fprintf(stderr,"wrap god->seek:%s\n",god->seek);
   god->nind=getgls(god->fname, god->mygl,god->freqs, god->minind, god->minfreq,god->vcf_format_field,god->vcf_allele_field,god->seek);
 }
 
 
 double ** readbcfvcf(char*fname,int &nind, std::vector<double> &freqs,int minind,double minfreq, std::string vcf_format_field, std::string vcf_allele_field,char *seek){
-  fprintf(stderr,"\t->] readbcfvcf seek:%s freqs.size()\n",seek);
+  fprintf(stderr,"\t-> readbcfvcf seek:%s \n",seek);
   htsFile * inf = NULL;inf=hts_open(fname, "r");assert(inf);  
   bcf_hdr_t *hdr = NULL;hdr=bcf_hdr_read(inf);assert(hdr);
   int isbcf=0;
@@ -407,7 +406,6 @@ double ** readbcfvcf(char*fname,int &nind, std::vector<double> &freqs,int minind
     }
     freqs=god.freqs;
   }else{
-    fprintf(stderr,"full\n");
     std::vector<char *> hd = hasdata(fname);
     std::vector<satan> jobs(hd.size(),god);
     for(int i=0;i<jobs.size();i++)
@@ -418,15 +416,26 @@ double ** readbcfvcf(char*fname,int &nind, std::vector<double> &freqs,int minind
 	wrap(&jobs[i]);
       }
     }else{
-      int      at =0;
-      
+      int at =0;
 
+      while(at<hd.size()){
+	//	fprintf(stderr,"at:%d hdsize:%lu\n",at,hd.size());
+	int howmany=std::min(diskio_threads,(int)hd.size()-at);
+	pthread_t mythd[howmany];
+	for(int i=0;i<howmany;i++){
+	  fprintf(stderr,"\t-> Launching reading[%d]:%s\n",i+at,jobs[i+at].seek);
+	  assert (pthread_create(&mythd[i],NULL,wrap,&jobs[i+at])==0);
+	}
+	for(int i=0;i<howmany;i++)
+	  assert(pthread_join(mythd[i],NULL)==0);
+	at+=howmany;
+      }
     }
     int nsites =0;
     for(int i=0;i<jobs.size();i++)
       nsites += jobs[i].mygl.size();
     nind=jobs[0].nind;
-    fprintf(stderr,"nsites from all:%d nind:%d\n",nsites,nind);
+    //    fprintf(stderr,"Done reading everything we have nsites:%d for samples:%d\n",nsites,nind);
     //merge results
     gls=new double *[nsites];
     freqs.reserve(nsites);
@@ -436,7 +445,7 @@ double ** readbcfvcf(char*fname,int &nind, std::vector<double> &freqs,int minind
 	gls[at++] = jobs[i].mygl[j];
       freqs.insert(freqs.end(),jobs[i].freqs.begin(),jobs[i].freqs.end());
     }
-    fprintf(stderr,"mergefreqsize:%lu\n",freqs.size());
+    //    fprintf(stderr,"mergefreqsize:%lu\n",freqs.size());
   }
 
  return gls;

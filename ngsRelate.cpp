@@ -1202,6 +1202,10 @@ int main(int argc, char **argv){
       print_info(stderr);
     }
   }
+  if(outname==NULL){
+    fprintf(stderr,"\t-> No output filename declared please supply filename with -O output.res\n");
+    return 0;
+  }
   std::string plink_fam,plink_bim,plink_bed;
   if(plinkfile){
     fprintf(stderr,"\t-P %s\n",plinkfile);
@@ -1366,6 +1370,7 @@ int main(int argc, char **argv){
       fprintf(stderr,"\t-> Modelling errors for genotypes (should only be used for called genotypes)\n");    
       callgenotypesEps(gls, overall_number_of_sites, nind, errate);
     }
+    fprintf(stderr,"\t-> Done calling genotypes\n");
   }
 
 #if 0 //for printout everything
@@ -1377,10 +1382,9 @@ int main(int argc, char **argv){
   }
   return 0;
 #endif
-  if(outname==NULL){
-    fprintf(stderr,"\t-> No output filename declared please supply filename with -O output.res\n");
-    return 0;
-  }
+ 
+
+  float splittimes[2] = {(float)(clock() - t) / CLOCKS_PER_SEC,(float)(time(NULL) - t2)};
   FILE *output = NULL;
   output = fopen(outname,"wb");
   assert(output);
@@ -1396,7 +1400,7 @@ int main(int argc, char **argv){
     }
   }
 
-
+  fprintf(stderr,"\t-> Starting analysis now\n");
   if(faster==0)
     main_analysis1(freq,gls,num_threads,output,total_sites);
   else
@@ -1413,8 +1417,8 @@ int main(int argc, char **argv){
   for(int i=0;i<spillfiles.size();i++)
     fclose(spillfiles[i]);
 
-  fprintf(stderr, "\t[ALL done] cpu-time used =  %.2f sec\n", (float)(clock() - t) / CLOCKS_PER_SEC);
-  fprintf(stderr, "\t[ALL done] walltime used =  %.2f sec\n", (float)(time(NULL) - t2));  
+  fprintf(stderr, "\t[ALL done] cpu-time used =  %.2f sec (filereading took: %.2f sec)\n", (float)(clock() - t) / CLOCKS_PER_SEC,splittimes[0]);
+  fprintf(stderr, "\t[ALL done] walltime used =  %.2f sec (filereading took: %.2f sec)\n", (float)(time(NULL) - t2),splittimes[1]);  
 
 
   return 0;
