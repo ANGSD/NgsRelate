@@ -73,8 +73,8 @@ int switchMaf = 0;
 double minMaf =0.05;
 int hasDef = 0;
 double ttol=1e-6;
-std::string vcf_format_field = "PL"; // can take PL or GT
-std::string vcf_allele_field = "AFngsrelate"; // can take any tag value e.g. AF AF1 etc
+char *vcf_format_field = strdup("PL"); // can take PL or GT
+char *vcf_allele_field = strdup("AFngsrelate"); // can take any tag value e.g. AF AF1 etc
 
 std::vector<char *> ids;
 
@@ -1129,22 +1129,24 @@ int main_analysis2(std::vector<double> &freq,double **gls,int num_threads,FILE *
    for(int i=0;i<num_threads;i++)
      assert(pthread_join(threads[i], NULL)==0);
    
-   if(do_inbred){
+   if(do_inbred)
      fprintf(output,"Ind\tZ=0\tZ=1\tloglh\tnIter\tcoverage\tsites\n");
-     for(int i=0;i<mp.size();i++)
-       fwrite(mp[i].res,sizeof(char),strlen(mp[i].res),output);
-   }else{
+   else{
      if (ids.size()) {
        fprintf(output,
 	       "a\tb\tida\tidb\tnSites\tJ9\tJ8\tJ7\tJ6\tJ5\tJ4\tJ3\tJ2\tJ1\trab\tFa\tFb\ttheta\tinbred_relatedness_1_2\tinbred_relatedness_2_1\tfraternity\tidentity\tzygosity\t2of3_IDB\tF_diff_a_b\tloglh\tnIter\tcoverage\t2dsfs\tR0\tR1\tKING\t2dsfs_loglike\t2dsfsf_niter\n");
      } else {
        fprintf(output, "a\tb\tnSites\tJ9\tJ8\tJ7\tJ6\tJ5\tJ4\tJ3\tJ2\tJ1\trab\tFa\tFb\ttheta\tinbred_relatedness_1_2\tinbred_relatedness_2_1\tfraternity\tidentity\tzygosity\t2of3IDB\tFDiff\tloglh\tnIter\tcoverage\t2dsfs\tR0\tR1\tKING\t2dsfs_loglike\t2dsfsf_niter\n");
      }
-     for(int i=0;i<mp.size();i++)
-       fwrite(mp[i].res,sizeof(char),strlen(mp[i].res),output);
-     
+   }
+   for(int i=0;i<mp.size();i++){
+     fwrite(mp[i].res,sizeof(char),strlen(mp[i].res),output);
+     free(mp[i].res);
    }
    FINISHED=1;
+   for(int i=0;i<num_threads;i++)
+     delete all_args[i];
+   delete [] all_args;
   return 0;
 
 
@@ -1176,7 +1178,7 @@ int main(int argc, char **argv){
 
   char *htsfile=NULL;
   char *plinkfile=NULL;
-  const char *outname=NULL;
+  char *outname=NULL;
   char *region=NULL;
   while ((n = getopt(argc, argv, "f:i:t:r:g:m:s:F:o:c:e:a:b:n:l:z:p:h:L:T:A:P:O:X:R:")) >= 0) {
     switch (n) {
@@ -1201,8 +1203,8 @@ int main(int argc, char **argv){
     case 'e': errate = atof(optarg); break;
     case 'l': minMaf = atof(optarg); break;
     case 'h': htsfile = strdup(optarg); break;
-    case 'T': vcf_format_field = strdup(optarg); break;
-    case 'A': vcf_allele_field = strdup(optarg); break;            
+    case 'T': free(vcf_format_field);vcf_format_field = strdup(optarg); break;
+    case 'A': free(vcf_allele_field);vcf_allele_field = strdup(optarg); break;            
     case 'z': readids(ids,optarg); break;
     case 'L': nsites_2dsfs = atoi(optarg); break;
     default: {fprintf(stderr,"unknown arg:\n");return 0;}
@@ -1259,8 +1261,8 @@ int main(int argc, char **argv){
   fprintf(stderr,"\t-> Seed is: %d\n",seed);
 
   if (htsfile!=NULL){
-    fprintf(stderr, "\t-> Will use TAG: '%s' from the VCF file\n", vcf_format_field.c_str());
-    fprintf(stderr, "\t-> Will use TAG: '%s' in the VCF file as allele frequency if present. Otherwise allele frequencies are estimated from the data\n", vcf_allele_field.c_str());
+    fprintf(stderr, "\t-> Will use TAG: '%s' from the VCF file\n", vcf_format_field);
+    fprintf(stderr, "\t-> Will use TAG: '%s' in the VCF file as allele frequency if present. Otherwise allele frequencies are estimated from the data\n", vcf_allele_field);
   }
   srand48(seed);
 
@@ -1421,12 +1423,17 @@ int main(int argc, char **argv){
   free(gname);
   free(htsfile);
   fclose(output);
-  for(int i=0;i<spillfiles.size();i++)
+  for(int i=0;i<spillfiles.size();i++){
     fclose(spillfiles[i]);
+    free(spillfilesnames[i]);
+  }
 
   fprintf(stderr, "\t[ALL done] cpu-time used =  %.2f sec (filereading took: %.2f sec)\n", (float)(clock() - t) / CLOCKS_PER_SEC,splittimes[0]);
   fprintf(stderr, "\t[ALL done] walltime used =  %.2f sec (filereading took: %.2f sec)\n", (float)(time(NULL) - t2),splittimes[1]);  
-
-
+  
+  if(outname) free(outname);
+  if(region) free(region);
+  if(vcf_allele_field) free(vcf_allele_field);
+  if(vcf_format_field) free(vcf_format_field);
   return 0;
 }

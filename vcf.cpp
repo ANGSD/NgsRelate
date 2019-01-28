@@ -35,11 +35,11 @@ std::vector<char *> hasdata(char *fname){
     iter=bcf_itr_querys(idx,hdr,buf);
     if(bcf_itr_next(inf, iter, rec)==0)
       ret.push_back(strdup(seqnames[i]));
+    hts_itr_destroy(iter);
   }
-  
+  free(seqnames);
   bcf_destroy1(rec);
   bcf_hdr_destroy(hdr);
-  bcf_itr_destroy(iter);
   hts_idx_destroy(idx);
   hts_close(inf);
   fprintf(stderr,"\t-> Done with preliminary parsing of file: we have data for %lu out of %d reference sequences\n",ret.size(),nseq);
@@ -346,7 +346,13 @@ size_t getgls(char*fname,std::vector<double *> &mygl, std::vector<double> &freqs
   bcf_hdr_destroy(hdr);
   bcf_close(inf);
   bcf_destroy(rec);
+  if(iter)
+    hts_itr_destroy(iter);
+  if(idx)
+    hts_idx_destroy(idx);
 
+  //for(int i=0;i<nseq;i++)
+    free(seqnames);
   return nsamples;
  
 }
@@ -445,10 +451,13 @@ double ** readbcfvcf(char*fname,int &nind, std::vector<double> &freqs,int minind
 	gls[at++] = jobs[i].mygl[j];
       freqs.insert(freqs.end(),jobs[i].freqs.begin(),jobs[i].freqs.end());
     }
-    //    fprintf(stderr,"mergefreqsize:%lu\n",freqs.size());
+    for(int i=0;i<hd.size();i++)
+      free(hd[i]);
   }
-
- return gls;
+  free(seqnames);
+  if(hdr) bcf_hdr_destroy(hdr);
+  hts_close(inf);
+  return gls;
 }
 
 
