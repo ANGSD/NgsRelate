@@ -922,7 +922,7 @@ void *turbothread(void *threadarg){
 	snprintf(buf,4096,"%d\t%f\t%f\t%f\t%d\t%f\t%d\n",i,td->pars[0],td->pars[1],td->bestll,td->niter,((double)td->nkeep)/((double)overall_number_of_sites), td->nkeep);
       mp[i].res=strdup(buf);
     }else{
-      mp[i].res =strdup(formatoutput(mp[i].a,mp[i].b,td,total_sites));
+      mp[i].res =formatoutput(mp[i].a,mp[i].b,td,total_sites);
     }
     fwrite(mp[i].res,sizeof(char),strlen(mp[i].res),spillfiles[td->thread_id]);
   }

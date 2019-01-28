@@ -405,7 +405,6 @@ double ** readbcfvcf(char*fname,int &nind, std::vector<double> &freqs,int minind
   if(seek!=NULL||isbcf==0){//single run
     wrap(&god);
     nind=god.nind;
-    fprintf(stderr,"readbcf vcf nind:%d\n",nind);
     gls=new double *[god.mygl.size()];
     for(int i=0;i<god.mygl.size();i++){
       gls[i] = god.mygl[i];
