@@ -116,7 +116,7 @@ double loglike(double *p,double **emis,int len,int dim){
 void emStep(double *pre,double **emis,double *post,int len,int len2){
   for(int i=0;i<len2;i++){
     if(pre[i]<0||pre[i]>1){
-      fprintf(stderr,"Problem with gues in emStep: ");
+      fprintf(stderr,"Problem with guess in emStep: ");
       for(int j=0;j<len2;j++)
 	fprintf(stderr," %f ",pre[0]);
       fprintf(stderr,"\n");
@@ -609,6 +609,12 @@ struct worker_args_t {
     for(int i=0;i<s;i++)
       emis[i] = new double[9];//<- will hold, 2dsfs,F and 9jacq emissions depending on context
   }
+  ~worker_args_t(){
+    for(int i=0;i<nsites;i++)
+      delete [] emis[i];
+    delete [] emis;
+    delete [] keeplist;
+  }
 };
 
 typedef struct worker_args_t worker_args;
@@ -746,8 +752,7 @@ void anal1(int a,int b,worker_args * td,double minMaf){
 void * do_work(void *threadarg){
 
   // https://www.tutorialspoint.com/cplusplus/cpp_multithreading.htm
-  worker_args * td;
-  td = ( worker_args * ) threadarg;
+  worker_args * td=( worker_args * ) threadarg;
   anal1(td->a,td->b,td,minMaf); 
   pthread_exit(NULL);
 }
@@ -928,13 +933,14 @@ int main_analysis1(std::vector<double> &freq,double **gls,int num_threads,FILE *
   if(do_inbred) {
     fprintf(output,"Ind\tZ=0\tZ=1\tloglh\tnIter\tcoverage\tsites\n");
     int comparison_ids_inbred = 0;
-    std::vector<worker_args> all_args_inbred;
-    for(int a=0;a<nind;a++){
+    std::vector<worker_args*> all_args_inbred;
+
+    for(int a=0;a<nind;a++) {
       if (pair1 != -1)
         a = pair1;
-      worker_args td_args_inbred(a, a, &freq, gls, overall_number_of_sites);
-      td_args_inbred.pars[0]=drand48();
-      td_args_inbred.pars[1]=1-td_args_inbred.pars[0];
+      worker_args *td_args_inbred = new worker_args(a, a, &freq, gls, overall_number_of_sites);
+      td_args_inbred->pars[0]=drand48();
+      td_args_inbred->pars[1]=1-td_args_inbred->pars[0];
       all_args_inbred.push_back(td_args_inbred);
       comparison_ids_inbred++;
       if (pair1 != -1){
@@ -951,21 +957,14 @@ int main_analysis1(std::vector<double> &freq,double **gls,int num_threads,FILE *
       } else{
         nTimes_inbred = comparison_ids_inbred-cnt_inbred;
       }
-#if 0
-      fprintf(stderr, "\ngot this far. while %d.\n", cnt_inbred);
-      fprintf(stderr, "comparisons: %d\n", comparison_ids_inbred);
-      for(int i=0;1 && i<nTimes_inbred;i++){
-        fprintf(stderr,"cnt:%d i:%d\n",cnt_inbred+i,i);
-      }
-#endif
       for(int i=0;i<nTimes_inbred;i++){
-        all_args_inbred[cnt_inbred + i].thread_id = i;
-	//        pthread_create(&threads[i],NULL,do_work_inbred,&all_args_inbred[cnt_inbred+i]);
-        pthread_create(&threads[i],NULL,do_work,&all_args_inbred[cnt_inbred+i]);
+        all_args_inbred[cnt_inbred + i]->thread_id = i;
+
+        pthread_create(&threads[i],NULL,do_work,all_args_inbred[cnt_inbred+i]);
       }
       for(int i=0;i<nTimes_inbred;i++){
         pthread_join(threads[i], NULL);
-        worker_args * td_out_inbred = &all_args_inbred[cnt_inbred + i];
+        worker_args * td_out_inbred = all_args_inbred[cnt_inbred + i];
         if(td_out_inbred->best==0)
           fprintf(output,"%d\t%f\t%f\t%f\t%d\t%f\t%d\n",td_out_inbred->a, p10[0],p10[1],td_out_inbred->bestll,-1,((double)td_out_inbred->nkeep)/((double)overall_number_of_sites), td_out_inbred->nkeep);
         if(td_out_inbred->best==1)
@@ -977,6 +976,8 @@ int main_analysis1(std::vector<double> &freq,double **gls,int num_threads,FILE *
       cnt_inbred += nTimes_inbred;
       fprintf(stderr, "\t-> Processed %d out of %d\r", cnt_inbred, comparison_ids_inbred);
     }
+    for(int i=0;i<all_args_inbred.size();i++)
+      delete all_args_inbred[i];
   } else {
     if(do_simple){
       fprintf(stderr, "\t-> setting Jacquard coefficient related to inbreeding (1-6) to zero\n");
@@ -990,31 +991,32 @@ int main_analysis1(std::vector<double> &freq,double **gls,int num_threads,FILE *
       fprintf(output, "a\tb\tnSites\tJ9\tJ8\tJ7\tJ6\tJ5\tJ4\tJ3\tJ2\tJ1\trab\tFa\tFb\ttheta\tinbred_relatedness_1_2\tinbred_relatedness_2_1\tfraternity\tidentity\tzygosity\t2of3IDB\tFDiff\tloglh\tnIter\tcoverage\t2dsfs\tR0\tR1\tKING\t2dsfs_loglike\t2dsfsf_niter\n");
     }
     int comparison_ids = 0;
-    std::vector<worker_args> all_args;
-    for (int a = 0; a < nind; a++) {
+    std::vector<worker_args *> all_args;
+
+  for (int a = 0; a < nind; a++) {
       for (int b = a + 1; b < nind; b++) {
         if (pair1 != -1)
           a = pair1;
         if (pair2 != -1)
           b = pair2;
 
-        worker_args td_args(a, b, &freq, gls, overall_number_of_sites);
-        
+        worker_args *td_args=new worker_args(a, b, &freq, gls, overall_number_of_sites);
+
         double parval = 0.0, parsum = 0.0;
         for (int i = 0; i < 9; i++) {
           parval = drand48();
           if(do_2dsfs_only){
-            td_args.pars[i] = 0;
+            td_args->pars[i] = 0;
           } else if(do_simple && i>=3){
-            td_args.pars[i] = 0;
+            td_args->pars[i] = 0;
           }else {
-            td_args.pars[i] = parval;
+            td_args->pars[i] = parval;
             parsum += parval;
           }
         }
         if(parsum>0){
           for (int i = 0; i < 9; i++) {
-            td_args.pars[i] /= parsum;
+            td_args->pars[i] /= parsum;
             // fprintf(stderr, "par: %d, %f\n", i, td_args.pars[i]);
           }
         }
@@ -1023,12 +1025,12 @@ int main_analysis1(std::vector<double> &freq,double **gls,int num_threads,FILE *
         parval = 0.0, parsum = 0.0;
         for (int i = 0; i < 9; i++) {
           parval = drand48();
-          td_args.pars_2dsfs[i] = parval;
+          td_args->pars_2dsfs[i] = parval;
           parsum += parval;
         }
 
         for (int i = 0; i < 9; i++) {
-          td_args.pars_2dsfs[i] /= parsum;
+          td_args->pars_2dsfs[i] /= parsum;
           // fprintf(stderr, "par: %d, %f\n", i, td_args.pars[i]);
         }
 
@@ -1044,7 +1046,7 @@ int main_analysis1(std::vector<double> &freq,double **gls,int num_threads,FILE *
         break;
       }
     } // end ind b
-    
+
     int cnt=0;
     while(cnt<comparison_ids){
       int nTimes;
@@ -1054,13 +1056,13 @@ int main_analysis1(std::vector<double> &freq,double **gls,int num_threads,FILE *
         nTimes = comparison_ids-cnt;
 
       for(int i=0;i<nTimes;i++){
-        all_args[cnt + i].thread_id = i;
-        pthread_create(&threads[i],NULL,do_work,&all_args[cnt+i]);
+        all_args[cnt + i]->thread_id = i;
+        pthread_create(&threads[i],NULL,do_work,all_args[cnt+i]);
       }
       
       for(int i=0;i<nTimes;i++){
         pthread_join(threads[i], NULL);
-        worker_args * td_out = &all_args[cnt + i];
+        worker_args * td_out = all_args[cnt + i];
 	char *str=formatoutput(td_out->a,td_out->b,td_out,total_sites);
 	fwrite(str,sizeof(char),strlen(str),output);
 	free(str);
@@ -1068,8 +1070,13 @@ int main_analysis1(std::vector<double> &freq,double **gls,int num_threads,FILE *
       cnt += nTimes;
       fprintf(stderr, "\t-> Processed     %d out of       %d\r", cnt, comparison_ids);
     }
+    for(int i=0;i<all_args.size();i++)
+      delete all_args[i];
+
   }
+  
   fprintf(stderr,"\n");
+
 }
 
 int main_analysis2(std::vector<double> &freq,double **gls,int num_threads,FILE *output,int total_sites,FILE *outfile){
