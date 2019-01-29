@@ -16,7 +16,7 @@
 
 
 #define diskio_threads 20
-#define std_queue 0
+#define std_queue 1
 
 
 pthread_mutex_t mymut = PTHREAD_MUTEX_INITIALIZER;
