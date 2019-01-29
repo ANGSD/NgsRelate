@@ -15,8 +15,26 @@
 #include <string>
 
 
-#define diskio_threads 10
+#define diskio_threads 20
+#define std_queue 0
 
+
+pthread_mutex_t mymut = PTHREAD_MUTEX_INITIALIZER;
+int mycounter = 0; //my semaphore
+
+typedef struct satan_t{
+  char*fname;
+  int minind;
+  double minfreq;
+  std::string vcf_format_field;
+  std::string vcf_allele_field;
+  char *seek;
+  std::vector<double *> mygl;
+  std::vector<double> freqs;
+  int nind;
+}satan;
+
+std::vector<satan> jobs;
 
 //populates a vector with the names of which we have data
 std::vector<char *> hasdata(char *fname){
@@ -159,7 +177,7 @@ size_t getgls(char*fname,std::vector<double *> &mygl, std::vector<double> &freqs
   hts_itr_t *iter=NULL;
 
   if(seek){
-    //    fprintf(stderr,"\t-> setting iterator to: %s\n",seek);
+    fprintf(stderr,"\t-> Setting iterator to: %s\n",seek);fflush(stderr);
     idx=bcf_index_load(fname);
     iter=bcf_itr_querys(idx,hdr,seek);
   }
@@ -357,21 +375,25 @@ size_t getgls(char*fname,std::vector<double *> &mygl, std::vector<double> &freqs
  
 }
 
-typedef struct satan_t{
-  char*fname;
-  int minind;
-  double minfreq;
-  std::string vcf_format_field;
-  std::string vcf_allele_field;
-  char *seek;
-  std::vector<double *> mygl;
-  std::vector<double> freqs;
-  int nind;
-}satan;
-
 void *wrap(void *ptr){
   satan *god = (satan*) ptr;
   god->nind=getgls(god->fname, god->mygl,god->freqs, god->minind, god->minfreq,god->vcf_format_field,god->vcf_allele_field,god->seek);
+  pthread_exit(NULL);
+}
+
+
+void *wrap2(void *){
+  fprintf(stderr,"wrap2\n");fflush(stderr);
+  while(1){
+    pthread_mutex_lock(&mymut);
+    int myvar = mycounter;
+    mycounter++;
+    pthread_mutex_unlock(&mymut);
+    if(myvar>=jobs.size())
+      pthread_exit(NULL);
+    satan *god = (satan*) &jobs[myvar];
+    god->nind=getgls(god->fname, god->mygl,god->freqs, god->minind, god->minfreq,god->vcf_format_field,god->vcf_allele_field,god->seek);
+  }
 }
 
 
@@ -412,9 +434,11 @@ double ** readbcfvcf(char*fname,int &nind, std::vector<double> &freqs,int minind
     freqs=god.freqs;
   }else{
     std::vector<char *> hd = hasdata(fname);
-    std::vector<satan> jobs(hd.size(),god);
-    for(int i=0;i<jobs.size();i++)
+
+    for(int i=0;i<hd.size();i++){
+      jobs.push_back(god);
       jobs[i].seek=hd[i];
+    }
     
     if(diskio_threads==1){
       for(int i=0;i<jobs.size();i++){
@@ -428,8 +452,11 @@ double ** readbcfvcf(char*fname,int &nind, std::vector<double> &freqs,int minind
 	int howmany=std::min(diskio_threads,(int)hd.size()-at);
 	pthread_t mythd[howmany];
 	for(int i=0;i<howmany;i++){
-	  fprintf(stderr,"\t-> Launching reading[%d]:%s\n",i+at,jobs[i+at].seek);
+#if std_queue
 	  assert (pthread_create(&mythd[i],NULL,wrap,&jobs[i+at])==0);
+#else
+	  assert (pthread_create(&mythd[i],NULL,wrap2,NULL)==0);
+#endif
 	}
 	for(int i=0;i<howmany;i++)
 	  assert(pthread_join(mythd[i],NULL)==0);

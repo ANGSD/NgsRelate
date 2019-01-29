@@ -925,6 +925,7 @@ void *turbothread(void *threadarg){
       mp[i].res =formatoutput(mp[i].a,mp[i].b,td,total_sites);
     }
     fwrite(mp[i].res,sizeof(char),strlen(mp[i].res),spillfiles[td->thread_id]);
+    fflush(spillfiles[td->thread_id]);
   }
 }
 
@@ -1394,6 +1395,8 @@ int main(int argc, char **argv){
  
 
   float splittimes[2] = {(float)(clock() - t) / CLOCKS_PER_SEC,(float)(time(NULL) - t2)};
+  fprintf(stderr,"\t-> Done reading data from file: %.2f %.2f\n",splittimes[0],splittimes[1]);
+  fflush(stderr);
   FILE *output = NULL;
   output = fopen(outname,"wb");
   assert(output);
