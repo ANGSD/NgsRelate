@@ -15,6 +15,7 @@ LOG=${0}.log
 ODIR=odir
 echo "Cleaning old output dir ${ODIR} PRG:${PRG}" >${LOG}
 echo "rm -rf ${ODIR} ${LOG}"
+rm -rf ${ODIR} ${LOG}
 mkdir -p ${ODIR}
 
 gunzip -c small.bed.gz >small.bed

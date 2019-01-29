@@ -382,8 +382,7 @@ size_t getgls(char*fname,std::vector<double *> &mygl, std::vector<double> &freqs
 void *wrap(void *ptr){
   satan *god = (satan*) ptr;
   god->nind=getgls(god->fname, god->mygl,god->freqs, god->minind, god->minfreq,god->vcf_format_field,god->vcf_allele_field,god->seek);
-  fprintf(stderr,"never hre20000\n");
-  //  pthread_exit(NULL);
+  //  pthread_exit(NULL);//this is sometimes called without thread
 }
 
 
