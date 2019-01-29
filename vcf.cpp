@@ -167,7 +167,6 @@ double emFrequency(double *loglike,int numInds, int iter,double start,char *keep
 
 
 size_t getgls(char*fname,std::vector<double *> &mygl, std::vector<double> &freqs,int minind,double minfreq, std::string &vcf_format_field, std::string &vcf_allele_field,char *seek){
-  fprintf(stderr,"getgls: seek:%s\n",seek);
   for(int i=0;i<PHREDMAX;i++){    
     pl2ln[i] = log(pow(10.0,-0.1*i));
   }
@@ -431,9 +430,7 @@ double ** readbcfvcf(char*fname,int &nind, std::vector<double> &freqs,int minind
   
   double **gls=NULL;
   if(seek!=NULL||isbcf==0){//single run
-    fprintf(stderr,"are we here\n");
     wrap(&god);
-    fprintf(stderr,"are we not here\n");
     nind=god.nind;
    
     gls=new double *[god.mygl.size()];
