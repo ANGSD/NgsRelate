@@ -387,7 +387,6 @@ void *wrap(void *ptr){
 
 
 void *wrap2(void *){
-  fprintf(stderr,"wrap2\n");fflush(stderr);
   while(1){
     pthread_mutex_lock(&mymut);
     int myvar = mycounter;
