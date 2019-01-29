@@ -1260,12 +1260,12 @@ int main(int argc, char **argv){
     seed=rand();
   }
   fprintf(stderr,"\t-> Seed is: %d\n",seed);
-
+  srand48(seed);
   if (htsfile!=NULL){
     fprintf(stderr, "\t-> Will use TAG: '%s' from the VCF file\n", vcf_format_field);
     fprintf(stderr, "\t-> Will use TAG: '%s' in the VCF file as allele frequency if present. Otherwise allele frequencies are estimated from the data\n", vcf_allele_field);
   }
-  srand48(seed);
+ 
 
   if ((nind == -1 || gname == NULL)&&htsfile==NULL&&plinkfile==NULL) {
     fprintf(stderr, "\t-> Must supply -n -g parameters (%d,%s) OR -h file.[vb]cf\n", nind,gname);
