@@ -16,7 +16,7 @@
 
 
 #define diskio_threads 10
-#define std_queue 1
+int std_queue = 1;
 
 
 pthread_mutex_t mymut = PTHREAD_MUTEX_INITIALIZER;
@@ -167,6 +167,7 @@ double emFrequency(double *loglike,int numInds, int iter,double start,char *keep
 
 
 size_t getgls(char*fname,std::vector<double *> &mygl, std::vector<double> &freqs,int minind,double minfreq, std::string &vcf_format_field, std::string &vcf_allele_field,char *seek){
+  fprintf(stderr,"getgls: seek:%s\n",seek);
   for(int i=0;i<PHREDMAX;i++){    
     pl2ln[i] = log(pow(10.0,-0.1*i));
   }
@@ -359,11 +360,13 @@ size_t getgls(char*fname,std::vector<double *> &mygl, std::vector<double> &freqs
     // exit(0);
   }
   fprintf(stderr, "\t-> [file=\'%s\'][chr=\'%s\'] Read %i records %i of which were SNPs number of sites with data:%lu\n",fname,seek, n, nsnp,mygl.size()); 
+
   free(pl);
   free(gt);
   bcf_hdr_destroy(hdr);
   bcf_close(inf);
   bcf_destroy(rec);
+
   if(iter)
     hts_itr_destroy(iter);
   if(idx)
@@ -371,6 +374,7 @@ size_t getgls(char*fname,std::vector<double *> &mygl, std::vector<double> &freqs
 
   //for(int i=0;i<nseq;i++)
     free(seqnames);
+
   return nsamples;
  
 }
@@ -378,7 +382,8 @@ size_t getgls(char*fname,std::vector<double *> &mygl, std::vector<double> &freqs
 void *wrap(void *ptr){
   satan *god = (satan*) ptr;
   god->nind=getgls(god->fname, god->mygl,god->freqs, god->minind, god->minfreq,god->vcf_format_field,god->vcf_allele_field,god->seek);
-  pthread_exit(NULL);
+  fprintf(stderr,"never hre20000\n");
+  //  pthread_exit(NULL);
 }
 
 
@@ -398,16 +403,12 @@ void *wrap2(void *){
 
 
 double ** readbcfvcf(char*fname,int &nind, std::vector<double> &freqs,int minind,double minfreq, std::string vcf_format_field, std::string vcf_allele_field,char *seek){
-  fprintf(stderr,"\t-> readbcfvcf seek:%s \n",seek);
+  fprintf(stderr,"\t-> readbcfvcf seek:%s nind:%d\n",seek,nind);
   htsFile * inf = NULL;inf=hts_open(fname, "r");assert(inf);  
   bcf_hdr_t *hdr = NULL;hdr=bcf_hdr_read(inf);assert(hdr);
   int isbcf=0;
-  if(inf->format.format==bcf)
-    isbcf=1;
-  if(seek&&isbcf==0){
-    fprintf(stderr,"\t-> if choosing region then input file has to be bcf\n");
-    exit(0);
-  }
+  std::vector<char *> hd;
+
   satan god;
   god.fname=fname;
   god.minind=minind;
@@ -415,32 +416,40 @@ double ** readbcfvcf(char*fname,int &nind, std::vector<double> &freqs,int minind
   god.vcf_format_field=vcf_format_field;
   god.vcf_allele_field=vcf_allele_field;
   god.seek=seek;
+  
+
+  if(inf->format.format==bcf){
+    isbcf=1;
+    hd = hasdata(fname);
+  }if(seek&&isbcf==0){
+    fprintf(stderr,"\t-> if choosing region then input file has to be bcf\n");
+    exit(0);
+  }
 
   int nseq = 0;  // number of sequences
   const char **seqnames = NULL;
   seqnames = bcf_hdr_seqnames(hdr, &nseq); 
   assert(seqnames);
   
-  
-  //std::vector<satan> jobs(seek?1:)
   double **gls=NULL;
   if(seek!=NULL||isbcf==0){//single run
+    fprintf(stderr,"are we here\n");
     wrap(&god);
+    fprintf(stderr,"are we not here\n");
     nind=god.nind;
+   
     gls=new double *[god.mygl.size()];
     for(int i=0;i<god.mygl.size();i++){
       gls[i] = god.mygl[i];
     }
     freqs=god.freqs;
   }else{
-    std::vector<char *> hd = hasdata(fname);
-
-    for(int i=0;i<hd.size();i++){
-      jobs.push_back(god);
-      jobs[i].seek=hd[i];
-    }
+      for(int i=0;i<hd.size();i++){
+	jobs.push_back(god);
+	jobs[i].seek=hd[i];
+      }
     
-    if(diskio_threads==1){
+    if(diskio_threads==1||isbcf==0){
       for(int i=0;i<jobs.size();i++){
 	wrap(&jobs[i]);
       }
@@ -452,11 +461,10 @@ double ** readbcfvcf(char*fname,int &nind, std::vector<double> &freqs,int minind
 	int howmany=std::min(diskio_threads,(int)hd.size()-at);
 	pthread_t mythd[howmany];
 	for(int i=0;i<howmany;i++){
-#if std_queue
-	  assert (pthread_create(&mythd[i],NULL,wrap,&jobs[i+at])==0);
-#else
-	  assert (pthread_create(&mythd[i],NULL,wrap2,NULL)==0);
-#endif
+	  if(std_queue)
+	    assert (pthread_create(&mythd[i],NULL,wrap,&jobs[i+at])==0);
+	  else
+	    assert (pthread_create(&mythd[i],NULL,wrap2,NULL)==0);
 	}
 	for(int i=0;i<howmany;i++)
 	  assert(pthread_join(mythd[i],NULL)==0);

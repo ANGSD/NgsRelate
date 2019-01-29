@@ -1349,18 +1349,19 @@ int main(int argc, char **argv){
   }
 
 #ifdef __WITH_BCF__
+
   if(htsfile){
     gls=readbcfvcf(htsfile,nind,freq,2,minMaf, vcf_format_field, vcf_allele_field,region);
-  
     overall_number_of_sites = freq.size();
   }
+  
 #endif
 
   total_sites = overall_number_of_sites * 1.0;
   
   //all data read from either 1) glf/freq 2) hts/vcf/bcf 3)plink
   //now call genotypes if needed
-  fprintf(stderr,"\t-> nind:%d overall_number_of_sites:%f\n",nind,overall_number_of_sites);
+  fprintf(stderr,"\t-> nind:%d overall_number_of_sites:%lu\n",nind,overall_number_of_sites);
   fflush(stderr);
   if(overall_number_of_sites==0)
     return 0;
