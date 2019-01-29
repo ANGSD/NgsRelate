@@ -730,7 +730,7 @@ void anal1(int a,int b,worker_args * td,double minMaf){
   
   
   if (td->nkeep==0)
-    fprintf(stderr, "\t->Sites with both %d and %d having data: %d \n", a, b, td->nkeep,td->emis);
+    fprintf(stderr, "\t->Sites with both %d and %d having data: %d \n", a, b, td->nkeep);
 
   if(!do_2dsfs_only)
     analyse_jaq(td->pars,td->freq,td->gls,td->keeplist,td->emis,td->nkeep,a,b,td->ll,td->best,td->bestll,td->niter);    
@@ -898,7 +898,7 @@ void *watch(void *){
       inc += nlines(spillfilesnames[i]);
     }
 
-    fprintf(stderr,"\r\t->          %d out of %d",inc,mp.size());
+    fprintf(stderr,"\r\t->          %d out of %lu",inc,mp.size());
     fflush(stderr);
   }
   pthread_exit(NULL);
@@ -1360,7 +1360,7 @@ int main(int argc, char **argv){
   
   //all data read from either 1) glf/freq 2) hts/vcf/bcf 3)plink
   //now call genotypes if needed
-  fprintf(stderr,"\t-> nind:%d overall_number_of_sites:%d\n",nind,overall_number_of_sites);
+  fprintf(stderr,"\t-> nind:%d overall_number_of_sites:%f\n",nind,overall_number_of_sites);
   fflush(stderr);
   if(overall_number_of_sites==0)
     return 0;

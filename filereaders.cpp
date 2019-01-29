@@ -72,7 +72,7 @@ size_t nlines(const char *fname){
   FILE *fp = NULL;
   fp=fopen(fname,"rb");
   if(fp==NULL){
-    fprintf(stderr,"Problem opening file: %s");
+    fprintf(stderr,"Problem opening file: %s",fname);
     return 0;
   }
   size_t nlines = 0;
