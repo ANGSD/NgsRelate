@@ -25,7 +25,6 @@
 #endif
 
 
-int pooling_every = 4;
 int faster = 0;
 double total_sites;
 int FINISHED=0;
@@ -897,20 +896,6 @@ char *formatoutput(int a, int b,worker_args *td_out,double total_sites){
 }
 
 
-void *watch(void *){
-  while(!FINISHED){
-    sleep(pooling_every);
-    int inc=0;
-    for(int i=0;i<spillfilesnames.size();i++){
-      inc += nlines(spillfilesnames[i]);
-    }
-
-    fprintf(stderr,"\r\t->          %d out of %lu",inc,mp.size());
-    fflush(stderr);
-  }
-  pthread_exit(NULL);
-}
-
 
 void *turbothread(void *threadarg){
   worker_args * td;
@@ -1089,12 +1074,21 @@ int main_analysis2(std::vector<double> &freq,double **gls,int num_threads,FILE *
 
   //initalize jobids
   if(do_inbred==0){
-    for(int i=0;i<nind;i++)
+    for(int i=0;i<nind;i++){
+      if(pair1!=-1)
+	i=pair1;
       for(int j=(i+1);j<nind;j++){
+	if(pair2!=-1)
+	  j=pair2;
 	mypair tmp;
 	tmp.a=i;tmp.b=j;
 	mp.push_back(tmp);
+	if(pair2!=-1)
+	  break;
       }
+      if(pair1!=-1)
+	break;
+    }
   }else{
     for(int i=0;i<nind;i++){
       mypair tmp;
@@ -1104,14 +1098,7 @@ int main_analysis2(std::vector<double> &freq,double **gls,int num_threads,FILE *
   }
   std::random_shuffle(mp.begin(),mp.end());
   fprintf(stderr,"\t-> length of joblist:%lu\n",mp.size());
-#if 0
-  for(int i=0;i<mp.size();i++)
-    fprintf(stderr,"i:%d (%d,%d)\n",i,mp[i].a,mp[i].b);
-#endif
-#if 0
-  pthread_t eye;
-  assert(pthread_create(&eye,NULL,watch,NULL)==0);//<- doesnt work yet
-#endif
+
   //initialize threads ids
   pthread_t threads[num_threads];
   worker_args **all_args = new worker_args*[num_threads];
@@ -1124,10 +1111,6 @@ int main_analysis2(std::vector<double> &freq,double **gls,int num_threads,FILE *
       all_args[i]->thread_id=i;
   }
   all_args[num_threads-1]->b = mp.size();
-#if 0
-  for(int i=0;i<num_threads;i++)
-    fprintf(stderr,"%d %d %d gls:%p\n",i,all_args[i]->a,all_args[i]->b,gls);
-#endif
 
    for(int i=0;i<num_threads;i++)
      assert(pthread_create(&threads[i],NULL,turbothread,all_args[i])==0);
