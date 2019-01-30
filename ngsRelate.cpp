@@ -41,6 +41,13 @@ typedef struct{
 std::vector<mypair> mp;
 
 
+bool myfunction (mypair i,mypair j) { return i.a==j.a?i.b<j.b:i.a<j.a;}
+
+
+struct myclass {
+  bool operator() (mypair i,mypair j) { return (i.a<j.a && i.b<j.b); }
+} myobject;
+
 //this is as close to the bound we will allow
 double TINY=1e-8;
 
@@ -1047,7 +1054,7 @@ int main_analysis1(std::vector<double> &freq,double **gls,int num_threads,FILE *
         break;
       }
     } // end ind b
-
+  fprintf(stderr,"\t-> Done allocating jobarray\n");
     int cnt=0;
     while(cnt<comparison_ids){
       int nTimes;
@@ -1065,15 +1072,13 @@ int main_analysis1(std::vector<double> &freq,double **gls,int num_threads,FILE *
         pthread_join(threads[i], NULL);
         worker_args * td_out = all_args[cnt + i];
 	char *str=formatoutput(td_out->a,td_out->b,td_out,total_sites);
+	delete td_out;
 	fwrite(str,sizeof(char),strlen(str),output);
 	free(str);
       }
       cnt += nTimes;
       fprintf(stderr, "\t-> Processed     %d out of       %d\r", cnt, comparison_ids);
     }
-    for(int i=0;i<all_args.size();i++)
-      delete all_args[i];
-
   }
   
   fprintf(stderr,"\n");
@@ -1140,6 +1145,10 @@ int main_analysis2(std::vector<double> &freq,double **gls,int num_threads,FILE *
        fprintf(output, "a\tb\tnSites\tJ9\tJ8\tJ7\tJ6\tJ5\tJ4\tJ3\tJ2\tJ1\trab\tFa\tFb\ttheta\tinbred_relatedness_1_2\tinbred_relatedness_2_1\tfraternity\tidentity\tzygosity\t2of3IDB\tFDiff\tloglh\tnIter\tcoverage\t2dsfs\tR0\tR1\tKING\t2dsfs_loglike\t2dsfsf_niter\n");
      }
    }
+   
+   std::sort(mp.begin(),mp.end(),myfunction);
+
+
    for(int i=0;i<mp.size();i++){
      fwrite(mp[i].res,sizeof(char),strlen(mp[i].res),output);
      free(mp[i].res);
