@@ -29,6 +29,8 @@ do
     ${PRG} -h small.vcf.gz       -p 1 -c ${c} -r 100 -O ${ODIR}/vcf3.c${c}.res 2>>${LOG} 
     ${PRG} -h small.bcf          -p 1 -c ${c} -r 100 -O ${ODIR}/vcf4.c${c}.res 2>>${LOG} 
     ${PRG} -P small.bed          -p 1 -c ${c} -r 100 -O ${ODIR}/vcf5.c${c}.res 2>>${LOG} 
+    ${PRG} -h small.bcf          -p 1 -c ${c} -r 100 -o 1 -O ${ODIR}/vcf8.c${c}.res 2>>${LOG} 
+    ${PRG} -h small.bcf          -p 1 -c ${c} -r 100 -o 1 -O ${ODIR}/vcf9.c${c}.res -R 18 2>>${LOG} 
 done
 
 for c in 0 ##without gc

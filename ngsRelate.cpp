@@ -242,7 +242,7 @@ int emAccel(double *F,double **emis,double *F_new,int len, int & niter,int dim){
 int em(double *sfs,double  **emis, int len, int dim){
   int niter = 0;
   double oldLik,lik;
-  sample48(sfs,dim);
+  //  sample48(sfs,dim);//<- moved to outside 
 
   oldLik = loglike(sfs,emis,len,dim);
 
@@ -650,7 +650,11 @@ int analyse_jaq(double *pk_pars,std::vector<double> *pk_freq,double **pk_gls,int
     emission_ngsrelate9(pk_freq, pk_gls, pk_emis, pk_keeplist, pk_nkeep, pk_a, pk_b);
   else
     emission_ngs_inbred(pk_freq,  pk_gls, pk_emis, pk_keeplist, pk_nkeep, pk_a);
+  
+  sample48(pk_pars,do_inbred?2:9);
 
+  for(int i=3;do_simple&&do_inbred==0 && i<9;i++)//setting it to the old
+    pk_pars[i] = 0;
   pk_niter = em(pk_pars, pk_emis, pk_nkeep,do_inbred?2:9);
   
 
@@ -710,6 +714,7 @@ void anal1(int a,int b,worker_args * td,double minMaf){
   if(do_inbred==0){
     emislike_2dsfs_gen(td->gls, td->emis,td->keeplist, td->nkeep, a, b);
     
+    sample48(td->pars_2dsfs,9);
     td->niter_2dsfs = em(td->pars_2dsfs, td->emis, td->nkeep,9);
     
     td->ll_2dsfs = loglike(td->pars_2dsfs, td->emis, td->nkeep,9);
