@@ -239,7 +239,7 @@ int emAccel(double *F,double **emis,double *F_new,int len, int & niter,int dim){
 }
 
 //std em along with control logic for breaking
-int em1(double *sfs,double  **emis, int len, int dim){
+int em(double *sfs,double  **emis, int len, int dim){
   int niter = 0;
   double oldLik,lik;
   sample48(sfs,dim);
@@ -251,45 +251,16 @@ int em1(double *sfs,double  **emis, int len, int dim){
   int it;
   for(it=0;niter<maxIter;it++) {
     niter++;
-    emStep(sfs,emis,tmp,len,dim);
+    if(model==0)
+      emStep(sfs,emis,tmp,len,dim);
+    else
+      emAccel(sfs,emis,tmp,len, niter,dim);      
     for(int i=0;i<dim;i++)
       sfs[i]= tmp[i];
     lik = loglike(sfs,emis,len,dim);
 
     if(fabs(lik-oldLik)<tole){
 
-      oldLik=lik;
-      break;
-    }
-    oldLik=lik;
-  }
-  return niter;
-}
-
-
-int em2(double *sfs,double  **emis, int len,int dim){
-  int niter=0;
-  double oldLik,lik;
-  sample48(sfs,dim);
-
-  oldLik = loglike(sfs,emis,len,dim);
-  double tmp[dim];
-
-  int it;
-  for(it=0;niter<maxIter;it++) {
-  emAccel(sfs,emis,tmp,len, niter,dim);
-    for(int i=0;i<dim;i++)
-      sfs[i]= tmp[i];
-
-  lik = loglike(sfs,emis,len,dim);
-    if(isnan(lik)){
-      fprintf(stderr,"em2 evaluates like to NaN\n");
-      exit(0);
-      break;
-      //  exit(0);
-    }
-    if(fabs(lik-oldLik)<tole){
-      // fprintf(stderr,"breaking\n");
       oldLik=lik;
       break;
     }
@@ -680,11 +651,8 @@ int analyse_jaq(double *pk_pars,std::vector<double> *pk_freq,double **pk_gls,int
   else
     emission_ngs_inbred(pk_freq,  pk_gls, pk_emis, pk_keeplist, pk_nkeep, pk_a);
 
-  if (model == 0){
-    pk_niter = em1(pk_pars, pk_emis, pk_nkeep,do_inbred?2:9);
-  }else if (model == 1){
-    pk_niter = em2(pk_pars, pk_emis, pk_nkeep,do_inbred?2:9);
-  }
+  pk_niter = em(pk_pars, pk_emis, pk_nkeep,do_inbred?2:9);
+  
 
   if(do_inbred==0){
     double l100000000 = loglike(p100000000, pk_emis, pk_nkeep,9);
@@ -742,11 +710,8 @@ void anal1(int a,int b,worker_args * td,double minMaf){
   if(do_inbred==0){
     emislike_2dsfs_gen(td->gls, td->emis,td->keeplist, td->nkeep, a, b);
     
-    if (model == 0){
-      td->niter_2dsfs = em1(td->pars_2dsfs, td->emis, td->nkeep,9);
-    }else if (model == 1){
-      td->niter_2dsfs = em2(td->pars_2dsfs, td->emis, td->nkeep,9);  
-    }
+    td->niter_2dsfs = em(td->pars_2dsfs, td->emis, td->nkeep,9);
+    
     td->ll_2dsfs = loglike(td->pars_2dsfs, td->emis, td->nkeep,9);
   }
 
