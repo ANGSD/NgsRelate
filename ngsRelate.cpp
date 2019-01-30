@@ -18,6 +18,7 @@
 #include <limits>
 #include <string>
 #include <algorithm> //shuffle
+#include <unistd.h>
 #include "filereaders.h"
 
 #ifdef __WITH_BCF__
@@ -908,7 +909,7 @@ void *turbothread(void *threadarg){
     fflush(spillfiles[td->thread_id]);
   }
 }
-int main_analysis2(std::vector<double> &freq,double **gls,int num_threads,FILE *output,int total_sites,FILE *outfile){
+int main_analysis2(std::vector<double> &freq,double **gls,int num_threads,FILE *output,int total_sites){
 
   //initalize jobids
   if(do_inbred==0){
@@ -1243,7 +1244,7 @@ int main(int argc, char **argv){
   
 
   fprintf(stderr,"\t-> Starting analysis now\n");
-  main_analysis2(freq,gls,num_threads,output,total_sites,output);
+  main_analysis2(freq,gls,num_threads,output,total_sites);
   
   for (size_t i = 0; i < overall_number_of_sites; i++) {
     delete[] gls[i];
@@ -1255,6 +1256,7 @@ int main(int argc, char **argv){
   fclose(output);
   for(int i=0;i<spillfiles.size();i++){
     fclose(spillfiles[i]);
+    unlink(spillfilesnames[i]);
     free(spillfilesnames[i]);
   }
 
