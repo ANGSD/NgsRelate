@@ -1,4 +1,6 @@
 [![Build Status](https://travis-ci.org/ANGSD/NgsRelate.svg?branch=master)](https://travis-ci.org/ANGSD/NgsRelate)
+
+
 30juni 2018. Added new version which does analysis from bcf/vcf and outputs all nine jacquards
 
 This page refers to the new v2 of NgsRelate which coestimates relatedness and inbreeding. For the old version please use this link: http://www.popgen.dk/software/index.php?title=NgsRelate&oldid=694
