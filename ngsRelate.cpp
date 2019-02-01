@@ -42,11 +42,6 @@ std::vector<mypair> mp;
 
 bool myfunction (mypair i,mypair j) { return i.a==j.a?i.b<j.b:i.a<j.a;}
 
-
-struct myclass {
-  bool operator() (mypair i,mypair j) { return (i.a<j.a && i.b<j.b); }
-} myobject;
-
 //this is as close to the bound we will allow
 double TINY=1e-8;
 
@@ -60,7 +55,7 @@ char *gname=NULL;
 int maxIter =5000;
 double tole =1e-8;
 int n=-1;
-
+int nBootstrap = 0;//counter for howmany bootstraps
 int seed=std::numeric_limits<int>::max();
 
 int model =1;
@@ -569,6 +564,7 @@ struct worker_args_t {
   double pars[9], pars_2dsfs[9];
   int *keeplist;
   double **emis;
+  int *bootindex;
   worker_args_t(int & id_a, int & id_b, std::vector<double> * f, double ** gls_arg, size_t & s ){
     a=id_a;
     b=id_b;
@@ -579,8 +575,11 @@ struct worker_args_t {
     freq = f;
     gls=gls_arg;
     nsites = s;
+    bootindex =NULL;
     keeplist = new int[nsites];
     emis = new double*[s];
+    if(nBootstrap>0)
+      bootindex = new int[nsites];
     for(int i=0;i<s;i++)
       emis[i] = new double[9];//<- will hold, 2dsfs,F and 9jacq emissions depending on context
   }
@@ -589,13 +588,14 @@ struct worker_args_t {
       delete [] emis[i];
     delete [] emis;
     delete [] keeplist;
+    delete [] bootindex;
   }
 };
 
 typedef struct worker_args_t worker_args;
 
 // function will update pk_keeplist and return the number of sites that should be retained for analysis
-int populate_keeplist(int pk_a,int pk_b,int pk_nsites,double **pk_gls,int pk_minmaf,std::vector<double> *pk_freq,int *pk_keeplist){
+int populate_keeplist(int pk_a,int pk_b,int pk_nsites,double **pk_gls,int pk_minmaf,std::vector<double> *pk_freq,int *pk_keeplist,int *tmp){//last is workspace to avoid allocation and deallocation;
 
   int *keeplist = pk_keeplist;
   int nkeep=0;
@@ -612,6 +612,15 @@ int populate_keeplist(int pk_a,int pk_b,int pk_nsites,double **pk_gls,int pk_min
 
     keeplist[nkeep] = i;//dont forget
     nkeep++;
+  }
+  if(tmp){//indicater for if we should bootstrap
+    for(int i=0;i<nkeep;i++){
+      tmp[i] = lrand48() % nkeep;
+      //      fprintf(stderr,"tmp:%d\n",tmp[i]);
+    }
+    std::sort(tmp,tmp+nkeep);
+    for(int i=0;i<nkeep;i++)
+      keeplist[i] = tmp[i];
   }
   return nkeep;
 }
@@ -702,7 +711,7 @@ int analyse_jaq(double *pk_pars,std::vector<double> *pk_freq,double **pk_gls,int
 void anal1(int a,int b,worker_args * td,double minMaf){
   //    fprintf(stderr,"a:%d b:%d\n",a,b);
   assert(td->nsites>0);
-  td->nkeep = populate_keeplist(a,b,td->nsites,td->gls,minMaf,td->freq,td->keeplist);
+  td->nkeep = populate_keeplist(a,b,td->nsites,td->gls,minMaf,td->freq,td->keeplist,td->bootindex);
   
   
   if (td->nkeep==0)
@@ -905,7 +914,17 @@ int main_analysis2(std::vector<double> &freq,double **gls,int num_threads,FILE *
       mp.push_back(tmp);
     }
   }
-   std::random_shuffle(mp.begin(),mp.end());
+  if(nBootstrap>0 &&mp.size()>1){
+    fprintf(stderr,"\t-> You need to specify -a and -b for doing bootstrap\n");
+    return 0;
+  }
+  if(nBootstrap>0){
+    for(int i=0;i<nBootstrap;i++)
+      mp.push_back(mp[0]);
+
+  }
+  
+  std::random_shuffle(mp.begin(),mp.end());
   fprintf(stderr,"\t-> length of joblist:%lu\n",mp.size());
 
   //initialize threads ids
@@ -982,7 +1001,8 @@ int main(int argc, char **argv){
   char *plinkfile=NULL;
   char *outname=NULL;
   char *region=NULL;
-  while ((n = getopt(argc, argv, "f:i:t:r:g:m:s:F:o:c:e:a:b:n:l:z:p:h:L:T:A:P:O:X:R:")) >= 0) {
+  
+  while ((n = getopt(argc, argv, "f:i:t:r:g:m:s:F:o:c:e:a:b:n:l:z:p:h:L:T:A:P:O:X:R:B:")) >= 0) {
     switch (n) {
     case 'f': freqname = strdup(optarg); break;
     case 'P': plinkfile = strdup(optarg); break;
@@ -993,6 +1013,7 @@ int main(int argc, char **argv){
     case 'r': seed = atoi(optarg); break;
     case 'g': gname = strdup(optarg); break;
     case 'm': model = atoi(optarg); break;
+    case 'B': nBootstrap = atoi(optarg); break;
     case 's': switchMaf = atoi(optarg); break;
     case 'F': do_inbred = atoi(optarg); break;
     case 'o': do_simple = atoi(optarg); break;
@@ -1087,7 +1108,10 @@ int main(int argc, char **argv){
     }
   }
 
-  
+  if(nBootstrap>0&&(pair1==-1||pair2==-1)){
+    fprintf(stderr,"\t-> Must specifiy pair of samples when performing bootstrap replicates\n");
+    return 0;
+  }
   
 
   std::vector<double> freq;

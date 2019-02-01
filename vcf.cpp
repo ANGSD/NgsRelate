@@ -15,7 +15,7 @@
 #include <string>
 
 
-#define diskio_threads 10
+#define diskio_threads 24
 int std_queue = 0;
 
 
