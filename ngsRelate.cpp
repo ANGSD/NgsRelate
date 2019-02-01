@@ -57,7 +57,7 @@ double tole =1e-8;
 int n=-1;
 int nBootstrap = 0;//counter for howmany bootstraps
 int seed=std::numeric_limits<int>::max();
-
+int ntimes =1;
 int model =1;
 int gc =0;
 double errate = 0.005;
@@ -553,8 +553,6 @@ void callgenotypesHwe(double **gls,int nsites,int nind,std::vector<double> freq)
   }
 }
 
-
-
 struct worker_args_t {
   int thread_id, nkeep, a,b, niter, best, niter_2dsfs;
   double **gls;
@@ -571,7 +569,6 @@ struct worker_args_t {
     nkeep=0;
     best=0;
     bestll=0.0;
-    bestll=0.0;    
     freq = f;
     gls=gls_arg;
     nsites = s;
@@ -626,7 +623,7 @@ int populate_keeplist(int pk_a,int pk_b,int pk_nsites,double **pk_gls,int pk_min
 }
 
 //this one does both inbreeding and the j9, the j3 is obtained by setting the j1-6 to zero
-int analyse_jaq(double *pk_pars,std::vector<double> *pk_freq,double **pk_gls,int *pk_keeplist,double **pk_emis,int pk_nkeep,int pk_a,int pk_b,double &pk_ll,int &pk_best,double &pk_bestll,int &pk_niter){
+int analyse_jaq(double *pk_pars,std::vector<double> *pk_freq,double **pk_gls,int *pk_keeplist,double **pk_emis,int pk_nkeep,int pk_a,int pk_b,double &pk_ll,int &pk_best,double &pk_bestll,int &pk_niter, int ntimes){
   double p100000000[9] = {1 - TINY,   TINY / 8.0, TINY / 8.0,
 			  TINY / 8.0, TINY / 8.0, TINY / 8.0,
 			  TINY / 8.0, TINY / 8.0, TINY / 8.0};
@@ -659,39 +656,54 @@ int analyse_jaq(double *pk_pars,std::vector<double> *pk_freq,double **pk_gls,int
     emission_ngsrelate9(pk_freq, pk_gls, pk_emis, pk_keeplist, pk_nkeep, pk_a, pk_b);
   else
     emission_ngs_inbred(pk_freq,  pk_gls, pk_emis, pk_keeplist, pk_nkeep, pk_a);
-  
-  sample48(pk_pars,do_inbred?2:9);
+  //will not be used before values has been plugged in;
+  double tmp_pk_pars[9];
+  double tmp_pk_ll;
+  int tmp_pk_niter;
 
-  for(int i=3;do_simple&&do_inbred==0 && i<9;i++)//setting it to the old
-    pk_pars[i] = 0;
-  pk_niter = em(pk_pars, pk_emis, pk_nkeep,do_inbred?2:9);
+  pk_ll=log(0);
   
-
-  if(do_inbred==0){
-    double l100000000 = loglike(p100000000, pk_emis, pk_nkeep,9);
-    double l010000000 = loglike(p010000000, pk_emis, pk_nkeep,9);
-    double l001000000 = loglike(p001000000, pk_emis, pk_nkeep,9);
-    double l000100000 = loglike(p000100000, pk_emis, pk_nkeep,9);
-    double l000010000 = loglike(p000010000, pk_emis, pk_nkeep,9);
-    double l000001000 = loglike(p000001000, pk_emis, pk_nkeep,9);
-    double l000000100 = loglike(p000000100, pk_emis, pk_nkeep,9);
-    double l000000010 = loglike(p000000010, pk_emis, pk_nkeep,9);
-    double l000000001 = loglike(p000000001, pk_emis, pk_nkeep,9);
-    pk_ll = loglike(pk_pars, pk_emis, pk_nkeep,9);
-        
-    double likes[10] = {l100000000, l010000000, l001000000, l000100000,
-			l000010000, l000001000, l000000100, l000000010,
-			l000000001, pk_ll};
-    pk_best = 0;
-    pk_bestll = likes[0];
-    for (int i = 1; i < 10; i++) {
-      if (likes[i] > likes[pk_best]){
-	pk_best = i;
-	pk_bestll = likes[i];
+  for(int n=0;n<ntimes;n++) {
+    sample48(tmp_pk_pars,do_inbred?2:9);
+    
+    for(int i=3;do_simple&&do_inbred==0 && i<9;i++)//setting it to the old
+      tmp_pk_pars[i] = 0;
+    tmp_pk_niter = em(tmp_pk_pars, pk_emis, pk_nkeep,do_inbred?2:9);
+    tmp_pk_ll = loglike(tmp_pk_pars, pk_emis, pk_nkeep,do_inbred?2:9);
+    
+    if(n==0||tmp_pk_ll>pk_ll){
+      if(0&&n>0)
+	fprintf(stderr,"n:%d better estimate: %f %f\n",n,tmp_pk_ll,pk_ll);
+      for(int i=0;i<(do_inbred?2:9);i++){
+	pk_pars[i] = tmp_pk_pars[i];
       }
+      pk_ll=tmp_pk_ll;
+      pk_niter=tmp_pk_niter;
     }
+  }
+  
+  if(do_inbred==0){
+      double l100000000 = loglike(p100000000, pk_emis, pk_nkeep,9);
+      double l010000000 = loglike(p010000000, pk_emis, pk_nkeep,9);
+      double l001000000 = loglike(p001000000, pk_emis, pk_nkeep,9);
+      double l000100000 = loglike(p000100000, pk_emis, pk_nkeep,9);
+      double l000010000 = loglike(p000010000, pk_emis, pk_nkeep,9);
+      double l000001000 = loglike(p000001000, pk_emis, pk_nkeep,9);
+      double l000000100 = loglike(p000000100, pk_emis, pk_nkeep,9);
+      double l000000010 = loglike(p000000010, pk_emis, pk_nkeep,9);
+      double l000000001 = loglike(p000000001, pk_emis, pk_nkeep,9);
+      double likes[10] = {l100000000, l010000000, l001000000, l000100000,
+			  l000010000, l000001000, l000000100, l000000010,
+			  l000000001, pk_ll};
+      pk_best = 0;
+      pk_bestll = likes[0];
+      for (int i = 1; i < 10; i++) {
+	if (likes[i] > likes[pk_best]){
+	  pk_best = i;
+	  pk_bestll = likes[i];
+	}
+      }
   }else{
-    pk_ll = loglike(pk_pars,pk_emis,pk_nkeep,2);
     double l01= loglike(p01,pk_emis,pk_nkeep,2);
     double l10= loglike(p10,pk_emis,pk_nkeep,2);
     double likes[3] ={l10,l01,pk_ll};
@@ -704,7 +716,6 @@ int analyse_jaq(double *pk_pars,std::vector<double> *pk_freq,double **pk_gls,int
       }
     }
   }
-
 }
 
 
@@ -718,17 +729,31 @@ void anal1(int a,int b,worker_args * td,double minMaf){
     fprintf(stderr, "\t->Sites with both %d and %d having data: %d \n", a, b, td->nkeep);
 
   if(!do_2dsfs_only)
-    analyse_jaq(td->pars,td->freq,td->gls,td->keeplist,td->emis,td->nkeep,a,b,td->ll,td->best,td->bestll,td->niter);    
+    analyse_jaq(td->pars,td->freq,td->gls,td->keeplist,td->emis,td->nkeep,a,b,td->ll,td->best,td->bestll,td->niter,ntimes);    
   
   if(do_inbred==0){
     emislike_2dsfs_gen(td->gls, td->emis,td->keeplist, td->nkeep, a, b);
-    
-    sample48(td->pars_2dsfs,9);
-    td->niter_2dsfs = em(td->pars_2dsfs, td->emis, td->nkeep,9);
-    
-    td->ll_2dsfs = loglike(td->pars_2dsfs, td->emis, td->nkeep,9);
-  }
 
+    double tmp_pars_2dsfs[9];
+    int tmp_niter_2dsfs;
+    double tmp_ll_2dsfs;
+   
+    td->ll_2dsfs=log(0);
+    for(int n=0;n<ntimes;n++){
+      sample48(tmp_pars_2dsfs,9);
+      tmp_niter_2dsfs = em(tmp_pars_2dsfs, td->emis, td->nkeep,9);
+      tmp_ll_2dsfs = loglike(tmp_pars_2dsfs, td->emis, td->nkeep,9);
+      if(n==0||tmp_ll_2dsfs>td->ll_2dsfs){
+	if(0&&n>0)
+	  fprintf(stderr,"[sfs] n:%d better estimate: %f %f diff:%.3e\n",n,tmp_ll_2dsfs,td->ll_2dsfs,tmp_ll_2dsfs-td->ll_2dsfs);
+	for(int i=0;i<9;i++){
+	  td->pars_2dsfs[i] = tmp_pars_2dsfs[i];
+	}
+	td->ll_2dsfs=tmp_ll_2dsfs;
+	td->niter_2dsfs = tmp_niter_2dsfs;
+      }
+    }
+  }
 }
 
 char *formatoutput(int a, int b,worker_args *td_out,double total_sites){
@@ -1002,13 +1027,14 @@ int main(int argc, char **argv){
   char *outname=NULL;
   char *region=NULL;
   
-  while ((n = getopt(argc, argv, "f:i:t:r:g:m:s:F:o:c:e:a:b:n:l:z:p:h:L:T:A:P:O:X:R:B:")) >= 0) {
+  while ((n = getopt(argc, argv, "f:i:t:r:g:m:s:F:o:c:e:a:b:n:l:z:p:h:L:T:A:P:O:X:R:B:N:")) >= 0) {
     switch (n) {
     case 'f': freqname = strdup(optarg); break;
     case 'P': plinkfile = strdup(optarg); break;
     case 'O': outname = strdup(optarg); break;
     case 'R': region = strdup(optarg); break;
     case 'i': maxIter = atoi(optarg); break;
+    case 'N': ntimes = atoi(optarg); break;
     case 't': tole = atof(optarg); break;
     case 'r': seed = atoi(optarg); break;
     case 'g': gname = strdup(optarg); break;
