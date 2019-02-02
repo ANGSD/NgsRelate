@@ -13,7 +13,7 @@
 #include <cmath>
 #include <limits>
 #include <string>
-
+#include <pthread.h>
 
 #define diskio_threads 24
 int std_queue = 0;

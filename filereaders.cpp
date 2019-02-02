@@ -6,6 +6,7 @@
 #include <zlib.h>
 #include <vector>
 #include <cmath>
+#include <libgen.h>
 #define LENS  4096
 
 int refToInt[256] = {
