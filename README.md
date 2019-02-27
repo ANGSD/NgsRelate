@@ -33,6 +33,7 @@ Options:
    -a <INT>            First individual used for analysis? (zero offset)
    -b <INT>            Second individual used for analysis? (zero offset)
    -B <INT>            Number of bootstrap replicates for (only for single pairs)
+   -N <INT>            How many times to start each pair with random seed?
    -n <INT>            Number of samples in glf.gz
    -l <INT>            minMaf or 1-Maf filter
    -z <INT>            Name of file with IDs (optional)
