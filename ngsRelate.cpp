@@ -474,6 +474,7 @@ void print_info(FILE *fp){
   fprintf(fp, "   -e <INT>            Errorrates when calling genotypes?\n");
   fprintf(fp, "   -a <INT>            First individual used for analysis? (zero offset)\n");
   fprintf(fp, "   -b <INT>            Second individual used for analysis? (zero offset)\n");
+  fprintf(fp, "   -B <INT>            Number of bootstrap replicates for (only for single pairs)\n");
   fprintf(fp, "   -n <INT>            Number of samples in glf.gz\n");
   fprintf(fp, "   -l <INT>            minMaf or 1-Maf filter\n");
   fprintf(fp, "   -z <INT>            Name of file with IDs (optional)\n");
