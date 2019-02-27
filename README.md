@@ -9,6 +9,46 @@ This page refers to the new v2 of NgsRelate which coestimates relatedness and in
 
 This page contains information about the program called NgsRelate, which can be used to infer relatedness, inbreeding coefficients and many other summary statistics for pairs of individuals from low coverage Next Generation Sequencing (NGS) data by using genotype likelihoods instead of called genotypes. To be able to infer the relatedness you will need to know the population allele frequencies and have genotype likelihoods. This can be obtained e.g. using the program ANGSD as shown in example 1 below. For more information about ANGSD see here: http://popgen.dk/angsd/index.php/Quick_Start. As of version 2, VCF/BCF files can also be parsed.
 
+# Options #
+```
+$ ./ngsRelate 
+
+Usage main analyses: ./ngsrelate  [options] 
+Options:
+   -f <filename>       Name of file with frequencies
+   -L <INT>            Number of genomic sites. Must be provided if -f (allele frequency file) is NOT provided 
+   -m <INTEGER>        model 0=normalEM 1=acceleratedEM
+   -i <UINTEGER>       Maximum number of EM iterations
+   -t <FLOAT>          Tolerance for breaking EM
+   -r <FLOAT>          Seed for rand
+   -R <chr:from-to>    Region for analysis (only for bcf)
+   -g gfile            Name of genotypellh file
+   -p <INT>            threads (default 4)
+   -c <INT>            Should call genotypes instead?
+   -s <INT>            Should you swich the freq with 1-freq?
+   -F <INT>            Estimate inbreeding instead of estimating the nine jacquard coefficients
+   -o <INT>            estimating the 3 jacquard coefficient, assumming no inbreeding
+   -v <INT>            Verbose. print like per iteration
+   -e <INT>            Errorrates when calling genotypes?
+   -a <INT>            First individual used for analysis? (zero offset)
+   -b <INT>            Second individual used for analysis? (zero offset)
+   -B <INT>            Number of bootstrap replicates for (only for single pairs)
+   -n <INT>            Number of samples in glf.gz
+   -l <INT>            minMaf or 1-Maf filter
+   -z <INT>            Name of file with IDs (optional)
+   -T <STRING>         For -h vcf use PL (default) or GT tag
+   -A <STRING>         For -h vcf use allele frequency TAG e.g. AFngsrelate (default)
+   -P <filename>       plink name of the binary plink file (excluding the .bed)
+
+Or
+ ./ngsrelate extract_freq_bim pos.glf.gz plink.bim plink.freq
+Or
+ ./ngsrelate extract_freq .mafs.gz .pos.glf.gz [-rmTrans]
+Or
+ ./ngsrelate -h my.bcf [DEVELOPMENT ONLY]
+```
+
+
 # How to download and install #
 On a linux or mac system with curl and g++ installed NgsRelate can be downloaded and installed as follows:
 ``` bash
