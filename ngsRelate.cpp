@@ -52,7 +52,7 @@ int num_threads = 4;
 char *freqname=NULL;
 char *gname=NULL;
 
-int maxIter =5000;
+int maxIter =10000;
 double tole =1e-8;
 int n=-1;
 int nBootstrap = 0;//counter for howmany bootstraps
