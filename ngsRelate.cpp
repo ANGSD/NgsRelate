@@ -782,8 +782,18 @@ char *formatoutput(int a, int b,worker_args *td_out,double total_sites){
  //        9 = 0;       //
  /////////////////////////
  
- for (int j = 0; j < 9; j++) {
-   snprintf(retbuf+strlen(retbuf),4096, "\t%f", td_out->pars[j]);
+ if (td_out->best == 9) {
+   for (int j = 0; j < 9; j++) {
+     snprintf(retbuf+strlen(retbuf),4096, "\t%f", td_out->pars[j]);
+   }
+ } else {
+   for (int j = 0; j < 9; j++){
+     if (j==td_out->best){
+       snprintf(retbuf+strlen(retbuf),4096, "\t%f", 1 - TINY);
+     } else {
+       snprintf(retbuf+strlen(retbuf),4096, "\t%f", TINY / 8.0);
+     }
+   }
  }
 
  //////////////////////////////////////////////////////////////////////
@@ -851,9 +861,10 @@ char *formatoutput(int a, int b,worker_args *td_out,double total_sites){
    snprintf(retbuf+strlen(retbuf),4096, "\t%f\t%d\t%f", td_out->ll, td_out->niter,
 	   (1.0 * td_out->nkeep) / total_sites);
  } else {
-   snprintf(retbuf+strlen(retbuf),4096, "\t%f;s%d_%f\t%d\t%f", td_out->ll, 9 - td_out->best,
-	   td_out->bestll, -1, (1.0 * td_out->nkeep) / total_sites);
+   snprintf(retbuf+strlen(retbuf),4096, "\t%f\t%d\t%f", td_out->bestll, -1,
+	   (1.0 * td_out->nkeep) / total_sites);
  }
+
  
  ////////////////////
  // printing 2dsfs //

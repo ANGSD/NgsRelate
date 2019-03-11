@@ -115,8 +115,8 @@ Based on these Jacquard coefficients, NgsRelate calculates 11 summary statistics
 21. zygosity `J1+J2+J7` [Ackerman et al](http://www.genetics.org/content/206/1/105)
 22. Two-out-of-three IBD `J1+J2+J3+J5+J7+0.5*(J4+J6+J8)` [Miklos csuros](https://www.sciencedirect.com/science/article/pii/S0040580913001123)
 23. Inbreeding difference `0.5*(J4-J6)` [Miklos csuros](https://www.sciencedirect.com/science/article/pii/S0040580913001123)
-24. the log-likelihood of the ML estimate. If a boundary estimate shows a higher likelihood this output becomes llh\_estimate;S[1-9]\_llh\_boundary. S[1-9] reflect the the nine Jacquard coeffecients.
-25. number of EM iterations
+24. the log-likelihood of the ML estimate. 
+25. number of EM iterations. If a `-1` is displayed. A boundary estimate had a higher likelihood. 
 26. fraction of sites used for the ML estimate
 
 The remaining columns relate to statistics based on a 2D-SFS. 
@@ -139,6 +139,8 @@ To get help and a list of all options simply type
 ``` bash
 ./ngsrelate
 ```
+
+Note that for the new version of ngsRelate it is not necessary to flip the allele frequencies if the input allele frequencies are for the minor allele.
 
 ## running version 1 of NgsRelate ##
 To run the old version (V1) that assumes both individuals to be out-bred, just add `-o 1` to your command. This will force Jacqaurd coefficient 1-6 (the coefficients related to inbreeding) to zero.
