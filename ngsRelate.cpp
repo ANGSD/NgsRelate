@@ -862,7 +862,7 @@ char *formatoutput(int a, int b,worker_args *td_out,double total_sites){
    snprintf(retbuf+strlen(retbuf),4096, "\t%f\t%d\t%d\t%f", td_out->ll, td_out->niter, -1,
 	   (1.0 * td_out->nkeep) / total_sites);
  } else {
-   snprintf(retbuf+strlen(retbuf),4096, "\t%f\t%d\t%f\t%f", td_out->ll, td_out->niter, td_out->bestll,
+   snprintf(retbuf+strlen(retbuf),4096, "\t%f\t%d\t%f\t%f", td_out->bestll, td_out->niter, td_out->ll,
             (1.0 * td_out->nkeep) / total_sites);
  }
 
@@ -990,9 +990,9 @@ int main_analysis2(std::vector<double> &freq,double **gls,int num_threads,FILE *
    else{
      if (ids.size()) {
        fprintf(output,
-	       "a\tb\tida\tidb\tnSites\tJ9\tJ8\tJ7\tJ6\tJ5\tJ4\tJ3\tJ2\tJ1\trab\tFa\tFb\ttheta\tinbred_relatedness_1_2\tinbred_relatedness_2_1\tfraternity\tidentity\tzygosity\t2of3_IDB\tF_diff_a_b\tloglh\tnIter\tedgecase\tcoverage\t2dsfs\tR0\tR1\tKING\t2dsfs_loglike\t2dsfsf_niter\n");
+	       "a\tb\tida\tidb\tnSites\tJ9\tJ8\tJ7\tJ6\tJ5\tJ4\tJ3\tJ2\tJ1\trab\tFa\tFb\ttheta\tinbred_relatedness_1_2\tinbred_relatedness_2_1\tfraternity\tidentity\tzygosity\t2of3_IDB\tF_diff_a_b\tloglh\tnIter\tbestoptimll\tcoverage\t2dsfs\tR0\tR1\tKING\t2dsfs_loglike\t2dsfsf_niter\n");
      } else {
-       fprintf(output, "a\tb\tnSites\tJ9\tJ8\tJ7\tJ6\tJ5\tJ4\tJ3\tJ2\tJ1\trab\tFa\tFb\ttheta\tinbred_relatedness_1_2\tinbred_relatedness_2_1\tfraternity\tidentity\tzygosity\t2of3_IDB\tFDiff\tloglh\tnIter\tedgecase\tcoverage\t2dsfs\tR0\tR1\tKING\t2dsfs_loglike\t2dsfsf_niter\n");
+       fprintf(output, "a\tb\tnSites\tJ9\tJ8\tJ7\tJ6\tJ5\tJ4\tJ3\tJ2\tJ1\trab\tFa\tFb\ttheta\tinbred_relatedness_1_2\tinbred_relatedness_2_1\tfraternity\tidentity\tzygosity\t2of3_IDB\tFDiff\tloglh\tnIter\tbestoptimll\tcoverage\t2dsfs\tR0\tR1\tKING\t2dsfs_loglike\t2dsfsf_niter\n");
      }
    }
    
