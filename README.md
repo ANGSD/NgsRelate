@@ -55,7 +55,7 @@ On a linux or mac system with curl and g++ installed NgsRelate can be downloaded
 ``` bash
 git clone https://github.com/SAMtools/htslib
 git clone https://github.com/ANGSD/ngsRelate
-cd htslib/;make -j2;cd ../NgsRelate;make HTSSRC=../htslib/
+cd htslib/;make -j2;cd ../ngsRelate;make HTSSRC=../htslib/
 ```
 
 # Run examples #
