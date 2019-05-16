@@ -158,7 +158,8 @@ To only estimate inbreeding, use the following command
 # Citing and references #
 
 - Method (v1) is published here: http://bioinformatics.oxfordjournals.org/content/early/2015/08/29/bioinformatics.btv509.abstract
-- Method (v2) is currently under review.
+- Method (v2) is published here:
+https://academic.oup.com/gigascience/article/8/5/giz034/5481763
 
 # Changelog #
 
