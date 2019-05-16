@@ -116,7 +116,7 @@ double loglike(double *p,double **emis,int len,int dim){
 
 void emStep(double *pre,double **emis,double *post,int len,int len2){
   for(int i=0;i<len2;i++){
-    if(pre[i]<0||pre[i]>1){
+    if(pre[i]<0||pre[i]>1||isnan(pre[i])){
       fprintf(stderr,"Problem with guess in emStep: ");
       for(int j=0;j<len2;j++)
 	fprintf(stderr," %f ",pre[0]);
@@ -132,13 +132,15 @@ void emStep(double *pre,double **emis,double *post,int len,int len2){
     for(int x=0;x<len2;x++){
       inner[x] = pre[x]*emis[i][x];
     }
+
     normalize(inner,len2);
+
     for(int x=0;x<len2;x++){
       post[x] += inner[x];
     }
-
   }
   normalize(post,len2);
+
 }
 
 void minus(double * fst,double * sec,double * res,int dim){
@@ -156,13 +158,13 @@ double sumSquare(double * mat,int dim){
 
 int emAccel(double *F,double **emis,double *F_new,int len, int & niter,int dim){
   //  maybe these should be usersettable?
-
+ 
   double stepMin =1;
   double stepMax0 = 1;
   static double stepMax=stepMax0;
   double mstep=4;
   //  double objfnInc=1;
-
+  
 
   double F_em1[dim];
   double F_diff1[dim];
@@ -244,6 +246,7 @@ int em(double *sfs,double  **emis, int len, int dim){
   double tmp[dim];
 
   int it;
+
   for(it=0;niter<maxIter;it++) {
     niter++;
     if(model==0)
@@ -252,6 +255,7 @@ int em(double *sfs,double  **emis, int len, int dim){
       emAccel(sfs,emis,tmp,len, niter,dim);      
     for(int i=0;i<dim;i++)
       sfs[i]= tmp[i];
+    
     lik = loglike(sfs,emis,len,dim);
 
     if(fabs(lik-oldLik)<tole){
@@ -422,6 +426,22 @@ void emission_ngsrelate9(std::vector<double> * freq, double **gls, double **emis
     emis[x][7] += 0;
     emis[x][8] += 0;
 
+#ifdef myDEBUGemis9
+    double test =0;
+    for (int xx=0;xx<9;xx++){
+      test+=emis[x][xx];
+    }
+    if(test<1e-30){
+      fprintf(stderr, "%d %d g1:", i, x);
+      for (int geno=0; geno<3; geno++)
+        fprintf(stderr, " %f",  access_genotype(gls, i, ind1, geno));
+      fprintf(stderr, " g2:");
+      for (int geno=0; geno<3; geno++)
+        fprintf(stderr, " %f",  access_genotype(gls, i, ind2, geno));
+      fprintf(stderr,"\n");
+    }
+#endif
+    
   }
 
   
@@ -492,6 +512,13 @@ void print_info(FILE *fp){
 }
 
 int is_missing(double *ary){
+  if(fabs(ary[0] - ary[1])<1e-6 && fabs(ary[0] - ary[2])<1e-6 && fabs(ary[1] - ary[2])<1e-6)
+    return 1;
+  else
+    return 0;
+}
+
+int is_missing_old(double *ary){
   if(ary[0]==ary[1]&&ary[0]==ary[2]&&ary[1]==ary[2])
     return 1;
   else
@@ -621,6 +648,8 @@ int populate_keeplist(int pk_a,int pk_b,int pk_nsites,double **pk_gls,int pk_min
     for(int i=0;i<nkeep;i++)
       keeplist[i] = tmp[i];
   }
+  
+  
   return nkeep;
 }
 
@@ -658,6 +687,16 @@ int analyse_jaq(double *pk_pars,std::vector<double> *pk_freq,double **pk_gls,int
     emission_ngsrelate9(pk_freq, pk_gls, pk_emis, pk_keeplist, pk_nkeep, pk_a, pk_b);
   else
     emission_ngs_inbred(pk_freq,  pk_gls, pk_emis, pk_keeplist, pk_nkeep, pk_a);
+
+#ifdef myDEBUGemis9
+    for(int i=0;i<pk_nkeep;i++){
+      fprintf(stdout, "%f", pk_emis[i][0]);
+      for(int x=1;x<9;x++){
+        fprintf(stdout, " %f", pk_emis[i][x]);
+      }
+      fprintf(stdout, "\n");      
+    }
+#endif
   //will not be used before values has been plugged in;
   double tmp_pk_pars[9];
   double tmp_pk_ll;
@@ -722,17 +761,18 @@ int analyse_jaq(double *pk_pars,std::vector<double> *pk_freq,double **pk_gls,int
 
 
 void anal1(int a,int b,worker_args * td,double minMaf){
-  //    fprintf(stderr,"a:%d b:%d\n",a,b);
+  // fprintf(stderr,"a:%d b:%d\n",a,b);
   assert(td->nsites>0);
   td->nkeep = populate_keeplist(a,b,td->nsites,td->gls,minMaf,td->freq,td->keeplist,td->bootindex);
   
   
-  if (td->nkeep==0)
+  if (td->nkeep==0){
     fprintf(stderr, "\t->Sites with both %d and %d having data: %d \n", a, b, td->nkeep);
-
+  }
+  
   if(!do_2dsfs_only)
     analyse_jaq(td->pars,td->freq,td->gls,td->keeplist,td->emis,td->nkeep,a,b,td->ll,td->best,td->bestll,td->niter,ntimes);    
-  
+
   if(do_inbred==0){
     emislike_2dsfs_gen(td->gls, td->emis,td->keeplist, td->nkeep, a, b);
 
@@ -962,7 +1002,7 @@ int main_analysis2(std::vector<double> &freq,double **gls,int num_threads,FILE *
       mp.push_back(mp[0]);
 
   }
-  
+
   std::random_shuffle(mp.begin(),mp.end());
   fprintf(stderr,"\t-> length of joblist:%lu\n",mp.size());
 
