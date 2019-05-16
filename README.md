@@ -71,14 +71,14 @@ Assume we have file (`filelist`) containing paths to 100 BAM/CRAM files; one lin
 zcat angsdput.mafs.gz | cut -f5 |sed 1d >freq
 
 ### run NgsRelate
-./ngsrelate  -g angsdput.glf.gz -n 100 -f freq  > newres
+./ngsrelate  -g angsdput.glf.gz -n 100 -f freq  -O newres
 ```
 The output should be a file called `newres` that contains the output for all pairs between six individuals.
 
 ## Run example 2: using only VCF/BCF files ##
 As of version 2, NgsRelate can parse BCF/VCF files using [htslib](https://github.com/SAMtools/htslib) with the following command:
 ``` bash
-./ngsrelate  -h my.VCF.gz > vcf.res
+./ngsrelate  -h my.VCF.gz -O vcf.res
 ```
 By default, NgsRelate will estimate the allele frequencies using the individuals provided in the VCF files. Allele frequencies from the INFO field can used be used instead using `-A TAG`. The `TAG` usually take the form of `AF` or `AF1` but can be set to anything. By default the *PL* data (Phred-scaled likelihoods for genotypes) is parsed, however, the called genotypes can also be used instead with the `-T GT` option.
 
