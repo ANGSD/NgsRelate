@@ -116,7 +116,7 @@ double loglike(double *p,double **emis,int len,int dim){
 
 void emStep(double *pre,double **emis,double *post,int len,int len2){
   for(int i=0;i<len2;i++){
-    if(pre[i]<0||pre[i]>1||isnan(pre[i])){
+    if(pre[i]<0||pre[i]>1||is_nan(pre[i])){
       fprintf(stderr,"Problem with guess in emStep: ");
       for(int j=0;j<len2;j++)
 	fprintf(stderr," %f ",pre[0]);
