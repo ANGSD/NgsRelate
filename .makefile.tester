@@ -1,0 +1,14 @@
+# FLAGS="FLAGS=-O3 -DDB_MP -DDB_EMIS -DDB_AF -DDB_GLS"
+# FLAGS="FLAGS=-O3 -DDB_MP -DDB_BAD_ALLOC"
+# FLAGS="FLAGS=-O3 -DDB_BAD_ALLOC"
+FLAGS="FLAGS= -O3"
+all: m run
+
+m:	
+	make -C ../../NgsRelate clean; make -C ../../NgsRelate $(FLAGS) HTSSRC=../htslib
+
+run:
+	../../NgsRelate/ngsRelate -f freq -g angsdput.glf.gz -n 81 -a 34 -b 39 -O test2  -p1 -z list -r 1 # -B 1
+
+runboot:
+	../..//NgsRelate/ngsRelate -f freq -g angsdput.glf.gz -n 81 -a 34 -b 39 -O test2  -p1 -z list -B 1 -r 1

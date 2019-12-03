@@ -135,10 +135,52 @@ void emStep(double *pre,double **emis,double *post,int len,int len2){
 
     normalize(inner,len2);
 
+#if DB_MP
+    for(int x=0;x<len2;x++){
+      if(is_nan(inner[x])){
+        fprintf(stderr, "pre: %d ", i);
+        for(int x=0;x<len2;x++){
+          fprintf(stderr, "%f ", pre[x]);
+        }
+        fprintf(stderr, "\n");
+        
+        fprintf(stderr, "emis: %d ", i);
+        for(int x=0;x<len2;x++){
+          fprintf(stderr, "%f ", emis[i][x]);
+        }
+        fprintf(stderr, "\n");
+        
+        fprintf(stderr, "site: %d ", i);
+        for(int x=0;x<len2;x++){
+          fprintf(stderr, "%f ", inner[x]);
+        }
+        fprintf(stderr, "\n");
+        exit(0);
+      }
+    }
+#endif
+    
+    
     for(int x=0;x<len2;x++){
       post[x] += inner[x];
+#if DB_MP
+      if(is_nan(post[x])){
+        fprintf(stderr, "%d %f\n", i, inner[x]);
+        exit(0);
+      }
+#endif
+
     }
   }
+
+#if DB_MP && 0
+  fprintf(stderr, "post->sites: %d, params: %d ", len, len2);
+  for(int i=0; i<len2; i++){
+    fprintf(stderr, " %f", post[i]);
+  }
+  fprintf(stderr, "\n");
+#endif
+  
   normalize(post,len2);
 
 }
@@ -164,7 +206,13 @@ int emAccel(double *F,double **emis,double *F_new,int len, int & niter,int dim){
   static double stepMax=stepMax0;
   double mstep=4;
   //  double objfnInc=1;
-  
+#if DB_MP
+  fprintf(stderr, "iter: %d input:  ", niter);
+  for(int i=0; i<dim; i++){
+    fprintf(stderr, " %f", F[i]);
+  }
+  fprintf(stderr, "\n");
+#endif
 
   double F_em1[dim];
   double F_diff1[dim];
@@ -175,20 +223,36 @@ int emAccel(double *F,double **emis,double *F_new,int len, int & niter,int dim){
   niter++;
   emStep(F, emis, F_em1, len,dim);
   // stayin(F_em1);
+#if DB_MP
+  fprintf(stderr, "iter: %d emstep1:  ", niter);
+  for(int i=0; i<dim; i++){
+    fprintf(stderr, " %f", F_em1[i]);
+  }
+  fprintf(stderr, "\n");
+#endif
   
   minus(F_em1, F, F_diff1,dim);
 
   double sr2 = sumSquare(F_diff1,dim);
   
   if(sqrt(sr2)<ttol){
-    //     fprintf(stderr,"sr2 break: %e\n", sqrt(sr2));
-    for(int i=0;0&&i<dim;i++)
+#if DB_MP
+    fprintf(stderr,"sr2 break: %e\n", sqrt(sr2));
+#endif
+    for(int i=0;1&&i<dim;i++)
       F_new[i]  = F_em1[i];
-    return 0;
+    return 2;
   }
   niter++;
   emStep(F_em1, emis, F_em2, len,dim);
   minus(F_em2, F_em1, F_diff2,dim);
+#if DB_MP
+  fprintf(stderr, "iter: %d emstep2:  ", niter);
+  for(int i=0; i<dim; i++){
+    fprintf(stderr, " %f", F_em2[i]);
+  }
+  fprintf(stderr, "\n");
+#endif
 
   double sq2 = sumSquare(F_diff2,dim);
 
@@ -196,7 +260,7 @@ int emAccel(double *F,double **emis,double *F_new,int len, int & niter,int dim){
     //    fprintf(stderr,"sq2 break: %e\n", sqrt(sq2));
     for(int i=0;0&&i<dim;i++)
       F_new[i]  = F_em2[i];
-    return 0;
+    return 2;
   }
 
   minus(F_diff2,F_diff1, F_diff3,dim);
@@ -217,6 +281,13 @@ int emAccel(double *F,double **emis,double *F_new,int len, int & niter,int dim){
     }
   }
   if(outofparspace){
+#ifdef DB_MP
+  fprintf(stderr, "iter: %d outofspace:  ", niter);
+  for(int i=0; i<dim; i++){
+    fprintf(stderr, " %f", F[i]);
+  }
+  fprintf(stderr, "\n");
+#endif
     for(int i=0;i<dim;i++)
       F_new[i] = F_em2[i];
   }
@@ -245,20 +316,20 @@ int em(double *sfs,double  **emis, int len, int dim){
 
   double tmp[dim];
 
-  int it;
-
+  int it, return_code;
+  
   for(it=0;niter<maxIter;it++) {
     niter++;
     if(model==0)
       emStep(sfs,emis,tmp,len,dim);
     else
-      emAccel(sfs,emis,tmp,len, niter,dim);      
+      return_code = emAccel(sfs,emis,tmp,len, niter,dim);      
     for(int i=0;i<dim;i++)
       sfs[i]= tmp[i];
     
     lik = loglike(sfs,emis,len,dim);
 
-    if(fabs(lik-oldLik)<tole){
+    if(fabs(lik-oldLik)<tole || return_code==2){
 
       oldLik=lik;
       break;
@@ -633,15 +704,18 @@ int populate_keeplist(int pk_a,int pk_b,int pk_nsites,double **pk_gls,int pk_min
       continue;
 
     // removing minor allele frequencies
-    if ( !do_2dsfs_only && (*pk_freq)[i] < minMaf || (1 - (*pk_freq)[i] < minMaf))
+    if ( (!do_2dsfs_only) &&
+         ((*pk_freq)[i] < minMaf || (1 - (*pk_freq)[i] < minMaf)))
       continue;
 
     keeplist[nkeep] = i;//dont forget
     nkeep++;
   }
+  
+  // THIS IS THE MISTAKE
   if(tmp){//indicater for if we should bootstrap
     for(int i=0;i<nkeep;i++){
-      tmp[i] = lrand48() % nkeep;
+      tmp[i] = keeplist[lrand48() % nkeep];
       //      fprintf(stderr,"tmp:%d\n",tmp[i]);
     }
     std::sort(tmp,tmp+nkeep);
@@ -688,14 +762,16 @@ int analyse_jaq(double *pk_pars,std::vector<double> *pk_freq,double **pk_gls,int
   else
     emission_ngs_inbred(pk_freq,  pk_gls, pk_emis, pk_keeplist, pk_nkeep, pk_a);
 
-#ifdef myDEBUGemis9
+#ifdef DB_EMIS
+  FILE * emis_fp = fopen("db_emis.txt", "w");
     for(int i=0;i<pk_nkeep;i++){
-      fprintf(stdout, "%f", pk_emis[i][0]);
+      fprintf(emis_fp, "%f", pk_emis[i][0]);
       for(int x=1;x<9;x++){
-        fprintf(stdout, " %f", pk_emis[i][x]);
+        fprintf(emis_fp, " %f", pk_emis[i][x]);
       }
-      fprintf(stdout, "\n");      
+      fprintf(emis_fp, "\n");      
     }
+    fclose(emis_fp);
 #endif
   //will not be used before values has been plugged in;
   double tmp_pk_pars[9];
@@ -703,6 +779,10 @@ int analyse_jaq(double *pk_pars,std::vector<double> *pk_freq,double **pk_gls,int
   int tmp_pk_niter;
 
   pk_ll=log(0);
+
+#ifdef DB_MP
+  fprintf(stderr, "jacquard\n");
+#endif
   
   for(int n=0;n<ntimes;n++) {
     sample48(tmp_pk_pars,do_inbred?2:9);
@@ -710,6 +790,7 @@ int analyse_jaq(double *pk_pars,std::vector<double> *pk_freq,double **pk_gls,int
     for(int i=3;do_simple&&do_inbred==0 && i<9;i++)//setting it to the old
       tmp_pk_pars[i] = 0;
     tmp_pk_niter = em(tmp_pk_pars, pk_emis, pk_nkeep,do_inbred?2:9);
+
     tmp_pk_ll = loglike(tmp_pk_pars, pk_emis, pk_nkeep,do_inbred?2:9);
     
     if(n==0||tmp_pk_ll>pk_ll){
@@ -721,29 +802,31 @@ int analyse_jaq(double *pk_pars,std::vector<double> *pk_freq,double **pk_gls,int
       pk_ll=tmp_pk_ll;
       pk_niter=tmp_pk_niter;
     }
+    
   }
   
   if(do_inbred==0){
-      double l100000000 = loglike(p100000000, pk_emis, pk_nkeep,9);
-      double l010000000 = loglike(p010000000, pk_emis, pk_nkeep,9);
-      double l001000000 = loglike(p001000000, pk_emis, pk_nkeep,9);
-      double l000100000 = loglike(p000100000, pk_emis, pk_nkeep,9);
-      double l000010000 = loglike(p000010000, pk_emis, pk_nkeep,9);
-      double l000001000 = loglike(p000001000, pk_emis, pk_nkeep,9);
-      double l000000100 = loglike(p000000100, pk_emis, pk_nkeep,9);
-      double l000000010 = loglike(p000000010, pk_emis, pk_nkeep,9);
-      double l000000001 = loglike(p000000001, pk_emis, pk_nkeep,9);
-      double likes[10] = {l100000000, l010000000, l001000000, l000100000,
-			  l000010000, l000001000, l000000100, l000000010,
-			  l000000001, pk_ll};
-      pk_best = 0;
-      pk_bestll = likes[0];
-      for (int i = 1; i < 10; i++) {
-	if (likes[i] > likes[pk_best]){
-	  pk_best = i;
-	  pk_bestll = likes[i];
-	}
+    double l100000000 = loglike(p100000000, pk_emis, pk_nkeep,9);
+    double l010000000 = loglike(p010000000, pk_emis, pk_nkeep,9);
+    double l001000000 = loglike(p001000000, pk_emis, pk_nkeep,9);
+    double l000100000 = loglike(p000100000, pk_emis, pk_nkeep,9);
+    double l000010000 = loglike(p000010000, pk_emis, pk_nkeep,9);
+    double l000001000 = loglike(p000001000, pk_emis, pk_nkeep,9);
+    double l000000100 = loglike(p000000100, pk_emis, pk_nkeep,9);
+    double l000000010 = loglike(p000000010, pk_emis, pk_nkeep,9);
+    double l000000001 = loglike(p000000001, pk_emis, pk_nkeep,9);
+    double likes[10] = {l100000000, l010000000, l001000000, l000100000,
+                        l000010000, l000001000, l000000100, l000000010,
+                        l000000001, pk_ll};
+    pk_best = 0;
+    pk_bestll = likes[0];
+    for (int i = 1; i < 10; i++) {
+      if (likes[i] > likes[pk_best]){
+        pk_best = i;
+        pk_bestll = likes[i];
       }
+    }
+
   }else{
     double l01= loglike(p01,pk_emis,pk_nkeep,2);
     double l10= loglike(p10,pk_emis,pk_nkeep,2);
@@ -757,6 +840,7 @@ int analyse_jaq(double *pk_pars,std::vector<double> *pk_freq,double **pk_gls,int
       }
     }
   }
+  return 0;
 }
 
 
@@ -773,12 +857,18 @@ void anal1(int a,int b,worker_args * td,double minMaf){
   if(!do_2dsfs_only)
     analyse_jaq(td->pars,td->freq,td->gls,td->keeplist,td->emis,td->nkeep,a,b,td->ll,td->best,td->bestll,td->niter,ntimes);    
 
+
   if(do_inbred==0){
+
     emislike_2dsfs_gen(td->gls, td->emis,td->keeplist, td->nkeep, a, b);
+
 
     double tmp_pars_2dsfs[9];
     int tmp_niter_2dsfs;
     double tmp_ll_2dsfs;
+#ifdef DB_MP
+  fprintf(stderr, "sfs\n");
+#endif
    
     td->ll_2dsfs=log(0);
     for(int n=0;n<ntimes;n++){
@@ -944,7 +1034,7 @@ char *formatoutput(int a, int b,worker_args *td_out,double total_sites){
 
 
 
-void *turbothread(void *threadarg){
+void * turbothread(void *threadarg){
   worker_args * td;
   td = ( worker_args * ) threadarg;
 
@@ -966,7 +1056,9 @@ void *turbothread(void *threadarg){
     fwrite(mp[i].res,sizeof(char),strlen(mp[i].res),spillfiles[td->thread_id]);
     fflush(spillfiles[td->thread_id]);
   }
+  pthread_exit(NULL);
 }
+
 int main_analysis2(std::vector<double> &freq,double **gls,int num_threads,FILE *output,int total_sites){
 
   //initalize jobids
@@ -1003,6 +1095,13 @@ int main_analysis2(std::vector<double> &freq,double **gls,int num_threads,FILE *
 
   }
 
+#if DB_MP
+  fprintf(stderr, "combinations: ");
+  for(auto &val: mp){
+    fprintf(stderr, "%d-%d;", val.a, val.b);
+  }
+  fprintf(stderr, "\n");
+#endif
   std::random_shuffle(mp.begin(),mp.end());
   fprintf(stderr,"\t-> length of joblist:%lu\n",mp.size());
 
@@ -1289,14 +1388,24 @@ int main(int argc, char **argv){
     fprintf(stderr,"\t-> Done calling genotypes\n");
   }
 
-#if 0 //for printout everything
+#if DB_AF //for printout everything
+  FILE * af_fp = fopen("db_af.txt", "w");
   for(int i=0;i<freq.size();i++){
-    fprintf(stdout,"%f",freq[i]);
-    for(int ii=0;ii<3*nind;ii++)
-      fprintf(stdout,"\t%f",gls[i][ii]);
-    fprintf(stdout, "\n");
+    fprintf(af_fp,"%f\n",freq[i]);
   }
-  return 0;
+  fclose(af_fp);
+#endif
+
+  
+#if DB_GLS //for printout everything
+  FILE * gls_fp = fopen("db_gls.txt", "w");
+  for(int i=0;i<freq.size();i++){
+    fprintf(gls_fp,"%f",gls[i][0]);    
+    for(int ii=1;ii<3*nind;ii++)
+      fprintf(gls_fp,"\t%f",gls[i][ii]);
+    fprintf(gls_fp, "\n");
+  }
+  fclose(gls_fp);
 #endif
  
 
