@@ -46,4 +46,4 @@ echo -e "\t test all done "  >>${LOG} 2>&1
 
 #md5sum odir/* >test1.md5
 
-${MD5}  -c test1.md5 >>${LOG} 2>&1 || exit 1
+${MD5} -w -c test1.md5 >>${LOG} 2>&1
