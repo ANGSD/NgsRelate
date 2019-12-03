@@ -206,7 +206,9 @@ size_t getgls(char*fname,std::vector<double *> &mygl, std::vector<double> &freqs
 
   // read header
   nsamples = bcf_hdr_nsamples(hdr);
-  //  fprintf(stderr, "\t-> File %s contains %i samples\n", fname, nsamples);
+
+  
+  // fprintf(stderr, "\t-> File %s contains %i samples\n", fname, nsamples);
   const char **seqnames = NULL;
   seqnames = bcf_hdr_seqnames(hdr, &nseq); assert(seqnames);//bcf_hdr_id2name(hdr,i)
 
@@ -372,16 +374,20 @@ size_t getgls(char*fname,std::vector<double *> &mygl, std::vector<double> &freqs
     hts_idx_destroy(idx);
 
   //for(int i=0;i<nseq;i++)
-    free(seqnames);
-
+  free(seqnames);
   return nsamples;
- 
 }
 
 void *wrap(void *ptr){
   satan *god = (satan*) ptr;
   god->nind=getgls(god->fname, god->mygl,god->freqs, god->minind, god->minfreq,god->vcf_format_field,god->vcf_allele_field,god->seek);
-  //  pthread_exit(NULL);//this is sometimes called without thread
+  pthread_exit(NULL);//this is sometimes called without thread
+}
+
+int wrap_nothreading(void *ptr){
+  satan *god = (satan*) ptr;
+  god->nind=getgls(god->fname, god->mygl,god->freqs, god->minind, god->minfreq,god->vcf_format_field,god->vcf_allele_field,god->seek);
+  return 1;
 }
 
 
@@ -400,6 +406,7 @@ void *wrap2(void *){
 
 
 double ** readbcfvcf(char*fname,int &nind, std::vector<double> &freqs,int minind,double minfreq, std::string vcf_format_field, std::string vcf_allele_field,char *seek){
+  
   fprintf(stderr,"\t-> readbcfvcf seek:%s nind:%d\n",seek,nind);
   htsFile * inf = NULL;inf=hts_open(fname, "r");assert(inf);  
   bcf_hdr_t *hdr = NULL;hdr=bcf_hdr_read(inf);assert(hdr);
@@ -413,12 +420,15 @@ double ** readbcfvcf(char*fname,int &nind, std::vector<double> &freqs,int minind
   god.vcf_format_field=vcf_format_field;
   god.vcf_allele_field=vcf_allele_field;
   god.seek=seek;
+
   
 
   if(inf->format.format==bcf){
     isbcf=1;
     hd = hasdata(fname);
-  }if(seek&&isbcf==0){
+  }
+
+  if(seek&&isbcf==0){
     fprintf(stderr,"\t-> if choosing region then input file has to be bcf\n");
     exit(0);
   }
@@ -430,27 +440,30 @@ double ** readbcfvcf(char*fname,int &nind, std::vector<double> &freqs,int minind
   
   double **gls=NULL;
   if(seek!=NULL||isbcf==0){//single run
-    wrap(&god);
+
+    wrap_nothreading(&god);
     nind=god.nind;
-   
+
     gls=new double *[god.mygl.size()];
     for(int i=0;i<god.mygl.size();i++){
       gls[i] = god.mygl[i];
     }
     freqs=god.freqs;
+
+
   }else{
-      for(int i=0;i<hd.size();i++){
-	jobs.push_back(god);
-	jobs[i].seek=hd[i];
-      }
+    for(int i=0;i<hd.size();i++){
+      jobs.push_back(god);
+      jobs[i].seek=hd[i];
+    }
     
     if(diskio_threads==1||isbcf==0){
       for(int i=0;i<jobs.size();i++){
-	wrap(&jobs[i]);
+	wrap_nothreading(&jobs[i]);
       }
     }else{
       int at =0;
-
+      
       while(at<hd.size()){
 	//	fprintf(stderr,"at:%d hdsize:%lu\n",at,hd.size());
 	int howmany=std::min(diskio_threads,(int)hd.size()-at);
@@ -483,9 +496,12 @@ double ** readbcfvcf(char*fname,int &nind, std::vector<double> &freqs,int minind
     for(int i=0;i<hd.size();i++)
       free(hd[i]);
   }
+
+
   free(seqnames);
   if(hdr) bcf_hdr_destroy(hdr);
   hts_close(inf);
+
   return gls;
 }
 
