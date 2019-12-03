@@ -239,9 +239,9 @@ int emAccel(double *F,double **emis,double *F_new,int len, int & niter,int dim){
 #if DB_MP
     fprintf(stderr,"sr2 break: %e\n", sqrt(sr2));
 #endif
-    for(int i=0;1&&i<dim;i++)
+    for(int i=0;0&&i<dim;i++)
       F_new[i]  = F_em1[i];
-    return 2;
+    return 1;
   }
   niter++;
   emStep(F_em1, emis, F_em2, len,dim);
@@ -260,7 +260,7 @@ int emAccel(double *F,double **emis,double *F_new,int len, int & niter,int dim){
     //    fprintf(stderr,"sq2 break: %e\n", sqrt(sq2));
     for(int i=0;0&&i<dim;i++)
       F_new[i]  = F_em2[i];
-    return 2;
+    return 1;
   }
 
   minus(F_diff2,F_diff1, F_diff3,dim);
@@ -316,20 +316,20 @@ int em(double *sfs,double  **emis, int len, int dim){
 
   double tmp[dim];
 
-  int it, return_code;
+  int it;
   
   for(it=0;niter<maxIter;it++) {
     niter++;
     if(model==0)
       emStep(sfs,emis,tmp,len,dim);
     else
-      return_code = emAccel(sfs,emis,tmp,len, niter,dim);      
+      emAccel(sfs,emis,tmp,len, niter,dim);      
     for(int i=0;i<dim;i++)
       sfs[i]= tmp[i];
     
     lik = loglike(sfs,emis,len,dim);
 
-    if(fabs(lik-oldLik)<tole || return_code==2){
+    if(fabs(lik-oldLik)<tole){
 
       oldLik=lik;
       break;
