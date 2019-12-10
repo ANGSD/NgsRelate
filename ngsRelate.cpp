@@ -1156,6 +1156,17 @@ int main_analysis2(std::vector<double> &freq,double **gls,int num_threads,FILE *
      
 }
 
+int my_atoi(char *s){
+  // https://stackoverflow.com/a/3850567
+  char *endptr = s;
+  int value = (int)strtol(s, &endptr, 10);
+  if(*endptr == *s ){
+    fprintf(stderr, "pair '%s' is not a 0-based index\n", s);
+    exit(0);
+  }
+  return value;
+}
+
 int main(int argc, char **argv){
    clock_t t=clock();
    time_t t2=time(NULL);
@@ -1197,8 +1208,10 @@ int main(int argc, char **argv){
     case 'F': do_inbred = atoi(optarg); break;
     case 'o': do_simple = atoi(optarg); break;
     case 'c': gc = atoi(optarg); break;
-    case 'a': pair1 = atoi(optarg); break;
-    case 'b': pair2 = atoi(optarg); break;
+    case 'a': pair1 = my_atoi(optarg); break;
+    case 'b': pair2 = my_atoi(optarg); break;
+    // case 'a': pair1 = atoi(optarg); break;
+    // case 'b': pair2 = atoi(optarg); break;
     case 'n': {nind = atoi(optarg); hasDef=1; break;}
     case 'p': num_threads = atoi(optarg);break;
     case 'e': errate = atof(optarg); break;
