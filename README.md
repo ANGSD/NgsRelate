@@ -81,6 +81,7 @@ As of version 2, NgsRelate can parse BCF/VCF files using [htslib](https://github
 ./ngsrelate  -h my.VCF.gz -O vcf.res
 ```
 By default, NgsRelate will estimate the allele frequencies using the individuals provided in the VCF files. Allele frequencies from the INFO field can used be used instead using `-A TAG`. The `TAG` usually take the form of `AF` or `AF1` but can be set to anything. By default the *PL* data (Phred-scaled likelihoods for genotypes) is parsed, however, the called genotypes can also be used instead with the `-T GT` option.
+If called genotypes are being used, the software requires an additional argument (`-c 1`). If using `-c 2`, ngsRelate calls genotypes assuming hardy-weinberg.
 
 # Input file format #
 
