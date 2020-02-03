@@ -806,25 +806,30 @@ int analyse_jaq(double *pk_pars,std::vector<double> *pk_freq,double **pk_gls,int
   }
   
   if(do_inbred==0){
-    double l100000000 = loglike(p100000000, pk_emis, pk_nkeep,9);
+    double l100000000 = loglike(p100000000, pk_emis, pk_nkeep,9);//0
     double l010000000 = loglike(p010000000, pk_emis, pk_nkeep,9);
     double l001000000 = loglike(p001000000, pk_emis, pk_nkeep,9);
     double l000100000 = loglike(p000100000, pk_emis, pk_nkeep,9);
     double l000010000 = loglike(p000010000, pk_emis, pk_nkeep,9);
-    double l000001000 = loglike(p000001000, pk_emis, pk_nkeep,9);
-    double l000000100 = loglike(p000000100, pk_emis, pk_nkeep,9);
-    double l000000010 = loglike(p000000010, pk_emis, pk_nkeep,9);
-    double l000000001 = loglike(p000000001, pk_emis, pk_nkeep,9);
+    double l000001000 = loglike(p000001000, pk_emis, pk_nkeep,9);//5
+    double l000000100 = loglike(p000000100, pk_emis, pk_nkeep,9);//6
+    double l000000010 = loglike(p000000010, pk_emis, pk_nkeep,9);//7
+    double l000000001 = loglike(p000000001, pk_emis, pk_nkeep,9);//8
     double likes[10] = {l100000000, l010000000, l001000000, l000100000,
                         l000010000, l000001000, l000000100, l000000010,
                         l000000001, pk_ll};
     pk_best = 0;
     pk_bestll = likes[0];
-    for (int i = 1; i < 10; i++) {
+    int stop= do_simple==0?10:3;
+    for (int i = 1; i < stop; i++) {
       if (likes[i] > likes[pk_best]){
         pk_best = i;
         pk_bestll = likes[i];
       }
+    }
+    if(stop==3&&likes[9]>likes[pk_best]){
+      pk_best=9;
+      pk_bestll = likes[pk_best];
     }
 
   }else{
