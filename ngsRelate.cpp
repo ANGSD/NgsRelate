@@ -568,7 +568,7 @@ void print_info(FILE *fp){
   fprintf(fp, "   -B <INT>            Number of bootstrap replicates for (only for single pairs)\n");
   fprintf(fp, "   -N <INT>            How many times to start each pair with random seed?\n");
   fprintf(fp, "   -n <INT>            Number of samples in glf.gz\n");
-  fprintf(fp, "   -l <INT>            minMaf or 1-Maf filter\n");
+  fprintf(fp, "   -l <FLOAT>            minMaf or 1-Maf filter (default: 0.05)\n");  
   fprintf(fp, "   -z <INT>            Name of file with IDs (optional)\n");
   fprintf(fp, "   -T <STRING>         For -h vcf use PL (default) or GT tag\n");
   fprintf(fp, "   -A <STRING>         For -h vcf use allele frequency TAG e.g. AFngsrelate (default)\n");  

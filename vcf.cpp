@@ -360,7 +360,7 @@ size_t getgls(char*fname,std::vector<double *> &mygl, std::vector<double> &freqs
     // fprintf(stderr,"rec->pos:%d npl:%d naf:%d rec->n_allele:%d af[0]:%f\n",rec->pos,npl,naf,rec->n_allele,freq);
     // exit(0);
   }
-  fprintf(stderr, "\t-> [file=\'%s\'][chr=\'%s\'] Read %i records %i of which were SNPs number of sites with data:%lu\n",fname,seek, n, nsnp,mygl.size()); 
+  fprintf(stderr, "\t-> [file=\'%s\'][chr=\'%s\'] Read %i records %i of which were SNPs. Number of sites used for downstream analysis (MAF >= %f):%lu\n",fname,seek, n, nsnp, minfreq,mygl.size()); 
 
   free(pl);
   free(gt);
