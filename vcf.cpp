@@ -14,6 +14,7 @@
 #include <limits>
 #include <string>
 #include <pthread.h>
+#include <cassert>
 
 #define diskio_threads 24
 int std_queue = 0;
