@@ -118,16 +118,17 @@ Based on these Jacquard coefficients, NgsRelate calculates 11 summary statistics
 23. Inbreeding difference `0.5*(J4-J6)` [Miklos csuros](https://www.sciencedirect.com/science/article/pii/S0040580913001123)
 24. the log-likelihood of the ML estimate. 
 25. number of EM iterations. If a `-1` is displayed. A boundary estimate had a higher likelihood. 
-26. fraction of sites used for the ML estimate
+26. If differs from `-1`. A boundary estimate had a higher likelihood. Reported loglikelihood should be highly similar to the corresponding value reported in `loglh`
+27. fraction of sites used for the ML estimate
 
 The remaining columns relate to statistics based on a 2D-SFS. 
 
-27. 2dsfs estimates using the same methodology as implemented in realSFS, see [ANGSD](https://github.com/ANGSD/angsd)
-28. R0 [Waples et al](https://www.biorxiv.org/content/early/2018/08/31/260497)
-29. R1 [Waples et al](https://www.biorxiv.org/content/early/2018/08/31/260497)
-30. KING [Waples et al](https://www.biorxiv.org/content/early/2018/08/31/260497)
-31. the log-likelihood of the 2dsfs estimate.
-32. number of iterations for 2dsfs estimate
+28. 2dsfs estimates using the same methodology as implemented in realSFS, see [ANGSD](https://github.com/ANGSD/angsd)
+29. R0 [Waples et al](https://www.biorxiv.org/content/early/2018/08/31/260497)
+30. R1 [Waples et al](https://www.biorxiv.org/content/early/2018/08/31/260497)
+31. KING [Waples et al](https://www.biorxiv.org/content/early/2018/08/31/260497)
+32. the log-likelihood of the 2dsfs estimate.
+33. number of iterations for 2dsfs estimate
 
 You can also input a file with the IDs of the individuals (on ID per line), using the `-z` option, in the same order as in the file `filelist` used to make the genotype likelihoods or the VCF file. If you do the output will also contain these IDs as column 3 and 4.
 
