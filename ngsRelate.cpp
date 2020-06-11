@@ -549,6 +549,7 @@ void print_info(FILE *fp){
   fprintf(fp, "Usage main analyses: ./ngsrelate  [options] \n");
   fprintf(fp, "Options:\n");
   fprintf(fp, "   -f <filename>       Name of file with frequencies\n");
+  fprintf(fp, "   -O <filename>       Output filename\n");
   fprintf(fp, "   -L <INT>            Number of genomic sites. Must be provided if -f (allele frequency file) is NOT provided \n");
   fprintf(fp, "   -m <INTEGER>        model 0=normalEM 1=acceleratedEM\n");
   fprintf(fp, "   -i <UINTEGER>       Maximum number of EM iterations\n");
