@@ -174,3 +174,13 @@ bcftools view small.bcf -Oz -o small.vcf.gz -m2 -M2 -v snps
 plink --vcf small.vcf.gz --make-bed --out small 
 bgzip small.bed
 md5sum small.* >small.md5
+
+
+# check glf file in `R`
+
+```R
+a <- file("test.glf", "rb")
+nobs <- 1e8 # large number
+N <- 6 # number of individuals
+vec <- matrix(readBin(a, "double", nobs ), byrow=T, ncol=3*B)
+```
