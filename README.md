@@ -16,6 +16,7 @@ $ ./ngsRelate
 Usage main analyses: ./ngsrelate  [options] 
 Options:
    -f <filename>       Name of file with frequencies
+   -O <filename>       Output filename
    -L <INT>            Number of genomic sites. Must be provided if -f (allele frequency file) is NOT provided 
    -m <INTEGER>        model 0=normalEM 1=acceleratedEM
    -i <UINTEGER>       Maximum number of EM iterations
@@ -118,7 +119,7 @@ Based on these Jacquard coefficients, NgsRelate calculates 11 summary statistics
 23. Inbreeding difference `0.5*(J4-J6)` [Miklos csuros](https://www.sciencedirect.com/science/article/pii/S0040580913001123)
 24. the log-likelihood of the ML estimate. 
 25. number of EM iterations. If a `-1` is displayed. A boundary estimate had a higher likelihood. 
-26. If differs from `-1`. A boundary estimate had a higher likelihood. Reported loglikelihood should be highly similar to the corresponding value reported in `loglh`
+26. If differs from `-1`, a boundary estimate had a higher likelihood. Reported loglikelihood should be highly similar to the corresponding value reported in `loglh`
 27. fraction of sites used for the ML estimate
 
 The remaining columns relate to statistics based on a 2D-SFS. 
@@ -169,18 +170,19 @@ https://academic.oup.com/gigascience/article/8/5/giz034/5481763
 thorfinn@binf.ku.dk, k.hanghoej@snm.ku.dk, and ida@binf.ku.dk
 
 # Testdataset
+```bash
 bcftools call -v -m test.bcf -Ob >small.bcf
 bcftools view small.bcf -Oz -o small.vcf.gz -m2 -M2 -v snps
 plink --vcf small.vcf.gz --make-bed --out small 
 bgzip small.bed
 md5sum small.* >small.md5
-
+```
 
 # check glf file in `R`
 
 ```R
 a <- file("test.glf", "rb")
-nobs <- 1e8 # large number
+nobs <- 1e8 # large number 3*N*Nsites
 N <- 6 # number of individuals
-vec <- matrix(readBin(a, "double", nobs ), byrow=T, ncol=3*B)
+mat <- matrix(readBin(a, "double", nobs ), byrow=T, ncol=3*N)
 ```
