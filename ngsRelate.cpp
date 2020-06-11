@@ -119,7 +119,7 @@ void emStep(double *pre,double **emis,double *post,int len,int len2){
     if(pre[i]<0||pre[i]>1||is_nan(pre[i])){
       fprintf(stderr,"Problem with guess in emStep: ");
       for(int j=0;j<len2;j++)
-	fprintf(stderr," %f ",pre[0]);
+	fprintf(stderr," %f ",pre[j]);
       fprintf(stderr,"\n");
       exit(0);
     }
