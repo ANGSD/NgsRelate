@@ -185,4 +185,7 @@ a <- file("test.glf", "rb")
 nobs <- 1e8 # large number 3*N*Nsites
 N <- 6 # number of individuals
 mat <- matrix(readBin(a, "double", nobs ), byrow=T, ncol=3*N)
+con <- file("outfile.glf", "wb")
+writeBin(c(t(mat)), con=con)
+close(con)
 ```
