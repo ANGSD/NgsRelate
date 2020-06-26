@@ -857,7 +857,7 @@ void anal1(int a,int b,worker_args * td,double minMaf){
   
   
   if (td->nkeep==0){
-    fprintf(stderr, "\t-> sample index %d and %d have no overlapping sites with data. Pair with not be analyzed\n", a, b);
+    fprintf(stderr, "\t-> sample index %d and %d have no overlapping sites with data. Pair will not be analyzed\n", a, b);
     return ;
   }
   
