@@ -135,7 +135,7 @@ void emStep(double *pre,double **emis,double *post,int len,int len2){
 
     normalize(inner,len2);
 
-#if DB_MP
+#ifdef DB_MP
     for(int x=0;x<len2;x++){
       if(is_nan(inner[x])){
         fprintf(stderr, "pre: %d ", i);
@@ -163,7 +163,7 @@ void emStep(double *pre,double **emis,double *post,int len,int len2){
     
     for(int x=0;x<len2;x++){
       post[x] += inner[x];
-#if DB_MP
+#ifdef DB_MP
       if(is_nan(post[x])){
         fprintf(stderr, "%d %f\n", i, inner[x]);
         exit(0);
@@ -173,7 +173,7 @@ void emStep(double *pre,double **emis,double *post,int len,int len2){
     }
   }
 
-#if DB_MP && 0
+#ifdef DB_MP
   fprintf(stderr, "post->sites: %d, params: %d ", len, len2);
   for(int i=0; i<len2; i++){
     fprintf(stderr, " %f", post[i]);
@@ -206,7 +206,7 @@ int emAccel(double *F,double **emis,double *F_new,int len, int & niter,int dim){
   static double stepMax=stepMax0;
   double mstep=4;
   //  double objfnInc=1;
-#if DB_MP
+#ifdef DB_MP
   fprintf(stderr, "iter: %d input:  ", niter);
   for(int i=0; i<dim; i++){
     fprintf(stderr, " %f", F[i]);
@@ -223,7 +223,7 @@ int emAccel(double *F,double **emis,double *F_new,int len, int & niter,int dim){
   niter++;
   emStep(F, emis, F_em1, len,dim);
   // stayin(F_em1);
-#if DB_MP
+#ifdef DB_MP
   fprintf(stderr, "iter: %d emstep1:  ", niter);
   for(int i=0; i<dim; i++){
     fprintf(stderr, " %f", F_em1[i]);
@@ -236,7 +236,7 @@ int emAccel(double *F,double **emis,double *F_new,int len, int & niter,int dim){
   double sr2 = sumSquare(F_diff1,dim);
   
   if(sqrt(sr2)<ttol){
-#if DB_MP
+#ifdef DB_MP
     fprintf(stderr,"sr2 break: %e\n", sqrt(sr2));
 #endif
     for(int i=0;0&&i<dim;i++)
@@ -246,7 +246,7 @@ int emAccel(double *F,double **emis,double *F_new,int len, int & niter,int dim){
   niter++;
   emStep(F_em1, emis, F_em2, len,dim);
   minus(F_em2, F_em1, F_diff2,dim);
-#if DB_MP
+#ifdef DB_MP
   fprintf(stderr, "iter: %d emstep2:  ", niter);
   for(int i=0; i<dim; i++){
     fprintf(stderr, " %f", F_em2[i]);
@@ -352,7 +352,7 @@ void emislike_2dsfs_gen(double **gls, double **emislike_2dsfs, int *keeplist, in
     emislike_2dsfs[x][6] = access_genotype(gls, i, ind1, 2) * access_genotype(gls, i, ind2, 0);
     emislike_2dsfs[x][7] = access_genotype(gls, i, ind1, 2) * access_genotype(gls, i, ind2, 1);
     emislike_2dsfs[x][8] = access_genotype(gls, i, ind1, 2) * access_genotype(gls, i, ind2, 2);
-#if 0
+#ifdef DB_EMIS
     fprintf(stderr,"emis2dsfs[%d]:\t",x);
     for(int j=0;j<9;j++)
       fprintf(stderr,"%f ",emislike_2dsfs[x][j]);
@@ -1102,7 +1102,7 @@ int main_analysis2(std::vector<double> &freq,double **gls,int num_threads,FILE *
 
   }
 
-#if DB_MP
+#ifdef DB_MP
   fprintf(stderr, "combinations: ");
   for(auto &val: mp){
     fprintf(stderr, "%d-%d;", val.a, val.b);
@@ -1186,7 +1186,7 @@ int main(int argc, char **argv){
     return extract_freq_bim(--argc,++argv);
   if(strcasecmp(argv[1],"extract_freq")==0)
     return extract_freq(--argc,++argv);
-#if 0
+#ifdef MP_DB
   fprintf(stdout,"#");
   for(int i=0;i<argc;i++)
     fprintf(stdout," %s",argv[i]);
@@ -1408,7 +1408,7 @@ int main(int argc, char **argv){
     fprintf(stderr,"\t-> Done calling genotypes\n");
   }
 
-#if DB_AF //for printout everything
+#ifdef DB_AF //for printout everything
   FILE * af_fp = fopen("db_af.txt", "w");
   for(int i=0;i<freq.size();i++){
     fprintf(af_fp,"%f\n",freq[i]);
@@ -1417,7 +1417,7 @@ int main(int argc, char **argv){
 #endif
 
   
-#if DB_GLS //for printout everything
+#ifdef DB_GLS //for printout everything
   FILE * gls_fp = fopen("db_gls.txt", "w");
   for(int i=0;i<freq.size();i++){
     fprintf(gls_fp,"%f",gls[i][0]);    

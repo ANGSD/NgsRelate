@@ -90,8 +90,12 @@ size_t nlines(const char *fname){
 int **bed_to_intMatrix(const char* file, int nrow,int ncol) {
 
   //  const unsigned char recode[4] = {'\x01', '\x00', '\x02', '\x03'};
-  //0,1,2: 3 is missing 
-  const unsigned char recode[4] = { '\x02','\x01', '\x03', '\x00'};
+  //0,1,2: 3 is missing
+
+  // const unsigned char recode[4] = { '\x02','\x01', '\x03', '\x00'};
+  // 2 3 1 0
+  // hom miss het hom
+  const unsigned char recode[4] = { '\x02','\x03', '\x01', '\x00'};
   const unsigned char mask = '\x03';
 
 
@@ -141,15 +145,20 @@ int **bed_to_intMatrix(const char* file, int nrow,int ncol) {
     part--;
     result[ij] = recode[code];
     returnMat[i][j] = result[ij];
-    if(returnMat[i][j]==3)
-      returnMat[i][j]=1;
-    else if(returnMat[i][j]==1)
-      returnMat[i][j]=3;
-    else if(returnMat[i][j]<0 || returnMat[i][j]>3){
+
+
+    /// beautiful band-aid on a horrible bug.
+    // if(returnMat[i][j]==3)
+    //   returnMat[i][j]=1;
+    // else if(returnMat[i][j]==1)
+    //   returnMat[i][j]=3;
+    if(returnMat[i][j]<0 || returnMat[i][j]>3){
       printf("Problem in bed file at position=(%d,%d)=%d\n",i,j,returnMat[i][j]);
       exit(0);
     }
-    // printf("(%d,%d)=%d ",i,j,result[ij]);
+#if 0
+    printf("(%d,%d)=%d ",i,j,result[ij]);
+#endif
     if (snp_major) {
       ij++;
       i++;
