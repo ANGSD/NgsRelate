@@ -512,40 +512,36 @@ double **readBeagle(const char *fname, int nSites, int nInd) {
     exit(0);
   };
 
-  fprintf(stdout, "\t-> Beagle - Reading from: %s\n",fname);
+  fprintf(stdout, "\t-> Beagle - Reading from: %s. Assuming %d Ind and %d sites\n",fname, nInd, nSites);
 
+  double **ret = new double *[nSites];
+  
   while(readRow(fp, buf, row)!=0){
     if(nlines==0 && hasHeader){
       row.clear();
       hasHeader=false;
       continue;
     }
-    alldata.push_back(row);
-    row.clear();
-    nlines++;
-    
-  }
-  
-  fprintf(stdout, "\t-> Beagle - %d sites processed\n", nlines);
 
-  assert(nlines==nSites);
-  
-  double **ret = new double *[nSites];
- 
-  // char *major = new char[nSites];
-  // char *minor = new char[nSites];
-  // char **ids = new char*[nSites];
-  for(int i=0; i<nSites; i++){
-    ret[i] = new double[3 * nInd];
-    char * t = strdup(alldata[i].c_str());
+    ret[nlines] = new double[3 * nInd];
+    
+    char * t = strdup(row.c_str());
     // see https://github.com/KHanghoj/code_snippets/blob/8bf16e703f8eab3fda593b0dcf9aa6506ff16950/code/read_beagle.cpp
     strdup(strtok(t,delims)); // pos
     strtok(NULL,delims); // major
     strtok(NULL,delims); // minor
     for(int j=0; j<nInd*3; j++)
-      ret[i][j] = atof(strtok(NULL, delims));
+      ret[nlines][j] = atof(strtok(NULL, delims));
+  
+    
+    row.clear();
+    nlines++;
+    
   }
-  fprintf(stderr, "test\n");
+  
+  fprintf(stdout, "\t-> Beagle - done processing %d sites\n", nlines);
+
+  assert(nlines==nSites);
   
   return(ret);
 }
