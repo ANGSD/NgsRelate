@@ -51,6 +51,7 @@ double p01[2]={TINY,1-TINY};
 int num_threads = 4;
 char *freqname=NULL;
 char *gname=NULL;
+char *beaglefile=NULL;
 
 int maxIter =10000;
 double tole =1e-8;
@@ -556,7 +557,8 @@ void print_info(FILE *fp){
   fprintf(fp, "   -t <FLOAT>          Tolerance for breaking EM\n");
   fprintf(fp, "   -r <FLOAT>          Seed for rand\n");
   fprintf(fp, "   -R <chr:from-to>    Region for analysis (only for bcf)\n");
-  fprintf(fp, "   -g gfile            Name of genotypellh file\n");
+  fprintf(fp, "   -g gfile            Name of glf (compressed binary) file\n");
+  fprintf(fp, "   -G gfile            Name of beagle (compressed) file\n");  
   fprintf(fp, "   -p <INT>            threads (default 4)\n");
   fprintf(fp, "   -c <INT>            Should call genotypes instead?\n");
   fprintf(fp, "   -s <INT>            Should you swich the freq with 1-freq?\n");
@@ -1192,13 +1194,13 @@ int main(int argc, char **argv){
     fprintf(stdout," %s",argv[i]);
   fprintf(stdout,"\n");
 #endif
-
+  
   char *htsfile=NULL;
   char *plinkfile=NULL;
   char *outname=NULL;
   char *region=NULL;
   
-  while ((n = getopt(argc, argv, "f:i:t:r:g:m:s:F:o:c:e:a:b:n:l:z:p:h:L:T:A:P:O:X:R:B:N:")) >= 0) {
+  while ((n = getopt(argc, argv, "f:i:t:r:g:G:m:s:F:o:c:e:a:b:n:l:z:p:h:L:T:A:P:O:X:R:B:N:")) >= 0) {
     switch (n) {
     case 'f': freqname = strdup(optarg); break;
     case 'P': plinkfile = strdup(optarg); break;
@@ -1209,6 +1211,7 @@ int main(int argc, char **argv){
     case 't': tole = atof(optarg); break;
     case 'r': seed = atoi(optarg); break;
     case 'g': gname = strdup(optarg); break;
+    case 'G': beaglefile = strdup(optarg); break;      
     case 'm': model = atoi(optarg); break;
     case 'B': nBootstrap = atoi(optarg); break;
     case 's': switchMaf = atoi(optarg); break;
@@ -1286,10 +1289,15 @@ int main(int argc, char **argv){
     fprintf(stderr, "\t-> Will use TAG: '%s' from the VCF file\n", vcf_format_field);
     fprintf(stderr, "\t-> Will use TAG: '%s' in the VCF file as allele frequency if present. Otherwise allele frequencies are estimated from the data\n", vcf_allele_field);
   }
- 
 
-  if ((nind == -1 || gname == NULL)&&htsfile==NULL&&plinkfile==NULL) {
-    fprintf(stderr, "\t-> Must supply -n -g parameters (%d,%s) OR -h file.[vb]cf\n", nind,gname);
+  if (gname != NULL && beaglefile != NULL){
+    fprintf(stderr, "cannot provide both a beagle ( -G %s) and glf ( -g %s) file\n", beaglefile, gname);
+    return 0;
+  }
+  
+
+  if ((nind == -1 || (gname == NULL && beaglefile == NULL) )&&htsfile==NULL&&plinkfile==NULL) {
+    fprintf(stderr, "\t-> Must supply -n -g parameters (%d,%s) \n -n -G parameters (%d,%s) \n OR -h file.[vb]cf\n", nind,gname, nind, beaglefile);
     return 0;
   }
 
@@ -1363,12 +1371,20 @@ int main(int argc, char **argv){
   }else{  
     if(htsfile==NULL && !do_2dsfs_only){
       getDouble(freqname,freq);
-      gls = getGL(gname, freq.size(), nind);
+      if(beaglefile != NULL)
+        gls = readBeagle(beaglefile, freq.size(), nind);
+      else if(gname != NULL)        
+        gls = getGL(gname, freq.size(), nind);
       overall_number_of_sites = freq.size();
     }
     if(htsfile==NULL && do_2dsfs_only){
-      gls = getGL(gname, nsites_2dsfs, nind);
+      if(beaglefile != NULL)
+        gls = readBeagle(beaglefile, nsites_2dsfs, nind);
+      else if(gname != NULL)        
+        gls = getGL(gname, nsites_2dsfs, nind);
+
       overall_number_of_sites = nsites_2dsfs;
+      
     }
   }
 

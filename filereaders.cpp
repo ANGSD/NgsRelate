@@ -477,3 +477,75 @@ size_t getDouble(const char *fname,std::vector<double> &ret) {
   delete[] buf;
   return ret.size();
 }
+
+int readRow(gzFile gz, char *buf, std::string &row){
+
+  while (gzgets(gz, buf, sizeof(buf)) != Z_NULL){
+      std::string temp = buf;
+      row += temp;
+      if(row[row.size()-1] == '\n'){
+        row[row.size()-1] = '\0';
+        return row.size();
+      }
+    }
+  return row.size();
+}
+
+double **readBeagle(const char *fname, int nSites, int nInd) {
+  const char *delims = "\t \n";
+  
+  bool hasHeader = true;
+  std::vector<std::string> alldata;
+  alldata.reserve(100000);
+  
+  int lens = 4096;
+  // int lens = 1000000;
+  std::string row;
+  row.reserve(lens);
+  int nlines=0 ;
+  char buf[lens];
+
+  gzFile fp = gzopen(fname, "rb");
+  if (fp==Z_NULL){
+
+    fprintf(stdout,"\n\nERROR: '%s' cannot open file: %s\n\n", __FUNCTION__,fname);
+    exit(0);
+  };
+
+  fprintf(stdout, "\t-> Beagle - Reading from: %s\n",fname);
+
+  while(readRow(fp, buf, row)!=0){
+    if(nlines==0 && hasHeader){
+      row.clear();
+      hasHeader=false;
+      continue;
+    }
+    alldata.push_back(row);
+    row.clear();
+    nlines++;
+    
+  }
+  
+  fprintf(stdout, "\t-> Beagle - %d sites processed\n", nlines);
+
+  assert(nlines==nSites);
+  
+  double **ret = new double *[nSites];
+ 
+  // char *major = new char[nSites];
+  // char *minor = new char[nSites];
+  // char **ids = new char*[nSites];
+  for(int i=0; i<nSites; i++){
+    ret[i] = new double[3 * nInd];
+    char * t = strdup(alldata[i].c_str());
+    // see https://github.com/KHanghoj/code_snippets/blob/8bf16e703f8eab3fda593b0dcf9aa6506ff16950/code/read_beagle.cpp
+    strdup(strtok(t,delims)); // pos
+    strtok(NULL,delims); // major
+    strtok(NULL,delims); // minor
+    for(int j=0; j<nInd*3; j++)
+      ret[i][j] = atof(strtok(NULL, delims));
+  }
+  fprintf(stderr, "test\n");
+  
+  return(ret);
+}

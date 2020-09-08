@@ -5,3 +5,4 @@ size_t nlines(const char *fname);
 int **bed_to_intMatrix(const char* file, int nrow,int ncol);
 size_t getDouble(const char *fname,std::vector<double> &ret);
 double **getGL(const char *fname, int sites, int nInd);
+double **readBeagle(const char *fname, int nSites, int nInd);
