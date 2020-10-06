@@ -509,11 +509,11 @@ double **readBeagle(const char *fname, int nSites, int nInd) {
   gzFile fp = gzopen(fname, "rb");
   if (fp==Z_NULL){
 
-    fprintf(stdout,"\n\nERROR: '%s' cannot open file: %s\n\n", __FUNCTION__,fname);
+    fprintf(stderr,"\n\nERROR: '%s' cannot open file: %s\n\n", __FUNCTION__,fname);
     exit(0);
   };
 
-  fprintf(stdout, "\t-> Beagle - Reading from: %s. Assuming %d Ind and %d sites\n",fname, nInd, nSites);
+  fprintf(stderr, "\t-> Beagle - Reading from: %s. Assuming %d Ind and %d sites\n",fname, nInd, nSites);
 
   double **ret = new double *[nSites];
   
@@ -540,7 +540,7 @@ double **readBeagle(const char *fname, int nSites, int nInd) {
     
   }
   
-  fprintf(stdout, "\t-> Beagle - done processing %d sites\n", nlines);
+  fprintf(stderr, "\t-> Beagle - done processing %d sites\n", nlines);
 
   assert(nlines==nSites);
   
