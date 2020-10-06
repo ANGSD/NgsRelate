@@ -64,8 +64,8 @@ int gc =0;
 double errate = 0.005;
 int pair1 =-1;
 int pair2 =-1;
-int nind =2;
-int nsites_2dsfs = 0;
+int nind =-1;
+int nsites_nofreqfile = 0;
 size_t overall_number_of_sites = 0;
 int do_2dsfs_only = 0;
 int do_inbred=0;
@@ -84,6 +84,70 @@ float emTole=1e-12;
 
 // https://en.cppreference.com/w/c/numeric/math/isnan
 bool is_nan(double x) { return x != x; }
+
+double emFrequency_from_data(double *like,int numInds, int iter,double start){
+     
+  float W0;
+  float W1;
+  float W2;
+  // fprintf(stderr,"start=%f\n",start);
+  float p=(float)start;
+  float temp_p=(float)start;
+  double accu=0.00001;
+  double accu2=0;
+  float sum;
+
+  
+  int it=0;
+  
+  for(it=0;it<iter;it++){
+    sum=0;
+    for(int i=0;i<numInds;i++){
+      W0=like[i*3+0]*pow(1-p,2);
+      W1=like[i*3+1]*2*p*(1-p);
+      W2=like[i*3+2]*(pow(p,2));
+      sum+=(W1+2*W2)/(2*(W0+W1+W2));
+      if(std::isnan(sum))
+	fprintf(stderr,"PRE[%d]:gls:(%f,%f,%f) W(%f,%f,%f) sum=%f\n",i,like[i*3],like[i*3+1],like[i*3+2],W0,W1,W2,sum);
+    }
+    
+    p=sum/numInds;
+    if((p-temp_p<accu&&temp_p-p<accu)||(p/temp_p<1+accu2&&p/temp_p>1-accu2))
+      break;
+    temp_p=p;
+  }
+  
+  if(std::isnan(p)){
+    fprintf(stderr,"[%s] caught nan will not exit\n",__FUNCTION__);
+    fprintf(stderr,"Like (3*nInd). nInd=%d\n",numInds);
+    //print_array(stderr,like,3*numInds);
+    fprintf(stderr,"keepList (nInd)\n");
+    //print_array(stderr,keep,numInds);
+    fprintf(stderr,"used Like (3*length(keep))=%d\n",numInds);
+    
+    for(int ii=0;1&&ii<numInds;ii++){
+      for(int gg=0;gg<3;gg++)
+        fprintf(stderr,"%f\t",like[ii*3+gg]);
+      fprintf(stderr,"\n");
+    }
+    sum=0;
+    for(int i=0;i<numInds;i++){
+      W0=like[i*3+0]*pow(1-p,2);
+      W1=like[i*3+1]*2*p*(1-p);
+      W2=like[i*3+2]*(pow(p,2));
+      sum+=(W1+2*W2)/(2*(W0+W1+W2));
+      fprintf(stderr,"[%s.%s():%d] p=%f W %f\t%f\t%f sum=%f like: %f\n",__FILE__,__FUNCTION__,__LINE__,p,W0,W1,W2,sum,like[i*3+2]*pow(1-p,2));
+      break;
+    }
+    p=-999;
+    assert(p!=999);
+    return p;
+  }
+
+  return(p);
+}
+
+
 
 double access_genotype(double **gls, const int & site, const int & indi, const int & geno){
   return gls[site][indi * 3 + geno];
@@ -707,10 +771,13 @@ int populate_keeplist(int pk_a,int pk_b,int pk_nsites,double **pk_gls,int pk_min
       continue;
 
     // removing minor allele frequencies
-    if ( (!do_2dsfs_only) &&
-         ((*pk_freq)[i] < minMaf || (1 - (*pk_freq)[i] < minMaf)))
+    // if ( (!do_2dsfs_only) &&
+    //      ((*pk_freq)[i] < minMaf || (1 - (*pk_freq)[i] < minMaf)))
+    //   continue;
+    if ((*pk_freq)[i] < minMaf || (1 - (*pk_freq)[i] < minMaf))
       continue;
 
+    
     keeplist[nkeep] = i;//dont forget
     nkeep++;
   }
@@ -863,8 +930,8 @@ void anal1(int a,int b,worker_args * td,double minMaf){
     return ;
   }
   
-  if(!do_2dsfs_only)
-    analyse_jaq(td->pars,td->freq,td->gls,td->keeplist,td->emis,td->nkeep,a,b,td->ll,td->best,td->bestll,td->niter,ntimes);    
+  //if(!do_2dsfs_only)
+  analyse_jaq(td->pars,td->freq,td->gls,td->keeplist,td->emis,td->nkeep,a,b,td->ll,td->best,td->bestll,td->niter,ntimes);    
 
 
   if(do_inbred==0){
@@ -1230,7 +1297,7 @@ int main(int argc, char **argv){
     case 'T': free(vcf_format_field);vcf_format_field = strdup(optarg); break;
     case 'A': free(vcf_allele_field);vcf_allele_field = strdup(optarg); break;            
     case 'z': readids(ids,optarg); break;
-    case 'L': nsites_2dsfs = atoi(optarg); break;
+    case 'L': nsites_nofreqfile = atoi(optarg); break;
     default: {fprintf(stderr,"unknown arg:\n");return 0;}
       print_info(stderr);
     }
@@ -1270,6 +1337,12 @@ int main(int argc, char **argv){
   }
 #endif
 
+
+  std::vector<double> freq;
+  double **gls=NULL;
+
+
+  
   if (hasDef == 0&&htsfile==NULL &&plinkfile==NULL) {
   fprintf(stderr, "\t-> -n parameter has not been supplied. Will assume that "
     "file contains 2 samples...\n");
@@ -1297,32 +1370,34 @@ int main(int argc, char **argv){
   
 
   if ((nind == -1 || (gname == NULL && beaglefile == NULL) )&&htsfile==NULL&&plinkfile==NULL) {
-    fprintf(stderr, "\t-> Must supply -n -g parameters (%d,%s) \n -n -G parameters (%d,%s) \n OR -h file.[vb]cf\n", nind,gname, nind, beaglefile);
+    fprintf(stderr, "\t-> Must supply: \n\t-> -n -g parameters (%d,%s) \n\t-> -n -G parameters (%d,%s) \n\t-> -h file.[vb]cf\n", nind,gname, nind, beaglefile);
     return 0;
   }
 
-  if ( freqname == NULL && ( do_simple || do_inbred ) && htsfile==NULL ) {
-    fprintf(stderr, "\t-> Must supply -f (allele frequency file) if '-o 1' or '-F 1' are enabled\n");
+  if( nsites_nofreqfile==0 && freqname == NULL && (gname != NULL || beaglefile != NULL)){
+    fprintf(stderr, "\t-> Number of genomic sites must be provided (-L <INT>)\n");
     return 0;
-    }
-  
-  if (freqname == NULL && htsfile==NULL &&plinkfile==NULL){
-    fprintf(stderr, "\t-> Allele frequencies file (-f) is not provided. Only summary statistitics based on 2dsfs will be reported\n");
-    do_2dsfs_only = 1;
-    if(!nsites_2dsfs){
-      fprintf(stderr, "\t-> Number of genomic sites must be provided (-L <INT>)\n");
-      return 0;
-    }
   }
+  
+  // if ( freqname == NULL && ( do_simple || do_inbred ) && htsfile==NULL ) {
+  //   fprintf(stderr, "\t-> Must supply -f (allele frequency file) if '-o 1' or '-F 1' are enabled\n");
+  //   return 0;
+  //   }
+  
+  // if (freqname == NULL && htsfile==NULL &&plinkfile==NULL){
+  //   fprintf(stderr, "\t-> Allele frequencies file (-f) is not provided. Only summary statistitics based on 2dsfs will be reported\n");
+  //   do_2dsfs_only = 1;
+  //   if(!nsites_nofreqfile){
+  //     fprintf(stderr, "\t-> Number of genomic sites must be provided (-L <INT>)\n");
+  //     return 0;
+  //   }
+  // }
 
   if(nBootstrap>0&&(pair1==-1||pair2==-1)){
     fprintf(stderr,"\t-> Must specifiy pair of samples when performing bootstrap replicates\n");
     return 0;
   }
   
-
-  std::vector<double> freq;
-  double **gls=NULL;
 
   if(plinkfile){
     fprintf(stderr,"\t-> Starting to read plinkfiles\n");
@@ -1369,23 +1444,52 @@ int main(int argc, char **argv){
       }
     }
   }else{  
-    if(htsfile==NULL && !do_2dsfs_only){
-      getDouble(freqname,freq);
+    if(htsfile==NULL){ // && !do_2dsfs_only){
+
+      size_t tmp_freq_size;
+      
+      if(freqname!=NULL){
+        getDouble(freqname,freq);
+        tmp_freq_size = freq.size();
+      } else {
+        tmp_freq_size = nsites_nofreqfile;
+      }
+        
       if(beaglefile != NULL)
-        gls = readBeagle(beaglefile, freq.size(), nind);
+        gls = readBeagle(beaglefile, tmp_freq_size, nind);
       else if(gname != NULL)        
-        gls = getGL(gname, freq.size(), nind);
+        gls = getGL(gname, tmp_freq_size, nind);
+
+      if(freqname==NULL){
+        // estimate allele frequencies
+        fprintf(stderr,"\t-> Allele frequencies will be estimated from the data (N=%d)\n",nind);
+        for(size_t i=0; i<tmp_freq_size; i++){
+          double val = emFrequency_from_data(gls[i], nind, 50, 0.05);
+          freq.push_back(val);
+        }
+      }      
       overall_number_of_sites = freq.size();
     }
-    if(htsfile==NULL && do_2dsfs_only){
-      if(beaglefile != NULL)
-        gls = readBeagle(beaglefile, nsites_2dsfs, nind);
-      else if(gname != NULL)        
-        gls = getGL(gname, nsites_2dsfs, nind);
 
-      overall_number_of_sites = nsites_2dsfs;
-      
+
+#if 1
+    for(size_t i=0; i<freq.size(); i++){
+      fprintf(stdout, "%f\n", freq[i]);
     }
+    
+#endif
+
+
+    
+    // if(htsfile==NULL && do_2dsfs_only){
+    //   if(beaglefile != NULL)
+    //     gls = readBeagle(beaglefile, nsites_nofreqfile, nind);
+    //   else if(gname != NULL)        
+    //     gls = getGL(gname, nsites_nofreqfile, nind);
+
+    //   overall_number_of_sites = nsites_nofreqfile;
+      
+    // }
   }
 
 #ifdef __WITH_BCF__
