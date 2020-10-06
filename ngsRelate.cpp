@@ -1378,6 +1378,12 @@ int main(int argc, char **argv){
     fprintf(stderr, "\t-> Number of genomic sites must be provided (-L <INT>)\n");
     return 0;
   }
+
+  if((freqname!=NULL) && (nColInFile(freqname)!=1)){
+    fprintf(stderr, "ERROR: more than one column (%d) in frequency file: %s\n", nColInFile(freqname), freqname);
+    return 0;
+    
+  }
   
   // if ( freqname == NULL && ( do_simple || do_inbred ) && htsfile==NULL ) {
   //   fprintf(stderr, "\t-> Must supply -f (allele frequency file) if '-o 1' or '-F 1' are enabled\n");

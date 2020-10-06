@@ -442,10 +442,8 @@ double **getGL(const char *fname, int sites, int nInd) {
       fprintf(stderr, "\t-> Too many sites in glf file. Looks outof sync, or "
                       "make sure you supplied correct number of individuals "
                       "(-n)\n");
-      extern int do_2dsfs_only;
-      if(do_2dsfs_only){
-        fprintf(stderr, "\t-> Or that the number of sites provided (-L) it is correct\n");
-      }
+      fprintf(stderr, "\t-> Or that the number of sites provided (-L) it is correct\n");
+        
       exit(0);
     }
 
@@ -491,6 +489,34 @@ int readRow(gzFile gz, char *buf, std::string &row){
     }
   return row.size();
 }
+
+int nColInFile(const char *fname){
+  const char *delims = "\t \n";
+  FILE* fp = fopen(fname, "r");
+  if (fp == NULL)
+    exit(EXIT_FAILURE);
+
+  char* line = NULL;
+  size_t len = 0;
+  int l = getline(&line, &len, fp);
+  if (l == -1){
+    fprintf(stderr, "\n\nsomething is wrong with %s\n\n", fname);
+    exit(0);
+  }
+  int ncol=1;
+  strtok(line,delims);
+  while(strtok(NULL,delims)){
+    ncol++;
+  }
+
+  fclose(fp);
+
+  if (line)
+    free(line);
+
+  return ncol;
+}
+
 
 double **readBeagle(const char *fname, int nSites, int nInd) {
   const char *delims = "\t \n";
