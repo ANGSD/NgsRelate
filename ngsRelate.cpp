@@ -1472,7 +1472,7 @@ int main(int argc, char **argv){
     }
 
 
-#if 1
+#if 0
     for(size_t i=0; i<freq.size(); i++){
       fprintf(stdout, "%f\n", freq[i]);
     }
