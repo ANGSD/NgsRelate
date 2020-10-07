@@ -1382,7 +1382,6 @@ int main(int argc, char **argv){
   if((freqname!=NULL) && (nColInFile(freqname)!=1)){
     fprintf(stderr, "ERROR: more than one column (%d) in frequency file: %s\n", nColInFile(freqname), freqname);
     return 0;
-    
   }
   
   // if ( freqname == NULL && ( do_simple || do_inbred ) && htsfile==NULL ) {
@@ -1404,7 +1403,6 @@ int main(int argc, char **argv){
     return 0;
   }
   
-
   if(plinkfile){
     fprintf(stderr,"\t-> Starting to read plinkfiles\n");
     int famnlines=nlines(plink_fam.c_str());
