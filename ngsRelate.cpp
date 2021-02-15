@@ -730,6 +730,7 @@ struct worker_args_t {
   int *keeplist;
   double **emis;
   int *bootindex;
+  bool nositesavail;
   worker_args_t(int & id_a, int & id_b, std::vector<double> * f, double ** gls_arg, size_t & s ){
     a=id_a;
     b=id_b;
@@ -742,6 +743,7 @@ struct worker_args_t {
     bootindex =NULL;
     keeplist = new int[nsites];
     emis = new double*[s];
+    nositesavail=false;
     if(nBootstrap>0)
       bootindex = new int[nsites];
     for(int i=0;i<s;i++)
@@ -927,6 +929,7 @@ void anal1(int a,int b,worker_args * td,double minMaf){
   
   if (td->nkeep==0){
     fprintf(stderr, "\t-> sample index %d and %d have no overlapping sites with data. Pair will not be analyzed\n", a, b);
+    td->nositesavail=true;
     return ;
   }
   
@@ -962,6 +965,24 @@ void anal1(int a,int b,worker_args * td,double minMaf){
       }
     }
   }
+}
+
+char *formatoutputnosites(int a, int b){
+  char retbuf[4096];
+  if (ids.size()) {
+    snprintf(retbuf,4096, "%d\t%d\t%s\t%s\t%d", a,
+	     b, ids[a], ids[b], -1);
+  } else {
+    snprintf(retbuf,4096, "%d\t%d\t%d", a, b, -1);
+  }
+
+  for(int val=0; val<30; val++){
+    snprintf(retbuf+strlen(retbuf), 4096, "\t%d", -1);
+  }
+  
+  snprintf(retbuf+strlen(retbuf), 4096, "\n");
+  
+  return strdup(retbuf);  
 }
 
 char *formatoutput(int a, int b,worker_args *td_out,double total_sites){
@@ -1109,7 +1130,7 @@ char *formatoutput(int a, int b,worker_args *td_out,double total_sites){
 }
 
 
-
+/// go here
 void * turbothread(void *threadarg){
   worker_args * td;
   td = ( worker_args * ) threadarg;
@@ -1118,7 +1139,9 @@ void * turbothread(void *threadarg){
     anal1(mp[i].a,mp[i].b,td,minMaf);
     //collate results
     char buf[4096];
-    if(do_inbred){
+    if (td->nositesavail){
+      mp[i].res = formatoutputnosites(mp[i].a, mp[i].b);
+    } else if (do_inbred){
       if(td->best==0)
 	snprintf(buf,4096,"%d\t%f\t%f\t%f\t%d\t%f\t%d\n",i, p10[0],p10[1],td->bestll,-1,((double)td->nkeep)/((double)overall_number_of_sites), td->nkeep);
       if(td->best==1)
