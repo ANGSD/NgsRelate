@@ -304,7 +304,7 @@ int emAccel(double *F,double **emis,double *F_new,int len, int & niter,int dim){
 #ifdef DB_MP
     fprintf(stderr,"sr2 break1: %e\n", sqrt(sr2));
 #endif
-    for(int i=0;1&&i<dim;i++)
+    for(int i=0;0&&i<dim;i++)
       F_new[i]  = F_em1[i];
     return 1;
   }
@@ -325,7 +325,7 @@ int emAccel(double *F,double **emis,double *F_new,int len, int & niter,int dim){
 #ifdef DB_MP
     fprintf(stderr,"sr2 break2: %e\n", sqrt(sr2));
 #endif
-    for(int i=0;1&&i<dim;i++)
+    for(int i=0;0&&i<dim;i++)
       F_new[i]  = F_em2[i];
     return 1;
   }
