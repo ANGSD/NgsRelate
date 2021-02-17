@@ -23,7 +23,7 @@ endif
 
 ifdef HTSSRC
 %.o: %.cpp
-	$(CXX) -c  $(CXXFLAGS) $*.cpp -I$(HTS_INCDIR) -D__WITH_BCF__
+	$(CXX) -c  $(CXXFLAGS) $*.cpp -I$(HTS_INCDIR) -D__WITH_BCF__ ## -DDB_EMIS -DDB_MP
 	$(CXX) -MM $(CXXFLAGS) $*.cpp -I$(HTS_INCDIR) -D__WITH_BCF__ >$*.d
 
 ngsRelate: $(OBJ)

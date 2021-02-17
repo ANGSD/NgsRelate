@@ -302,9 +302,9 @@ int emAccel(double *F,double **emis,double *F_new,int len, int & niter,int dim){
   
   if(sqrt(sr2)<ttol){
 #ifdef DB_MP
-    fprintf(stderr,"sr2 break: %e\n", sqrt(sr2));
+    fprintf(stderr,"sr2 break1: %e\n", sqrt(sr2));
 #endif
-    for(int i=0;0&&i<dim;i++)
+    for(int i=0;1&&i<dim;i++)
       F_new[i]  = F_em1[i];
     return 1;
   }
@@ -322,8 +322,10 @@ int emAccel(double *F,double **emis,double *F_new,int len, int & niter,int dim){
   double sq2 = sumSquare(F_diff2,dim);
 
   if(sqrt(sq2)<ttol){
-    //    fprintf(stderr,"sq2 break: %e\n", sqrt(sq2));
-    for(int i=0;0&&i<dim;i++)
+#ifdef DB_MP
+    fprintf(stderr,"sr2 break2: %e\n", sqrt(sr2));
+#endif
+    for(int i=0;1&&i<dim;i++)
       F_new[i]  = F_em2[i];
     return 1;
   }
@@ -652,6 +654,8 @@ void print_info(FILE *fp){
 int is_missing(double *ary){
   if(fabs(ary[0] - ary[1])<1e-6 && fabs(ary[0] - ary[2])<1e-6 && fabs(ary[1] - ary[2])<1e-6)
     return 1;
+  else if(is_nan(ary[0]) || is_nan(ary[1]) || is_nan(ary[2]))
+    return 1;
   else
     return 0;
 }
@@ -730,7 +734,6 @@ struct worker_args_t {
   int *keeplist;
   double **emis;
   int *bootindex;
-  bool nositesavail;
   worker_args_t(int & id_a, int & id_b, std::vector<double> * f, double ** gls_arg, size_t & s ){
     a=id_a;
     b=id_b;
@@ -743,7 +746,6 @@ struct worker_args_t {
     bootindex =NULL;
     keeplist = new int[nsites];
     emis = new double*[s];
-    nositesavail=false;
     if(nBootstrap>0)
       bootindex = new int[nsites];
     for(int i=0;i<s;i++)
@@ -772,6 +774,8 @@ int populate_keeplist(int pk_a,int pk_b,int pk_nsites,double **pk_gls,int pk_min
     if(is_missing(&pk_gls[i][3*pk_b]))
       continue;
 
+    
+
     // removing minor allele frequencies
     // if ( (!do_2dsfs_only) &&
     //      ((*pk_freq)[i] < minMaf || (1 - (*pk_freq)[i] < minMaf)))
@@ -779,12 +783,14 @@ int populate_keeplist(int pk_a,int pk_b,int pk_nsites,double **pk_gls,int pk_min
     if ((*pk_freq)[i] < minMaf || (1 - (*pk_freq)[i] < minMaf))
       continue;
 
-    
+#ifdef DB_GL
+    for (int x=0; x<3;x++)
+      fprintf(stderr, "%lu %f %f\n", i, pk_gls[i][3*pk_a+x], pk_gls[i][3*pk_b+x]);
+#endif
     keeplist[nkeep] = i;//dont forget
     nkeep++;
   }
   
-  // THIS IS THE MISTAKE
   if(tmp){//indicater for if we should bootstrap
     for(int i=0;i<nkeep;i++){
       tmp[i] = keeplist[lrand48() % nkeep];
@@ -921,15 +927,14 @@ int analyse_jaq(double *pk_pars,std::vector<double> *pk_freq,double **pk_gls,int
 }
 
 
-void anal1(int a,int b,worker_args * td,double minMaf){
-  // fprintf(stderr,"a:%d b:%d\n",a,b);
+void anal1(int a,int b,worker_args * td,double minMaf, bool & nosites){
+  
   assert(td->nsites>0);
   td->nkeep = populate_keeplist(a,b,td->nsites,td->gls,minMaf,td->freq,td->keeplist,td->bootindex);
   
-  
   if (td->nkeep==0){
     fprintf(stderr, "\t-> sample index %d and %d have no overlapping sites with data. Pair will not be analyzed\n", a, b);
-    td->nositesavail=true;
+    nosites=true;
     return ;
   }
   
@@ -1136,10 +1141,11 @@ void * turbothread(void *threadarg){
   td = ( worker_args * ) threadarg;
 
   for(int i=td->a;i<td->b;i++){
-    anal1(mp[i].a,mp[i].b,td,minMaf);
+    bool nosites=false;
+    anal1(mp[i].a,mp[i].b, td, minMaf, nosites);
     //collate results
     char buf[4096];
-    if (td->nositesavail){
+    if (nosites){
       mp[i].res = formatoutputnosites(mp[i].a, mp[i].b);
     } else if (do_inbred){
       if(td->best==0)
