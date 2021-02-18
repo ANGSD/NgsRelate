@@ -238,7 +238,7 @@ size_t getgls(char*fname,std::vector<double *> &mygl, std::vector<double> &freqs
       if(npl<0){
         // return codes: https://github.com/samtools/htslib/blob/bcf9bff178f81c9c1cf3a052aeb6cbe32fe5fdcc/htslib/vcf.h#L667
         // no PL tag is available
-        fprintf(stderr, "BAD SITE %s:%d. return code:%d while fetching PL tag\n", bcf_seqname(hdr,rec), rec->pos, npl);
+        fprintf(stderr, "BAD SITE %s:%ld. return code:%d while fetching PL tag\n", bcf_seqname(hdr,rec), rec->pos, npl);
         continue;
       }
       // https://github.com/samtools/bcftools/blob/e9c08eb38d1dcb2b2d95a8241933daa1dd3204e5/plugins/tag2tag.c#L151
@@ -256,7 +256,7 @@ size_t getgls(char*fname,std::vector<double *> &mygl, std::vector<double> &freqs
     } else if(vcf_format_field == "GT"){
        int ngts = bcf_get_genotypes(hdr, rec, &gt, &ngt_arr);
        if ( ngts<0 ){
-         fprintf(stderr, "BAD SITE %s:%d. return code:%d while fetching GT tag\n", bcf_seqname(hdr,rec), rec->pos, npl);
+         fprintf(stderr, "BAD SITE %s:%ld. return code:%d while fetching GT tag\n", bcf_seqname(hdr,rec), rec->pos, npl);
          continue;
        }
        for(int ns=0; ns<nsamples;ns++){
