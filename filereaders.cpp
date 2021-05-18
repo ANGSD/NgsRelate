@@ -493,9 +493,10 @@ int readRow(gzFile gz, char *buf, std::string &row){
 int nColInFile(const char *fname){
   const char *delims = "\t \n";
   FILE* fp = fopen(fname, "r");
-  if (fp == NULL)
+  if (fp == NULL){
+    fprintf(stderr, "\n\nsomething is wrong with %s\n\n", fname);
     exit(EXIT_FAILURE);
-
+  }
   char* line = NULL;
   size_t len = 0;
   int l = getline(&line, &len, fp);
