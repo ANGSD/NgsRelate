@@ -1412,6 +1412,8 @@ int main(int argc, char **argv){
     fprintf(stderr, "ERROR: more than one column (%d) in frequency file: %s\n", nColInFile(freqname), freqname);
     return 0;
   }
+
+
   
   // if ( freqname == NULL && ( do_simple || do_inbred ) && htsfile==NULL ) {
   //   fprintf(stderr, "\t-> Must supply -f (allele frequency file) if '-o 1' or '-F 1' are enabled\n");
@@ -1528,6 +1530,12 @@ int main(int argc, char **argv){
 #ifdef __WITH_BCF__
 
   if(htsfile){
+    if(freqname!=NULL){
+      fprintf(stderr,"\t-> Allele frequencies provided to -f will be OVERWRITTEN with estimated allele frequencies from the data in the VCF file OR the provided TAG (-A) if present.\n");
+      fprintf(stderr,"\t-> Annotate the VCF with the allele frequencies if external frequencies should be used.\n");
+      fprintf(stderr, "\t-> Remove -f argument. EXITING\n");
+      return 0;      
+    }
     gls=readbcfvcf(htsfile,nind,freq,2,minMaf, vcf_format_field, vcf_allele_field,region);
     overall_number_of_sites = freq.size();
   }
