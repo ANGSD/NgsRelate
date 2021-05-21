@@ -295,6 +295,8 @@ int emAccel(double *F,double **emis,double *F_new,int len, int & niter,int dim){
   }
   fprintf(stderr, "\n");
 #endif
+
+  
   
   minus(F_em1, F, F_diff1,dim);
 
@@ -304,6 +306,14 @@ int emAccel(double *F,double **emis,double *F_new,int len, int & niter,int dim){
 #ifdef DB_MP
     fprintf(stderr,"sr2 break1: %e\n", sqrt(sr2));
 #endif
+    if (niter==2){
+      // This is required as breaking in first round will result in empty F_new
+      // copying F_em1 to F_new every time literally disables accelerated.
+      for(int i=0;i<dim;i++)
+        F_new[i]  = F_em1[i];
+    }
+
+
     for(int i=0;0&&i<dim;i++)
       F_new[i]  = F_em1[i];
     return 1;
@@ -325,6 +335,15 @@ int emAccel(double *F,double **emis,double *F_new,int len, int & niter,int dim){
 #ifdef DB_MP
     fprintf(stderr,"sr2 break2: %e\n", sqrt(sr2));
 #endif
+
+    if (niter==3){
+      // This is required as breaking in first round will result in empty F_new
+      // copying F_em1 to F_new every time literally disables accelerated.      
+      for(int i=0;i<dim;i++)
+        F_new[i]  = F_em2[i];
+    }
+    
+
     for(int i=0;0&&i<dim;i++)
       F_new[i]  = F_em2[i];
     return 1;
@@ -337,9 +356,10 @@ int emAccel(double *F,double **emis,double *F_new,int len, int & niter,int dim){
   double alpha = sqrt(sr2/sv2);
   alpha = std::max(stepMin,std::min(stepMax,alpha));
   for(size_t i=0;i<dim;i++){
-    F_new[i] = F[i]+2*alpha*F_diff1[i]+alpha*alpha*F_diff3[i];
+    //  F_new[i] = std::min(1-ttol, std::max(ttol,F[i]+2*alpha*F_diff1[i]+alpha*alpha*F_diff3[i]));
+    F_new[i] = F[i]+2*alpha*F_diff1[i]+alpha*alpha*F_diff3[i];    
   }
-  
+
   int outofparspace =0;
   for(int i=0;i<dim;i++){
     if(F_new[i]<0||F_new[i]>1){
