@@ -329,7 +329,7 @@ size_t getgls(char*fname,std::vector<double *> &mygl, std::vector<double> &freqs
       freq=0;
     //fprintf(stderr,"freq:%f minfreq:%f keepInd:%d minind:%d\n",freq,minfreq,keepInd,minind);
     //filtering
-    if(keepInd>minind&&freq>=minfreq && freq<= (1-minfreq)) {
+    if(keepInd>=minind&&freq>=minfreq && freq<= (1-minfreq)) {
 
 #ifdef __WITH_MAIN__
       fprintf(stdout,"%s\t%i\t%s\t%s\tqual:%f n_info:%d n_allele:%d n_fmt:%d n_sample:%d n_samplws_with_data:%d freq:%f",
