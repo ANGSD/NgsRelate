@@ -651,13 +651,13 @@ void print_info(FILE *fp){
   fprintf(fp, "   -F <INT>            Estimate inbreeding instead of estimating the nine jacquard coefficients\n");
   fprintf(fp, "   -o <INT>            estimating the 3 jacquard coefficient, assumming no inbreeding\n");
   fprintf(fp, "   -v <INT>            Verbose. print like per iteration\n");
-  fprintf(fp, "   -e <INT>            Errorrates when calling genotypes?\n");
+  fprintf(fp, "   -e <FLOAT>          Errorrates when calling genotypes?\n");
   fprintf(fp, "   -a <INT>            First individual used for analysis? (zero offset)\n");
   fprintf(fp, "   -b <INT>            Second individual used for analysis? (zero offset)\n");
   fprintf(fp, "   -B <INT>            Number of bootstrap replicates for (only for single pairs)\n");
   fprintf(fp, "   -N <INT>            How many times to start each pair with random seed?\n");
   fprintf(fp, "   -n <INT>            Number of samples in glf.gz\n");
-  fprintf(fp, "   -l <FLOAT>            minMaf or 1-Maf filter (default: 0.05)\n");  
+  fprintf(fp, "   -l <FLOAT>          minMaf or 1-Maf filter (default: 0.05)\n");  
   fprintf(fp, "   -z <INT>            Name of file with IDs (optional)\n");
   fprintf(fp, "   -T <STRING>         For -h vcf use PL (default) or GT tag\n");
   fprintf(fp, "   -A <STRING>         For -h vcf use allele frequency TAG e.g. AFngsrelate (default)\n");  
