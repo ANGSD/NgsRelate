@@ -27,15 +27,7 @@ jobs:
           sudo apt-get install -y liblzma-dev libbz2-dev 
       - name: htslib
         run: |
-<<<<<<< HEAD
           git clone --recursive https://github.com/samtools/htslib.git
-=======
-<<<<<<< HEAD
-          git clone --recursive https://github.com/samtools/htslib.git
-=======
-          git clone --recursive --branch=develop git://github.com/samtools/htslib.git
->>>>>>> e222cb1c2fdef921fd8eeb4f7f69788da1a72622
->>>>>>> 9484aac4138465e22892e8608522858cb53dc873
           cd htslib;make
       # Runs a set of commands using the runners shell
       - name: compile ngsrelate
