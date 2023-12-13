@@ -30,7 +30,7 @@ Options:
    -F <INT>            Estimate inbreeding instead of estimating the nine jacquard coefficients
    -o <INT>            estimating the 3 jacquard coefficient, assumming no inbreeding
    -v <INT>            Verbose. print like per iteration
-   -e <INT>            Errorrates when calling genotypes?
+   -e <FLOAT>            Errorrates when calling genotypes?
    -a <INT>            First individual used for analysis? (zero offset)
    -b <INT>            Second individual used for analysis? (zero offset)
    -B <INT>            Number of bootstrap replicates for (only for single pairs)
