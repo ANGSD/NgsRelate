@@ -69,7 +69,7 @@ Assume we have file (`filelist`) containing paths to 100 BAM/CRAM files; one lin
 ./angsd -b filelist -gl 2 -domajorminor 1 -snp_pval 1e-6 -domaf 1 -minmaf 0.05 -doGlf 3
 
 ### Then we extract the frequency column from the allele frequency file and remove the header (to make it in the format NgsRelate needs)
-zcat angsdput.mafs.gz | cut -f5 |sed 1d >freq
+zcat angsdput.mafs.gz | cut -f6 |sed 1d >freq
 
 ### run NgsRelate
 ./ngsrelate  -g angsdput.glf.gz -n 100 -f freq  -O newres
