@@ -994,6 +994,7 @@ void anal1(int a,int b,worker_args * td,double minMaf, bool & nosites){
 
 char *formatoutputnosites(int a, int b){
   char retbuf[4096];
+  size_t sz;
   if (ids.size()) {
     snprintf(retbuf,4096, "%d\t%d\t%s\t%s\t%d", a,
 	     b, ids[a], ids[b], -1);
@@ -1002,16 +1003,19 @@ char *formatoutputnosites(int a, int b){
   }
 
   for(int val=0; val<30; val++){
-    snprintf(retbuf+strlen(retbuf), 4096, "\t%d", -1);
+    sz = strlen(retbuf);
+    snprintf(retbuf+sz,4096-sz, "\t%d", -1);
   }
   
-  snprintf(retbuf+strlen(retbuf), 4096, "\n");
+  sz = strlen(retbuf);
+  snprintf(retbuf+sz,4096-sz, "\n");
   
   return strdup(retbuf);  
 }
 
 char *formatoutput(int a, int b,worker_args *td_out,double total_sites){
   char retbuf[4096];
+  size_t sz;
   if (ids.size()) {
     snprintf(retbuf,4096, "%d\t%d\t%s\t%s\t%d", a,
 	     b, ids[a],
@@ -1036,14 +1040,16 @@ char *formatoutput(int a, int b,worker_args *td_out,double total_sites){
  
  if (td_out->best == 9) {
    for (int j = 0; j < 9; j++) {
-     snprintf(retbuf+strlen(retbuf),4096, "\t%f", td_out->pars[j]);
+     sz = strlen(retbuf);
+     snprintf(retbuf+sz,4096-sz, "\t%f", td_out->pars[j]);
    }
  } else {
    for (int j = 0; j < 9; j++){
+     sz = strlen(retbuf);
      if (j==td_out->best){
-       snprintf(retbuf+strlen(retbuf),4096, "\t%f", 1 - TINY);
+       snprintf(retbuf+strlen(retbuf),4096-sz, "\t%f", 1 - TINY);
      } else {
-       snprintf(retbuf+strlen(retbuf),4096, "\t%f", TINY / 8.0);
+       snprintf(retbuf+strlen(retbuf),4096-sz, "\t%f", TINY / 8.0);
      }
    }
  }
@@ -1056,7 +1062,8 @@ char *formatoutput(int a, int b,worker_args *td_out,double total_sites){
  double rab = (td_out->pars[8] + td_out->pars[2]) +
    (0.75 * (td_out->pars[6] + td_out->pars[4])) +
    td_out->pars[1] * 0.5;
- snprintf(retbuf+strlen(retbuf),4096, "\t%f", rab);
+ sz = strlen(retbuf);
+ snprintf(retbuf+sz,4096-sz, "\t%f", rab);
 
  /////////////////////////////////////////////////
  // Fa - inbreeding coefficient of individual a //
@@ -1064,7 +1071,8 @@ char *formatoutput(int a, int b,worker_args *td_out,double total_sites){
  /////////////////////////////////////////////////
  double Fa = td_out->pars[8] + td_out->pars[7] + td_out->pars[6] +
    td_out->pars[5];
- snprintf(retbuf+strlen(retbuf),4096, "\t%f", Fa);
+ sz = strlen(retbuf);
+ snprintf(retbuf+sz,4096-sz, "\t%f", Fa);
  
  /////////////////////////////////////////////////
  // Fb - inbreeding coefficient of individual b //
@@ -1072,7 +1080,8 @@ char *formatoutput(int a, int b,worker_args *td_out,double total_sites){
  /////////////////////////////////////////////////
  double Fb = td_out->pars[8] + td_out->pars[7] + td_out->pars[4] +
    td_out->pars[3];
- snprintf(retbuf+strlen(retbuf),4096, "\t%f", Fb);
+ sz = strlen(retbuf);
+ snprintf(retbuf+sz,4096-sz, "\t%f", Fb);
  
  /////////////////////////////////////////////////////
  // theta / coancestry / kinship coefficient / f_XY //
@@ -1082,7 +1091,8 @@ char *formatoutput(int a, int b,worker_args *td_out,double total_sites){
    td_out->pars[8] +
    0.5 * (td_out->pars[6] + td_out->pars[4] + td_out->pars[2]) +
    0.25 * td_out->pars[1];
- snprintf(retbuf+strlen(retbuf),4096, "\t%f", theta);
+ sz = strlen(retbuf);
+ snprintf(retbuf+sz,4096-sz, "\t%f", theta);
 
  /////////////////////////////////////////////
  // summary statistics from ackerman et al. //
@@ -1092,7 +1102,8 @@ char *formatoutput(int a, int b,worker_args *td_out,double total_sites){
  double fraternity = td_out->pars[7] + td_out->pars[2];
  double identity = td_out->pars[8];
  double zygosity = td_out->pars[8] + td_out->pars[7] + td_out->pars[2];
- snprintf(retbuf+strlen(retbuf),4096, "\t%f\t%f\t%f\t%f\t%f", inbred_relatedness_1_2,
+ sz = strlen(retbuf);
+ snprintf(retbuf+sz,4096-sz, "\t%f\t%f\t%f\t%f\t%f", inbred_relatedness_1_2,
 	 inbred_relatedness_2_1, fraternity, identity, zygosity);
  
  /////////////////////////////////////////////////////////////////////////////////////////////////////////////
@@ -1104,17 +1115,20 @@ char *formatoutput(int a, int b,worker_args *td_out,double total_sites){
    td_out->pars[6] + td_out->pars[4] + td_out->pars[2] + 0.5 * (td_out->pars[5] + td_out->pars[3] + td_out->pars[1]);
  // 
  double eq_11f = 0.5 * (td_out->pars[5] - td_out->pars[3]);
- snprintf(retbuf+strlen(retbuf),4096, "\t%f\t%f", eq_11e, eq_11f);
+ sz = strlen(retbuf);
+ snprintf(retbuf+sz,4096-sz, "\t%f\t%f", eq_11e, eq_11f);
 
  ///////////////////////////////
  // optimization of EM output //
  ///////////////////////////////
  
  if (td_out->best == 9) {
-   snprintf(retbuf+strlen(retbuf),4096, "\t%f\t%d\t%d\t%f", td_out->ll, td_out->niter, -1,
+   sz = strlen(retbuf);
+   snprintf(retbuf+sz,4096-sz, "\t%f\t%d\t%d\t%f", td_out->ll, td_out->niter, -1,
 	   (1.0 * td_out->nkeep) / total_sites);
  } else {
-   snprintf(retbuf+strlen(retbuf),4096, "\t%f\t%d\t%f\t%f", td_out->bestll, td_out->niter, td_out->ll,
+   sz = strlen(retbuf);
+   snprintf(retbuf+sz,4096-sz, "\t%f\t%d\t%f\t%f", td_out->bestll, td_out->niter, td_out->ll,
             (1.0 * td_out->nkeep) / total_sites);
  }
 
@@ -1122,9 +1136,11 @@ char *formatoutput(int a, int b,worker_args *td_out,double total_sites){
  ////////////////////
  // printing 2dsfs //
  ////////////////////
- snprintf(retbuf+strlen(retbuf),4096, "\t%e", td_out->pars_2dsfs[0]);
+ sz = strlen(retbuf);
+ snprintf(retbuf,4096-sz, "\t%e", td_out->pars_2dsfs[0]);
  for (int j = 1; j < 9; j++) {
-   snprintf(retbuf+strlen(retbuf),4096, ",%e", td_out->pars_2dsfs[j]);
+   sz = strlen(retbuf);
+   snprintf(retbuf,4096-sz, ",%e", td_out->pars_2dsfs[j]);
  }
 
  //////////////////////////////////////
@@ -1147,9 +1163,11 @@ char *formatoutput(int a, int b,worker_args *td_out,double total_sites){
  // printing 2dsfs based statistics //
  /////////////////////////////////////
  
- snprintf(retbuf+strlen(retbuf),4096, "\t%f\t%f\t%f", r0, r1, king);
+ sz = strlen(retbuf);
+ snprintf(retbuf,4096-sz, "\t%f\t%f\t%f", r0, r1, king);
 
- snprintf(retbuf+strlen(retbuf),4096, "\t%f\t%d\n", td_out->ll_2dsfs, td_out->niter_2dsfs);
+ sz = strlen(retbuf);
+ snprintf(retbuf,4096-sz, "\t%f\t%d\n", td_out->ll_2dsfs, td_out->niter_2dsfs);
  // fprintf(stderr,"retbuf:%s\n",retbuf);
  return strdup(retbuf);
 }
