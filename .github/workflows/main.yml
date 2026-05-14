@@ -34,6 +34,8 @@ jobs:
         run: |
           make HTSSRC=htslib/
       - name: Run tests
+        env:
+          NGSRELATE_DEBUG_PLINK_HASH: "1"
         run: |
           make test
       - name: Upload test outputs
@@ -43,4 +45,5 @@ jobs:
           name: test-odir
           path: |
             test/odir
+            test/small.bed
             test/test1.sh.log
