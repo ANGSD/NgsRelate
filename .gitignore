@@ -6,3 +6,6 @@ vcf.o
 filereaders.d
 filereaders.o
 VERSION.h
+test/odir/
+test/small.bed
+test/test1.sh.log

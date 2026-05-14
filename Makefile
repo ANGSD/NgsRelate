@@ -7,10 +7,16 @@ CXXSRC = $(wildcard *.cpp)
 OBJ = $(CXXSRC:.cpp=.o)
 VERSION_HEADER=VERSION.h
 
-BASE_VERSION := 2.0.0
+BASE_VERSION := 2.1.0
+
+ifeq ($(origin PACKAGE_VERSION), undefined)
 PACKAGE_VERSION := $(BASE_VERSION)
 ifneq ("$(wildcard .git)","")
-PACKAGE_VERSION := $(shell git describe --tags --always --dirty 2>/dev/null || echo $(BASE_VERSION))
+GIT_DESCRIBE := $(shell git describe --tags --always --dirty 2>/dev/null)
+ifneq ("$(strip $(GIT_DESCRIBE))","")
+PACKAGE_VERSION := $(GIT_DESCRIBE)
+endif
+endif
 endif
 
 all: $(VERSION_HEADER) ngsRelate

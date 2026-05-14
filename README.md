@@ -1,4 +1,4 @@
-[![Build Status](https://travis-ci.org/ANGSD/NgsRelate.svg?branch=master)](https://travis-ci.org/ANGSD/NgsRelate)
+[![Build](https://github.com/ANGSD/NgsRelate/actions/workflows/main.yml/badge.svg)](https://github.com/ANGSD/NgsRelate/actions/workflows/main.yml)
 
 
 30juni 2018. Added new version which does analysis from bcf/vcf and outputs all nine jacquards
@@ -58,6 +58,10 @@ git clone --recursive https://github.com/SAMtools/htslib
 git clone https://github.com/ANGSD/ngsRelate
 cd htslib/;make -j2;cd ../ngsRelate;make HTSSRC=../htslib/
 ```
+
+## Version note ##
+For source builds without a `.git` directory, the binary version defaults to
+`BASE_VERSION` in `Makefile`.
 
 # Run examples #
 
