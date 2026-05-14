@@ -100,7 +100,7 @@ int **bed_to_intMatrix(const char* file, int nrow,int ncol) {
   const unsigned char mask = '\x03';
 
 
-  FILE *in = fopen(file, "r");
+  FILE *in = fopen(file, "rb");
   if (!in){
     printf("Couln't open input file: %s", file);
     exit(0);
@@ -132,10 +132,10 @@ int **bed_to_intMatrix(const char* file, int nrow,int ncol) {
 
   int snp_major = start[2];
   int part=0, ij=0, i=0, j=0;
+  unsigned char byte = 0;
   while (1) {
-    unsigned char byte;
     if (!part) {
-      if (feof(in) || !fread(&byte, 1, 1, in)) {
+      if (fread(&byte, 1, 1, in) != 1) {
 	printf("Unexpected end of file reached");
 	exit(0);
       }
