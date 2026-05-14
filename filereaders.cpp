@@ -78,11 +78,12 @@ size_t nlines(const char *fname){
     return 0;
   }
   size_t nlines = 0;
-  while(!feof(fp)){
-    char ch = fgetc(fp);
+  int ch = 0;
+  while((ch = fgetc(fp)) != EOF){
     if(ch == '\n')
 	nlines++;
   }
+  fclose(fp);
   return nlines;
 }
 
@@ -233,7 +234,7 @@ posMap getBim(char *bname,char *fname){
     rsMap::iterator rit = rMap.find(rs);
     if(rit == rMap.end()){
       fprintf(stderr,"\t-> rsnumber:%s from bimfile[%d]:\'%s\' doesn't exists in freqfile: \'%s\' will continue filereading but discarding the site \n",rs,linenr,bname,fname);
-      //exit(0);
+      continue;
     }
     pm[gp] = rit->second;
 
@@ -372,7 +373,7 @@ int extract_freq_bim(int argc,char **argv){
       fprintf(stderr,"\t-> major from glf.pos.gz is not defined properly in majorminor from plink at site: (%s,%d) \n",gp.chr,gp.pos);
       exit(0);
     }
-    if(minor!=it->second.major&&major!=it->second.minor){
+    if(minor!=it->second.major&&minor!=it->second.minor){
       fprintf(stderr,"\t-> minor from glf.pos.gz is not defined properly in majorminor from plink at site: (%s,%d)\n",gp.chr,gp.pos);
       exit(0);
     }
@@ -397,7 +398,11 @@ void readids(std::vector<char *> &ids,char *fname){
   char *buf= new char[LENS];
   while(fgets(buf,LENS,fp)){
     char *tmp = strdup(basename(buf));
-    tmp[strlen(tmp)-1]='\0';
+    size_t len = strlen(tmp);
+    while(len>0 && (tmp[len-1]=='\n' || tmp[len-1]=='\r')){
+      tmp[len-1]='\0';
+      len--;
+    }
     ids.push_back(tmp);
 
   }
@@ -477,9 +482,9 @@ size_t getDouble(const char *fname,std::vector<double> &ret) {
   return ret.size();
 }
 
-int readRow(gzFile gz, char *buf, std::string &row){
+int readRow(gzFile gz, char *buf, size_t buflen, std::string &row){
 
-  while (gzgets(gz, buf, sizeof(buf)) != Z_NULL){
+  while (gzgets(gz, buf, buflen) != Z_NULL){
       std::string temp = buf;
       row += temp;
       if(row[row.size()-1] == '\n'){
@@ -544,22 +549,28 @@ double **readBeagle(const char *fname, int nSites, int nInd) {
 
   double **ret = new double *[nSites];
   
-  while(readRow(fp, buf, row)!=0){
+  while(readRow(fp, buf, lens, row)!=0){
     if(nlines==0 && hasHeader){
       row.clear();
       hasHeader=false;
       continue;
     }
 
+    if(nlines >= nSites){
+      fprintf(stderr, "\t-> Beagle - file contains more sites than expected (%d). Increase -L or fix input\n", nSites);
+      exit(0);
+    }
+
     ret[nlines] = new double[3 * nInd];
     
     char * t = strdup(row.c_str());
     // see https://github.com/KHanghoj/code_snippets/blob/8bf16e703f8eab3fda593b0dcf9aa6506ff16950/code/read_beagle.cpp
-    strdup(strtok(t,delims)); // pos
+    strtok(t,delims); // pos
     strtok(NULL,delims); // major
     strtok(NULL,delims); // minor
     for(int j=0; j<nInd*3; j++)
       ret[nlines][j] = atof(strtok(NULL, delims));
+    free(t);
   
     
     row.clear();
@@ -568,6 +579,7 @@ double **readBeagle(const char *fname, int nSites, int nInd) {
   }
   
   fprintf(stderr, "\t-> Beagle - done processing %d sites\n", nlines);
+  gzclose(fp);
 
   assert(nlines==nSites);
   

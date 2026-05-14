@@ -49,12 +49,14 @@ std::vector<char *> hasdata(char *fname){
   seqnames = bcf_hdr_seqnames(hdr, &nseq); assert(seqnames);//bcf_hdr_id2name(hdr,i)  
   std::vector<char *> ret;
   for(int i=0;i<nseq;i++){
-    char buf[strlen(seqnames[i])+100];
-    snprintf(buf,strlen(seqnames[i])+100,"%s:1-1000000000",seqnames[i]);
+    size_t buflen = strlen(seqnames[i])+100;
+    char *buf = new char[buflen];
+    snprintf(buf,buflen,"%s:1-1000000000",seqnames[i]);
     iter=bcf_itr_querys(idx,hdr,buf);
     if(bcf_itr_next(inf, iter, rec)==0)
       ret.push_back(strdup(seqnames[i]));
     hts_itr_destroy(iter);
+    delete [] buf;
   }
   free(seqnames);
   bcf_destroy1(rec);
@@ -231,14 +233,22 @@ size_t getgls(char*fname,std::vector<double *> &mygl, std::vector<double> &freqs
     if(rec->n_allele>=3||rec->n_allele==1)//last case shouldt happen
       continue;
 
-    float ln_gl[3*nsamples];    
+    float *ln_gl = new float[3*nsamples];
 
     if(vcf_format_field == "PL") {
       npl = bcf_get_format_int32(hdr, rec, "PL", &pl, &npl_arr);
       if(npl<0){
         // return codes: https://github.com/samtools/htslib/blob/bcf9bff178f81c9c1cf3a052aeb6cbe32fe5fdcc/htslib/vcf.h#L667
         // no PL tag is available
-        fprintf(stderr, "BAD SITE %s:%ld. return code:%d while fetching PL tag\n", bcf_seqname(hdr,rec), rec->pos, npl);
+        fprintf(stderr, "BAD SITE %s:%lld. return code:%d while fetching PL tag\n",
+                bcf_seqname(hdr,rec), (long long)rec->pos, npl);
+        delete [] ln_gl;
+        continue;
+      }
+      if(npl != 3*nsamples){
+        fprintf(stderr, "BAD SITE %s:%lld. unexpected PL length: got %d expected %d\n",
+                bcf_seqname(hdr,rec), (long long)rec->pos, npl, 3*nsamples);
+        delete [] ln_gl;
         continue;
       }
       // https://github.com/samtools/bcftools/blob/e9c08eb38d1dcb2b2d95a8241933daa1dd3204e5/plugins/tag2tag.c#L151
@@ -256,7 +266,15 @@ size_t getgls(char*fname,std::vector<double *> &mygl, std::vector<double> &freqs
     } else if(vcf_format_field == "GT"){
        int ngts = bcf_get_genotypes(hdr, rec, &gt, &ngt_arr);
        if ( ngts<0 ){
-         fprintf(stderr, "BAD SITE %s:%ld. return code:%d while fetching GT tag\n", bcf_seqname(hdr,rec), rec->pos, npl);
+         fprintf(stderr, "BAD SITE %s:%lld. return code:%d while fetching GT tag\n",
+                 bcf_seqname(hdr,rec), (long long)rec->pos, ngts);
+         delete [] ln_gl;
+         continue;
+       }
+       if(ngts < 2*nsamples){
+         fprintf(stderr, "BAD SITE %s:%lld. unexpected GT length: got %d expected at least %d\n",
+                 bcf_seqname(hdr,rec), (long long)rec->pos, ngts, 2*nsamples);
+         delete [] ln_gl;
          continue;
        }
        for(int ns=0; ns<nsamples;ns++){
@@ -288,10 +306,12 @@ size_t getgls(char*fname,std::vector<double *> &mygl, std::vector<double> &freqs
        }
     } else {
       fprintf(stderr, "\t\t-> BIG TROUBLE. Can only take one of two tags, GT or PL\n");
+      delete [] ln_gl;
+      continue;
     }
     
     int keepInd=0;
-    char keep[nsamples];
+    char *keep = new char[nsamples];
     double *tmp = new double[3*nsamples];    
     for(int ns=0;ns<nsamples;ns++){
       float *ary= ln_gl+ns*3;
@@ -358,10 +378,12 @@ size_t getgls(char*fname,std::vector<double *> &mygl, std::vector<double> &freqs
     } else {
       delete [] tmp;
     }
+    delete [] keep;
+    delete [] ln_gl;
     // fprintf(stderr,"rec->pos:%d npl:%d naf:%d rec->n_allele:%d af[0]:%f\n",rec->pos,npl,naf,rec->n_allele,freq);
     // exit(0);
   }
-  fprintf(stderr, "\t-> [file=\'%s\'][chr=\'%s\'] Read %i records %i of which were SNPs. Number of sites used for downstream analysis (MAF >= %f):%lu\n",fname,seek, n, nsnp, minfreq,mygl.size()); 
+  fprintf(stderr, "\t-> [file=\'%s\'][chr=\'%s\'] Read %i records %i of which were SNPs. Number of sites used for downstream analysis (MAF >= %f):%lu\n",fname,seek?seek:"(null)", n, nsnp, minfreq,mygl.size()); 
 
   free(pl);
   free(gt);
@@ -408,7 +430,9 @@ void *wrap2(void *){
 
 double ** readbcfvcf(char*fname,int &nind, std::vector<double> &freqs,int minind,double minfreq, std::string vcf_format_field, std::string vcf_allele_field,char *seek){
   
-  fprintf(stderr,"\t-> readbcfvcf seek:%s nind:%d\n",seek,nind);
+  fprintf(stderr,"\t-> readbcfvcf seek:%s nind:%d\n",seek?seek:"(null)",nind);
+  jobs.clear();
+  mycounter = 0;
   htsFile * inf = NULL;inf=hts_open(fname, "r");assert(inf);  
   bcf_hdr_t *hdr = NULL;hdr=bcf_hdr_read(inf);assert(hdr);
   int isbcf=0;
@@ -465,20 +489,21 @@ double ** readbcfvcf(char*fname,int &nind, std::vector<double> &freqs,int minind
     }else{
       int at =0;
       
-      while(at<hd.size()){
-	//	fprintf(stderr,"at:%d hdsize:%lu\n",at,hd.size());
-	int howmany=std::min(diskio_threads,(int)hd.size()-at);
-	pthread_t mythd[howmany];
-	for(int i=0;i<howmany;i++){
-	  if(std_queue)
-	    assert (pthread_create(&mythd[i],NULL,wrap,&jobs[i+at])==0);
-	  else
-	    assert (pthread_create(&mythd[i],NULL,wrap2,NULL)==0);
-	}
-	for(int i=0;i<howmany;i++)
-	  assert(pthread_join(mythd[i],NULL)==0);
-	at+=howmany;
-      }
+	      while(at<hd.size()){
+		//	fprintf(stderr,"at:%d hdsize:%lu\n",at,hd.size());
+		int howmany=std::min(diskio_threads,(int)hd.size()-at);
+		pthread_t *mythd = new pthread_t[howmany];
+		for(int i=0;i<howmany;i++){
+		  if(std_queue)
+		    assert (pthread_create(&mythd[i],NULL,wrap,&jobs[i+at])==0);
+		  else
+		    assert (pthread_create(&mythd[i],NULL,wrap2,NULL)==0);
+		}
+		for(int i=0;i<howmany;i++)
+		  assert(pthread_join(mythd[i],NULL)==0);
+		delete [] mythd;
+		at+=howmany;
+	      }
     }
     int nsites =0;
     for(int i=0;i<jobs.size();i++)
@@ -502,6 +527,8 @@ double ** readbcfvcf(char*fname,int &nind, std::vector<double> &freqs,int minind
   free(seqnames);
   if(hdr) bcf_hdr_destroy(hdr);
   hts_close(inf);
+  jobs.clear();
+  mycounter = 0;
 
   return gls;
 }
@@ -521,7 +548,7 @@ int main(int argc, char **argv) {
   char *reg = NULL;
   if(argc==3)
     reg=strdup(argv[2]);
-  fprintf(stderr,"reg:%s\n",reg);
+  fprintf(stderr,"reg:%s\n",reg?reg:"(null)");
   gls = readbcfvcf(argv[1],nind,freqs,2,0.04,pl,fr,reg);
   return 0;
 }

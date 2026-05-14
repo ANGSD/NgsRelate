@@ -1316,13 +1316,6 @@ int main_analysis2(std::vector<double> &freq,double **gls,int num_threads,FILE *
      delete all_args[i];
    delete [] all_args;
   return 0;
-
-
-  
-    if(do_simple){
-      fprintf(stderr, "\t-> setting Jacquard coefficient related to inbreeding (1-6) to zero\n");
-    }
-     
 }
 
 int my_atoi(char *s){
@@ -1331,6 +1324,10 @@ int my_atoi(char *s){
   int value = (int)strtol(s, &endptr, 10);
   if(*endptr == *s ){
     fprintf(stderr, "pair '%s' is not a 0-based index\n", s);
+    exit(0);
+  }
+  if(value < 0){
+    fprintf(stderr, "pair '%s' must be a non-negative 0-based index\n", s);
     exit(0);
   }
   return value;
@@ -1441,8 +1438,9 @@ int main(int argc, char **argv){
   fprintf(stderr, "\t-> -n parameter has not been supplied. Will assume that "
     "file contains 2 samples...\n");
   }
-  if (ids.size() != 0 && ids.size() != nind) {
-    fprintf(stderr, "\t-> Number of names doesnt match the -n parameter\n");
+  if (ids.size() != 0 && nind!=-1 && ids.size() != nind) {
+    fprintf(stderr, "\t-> Number of names (%lu) does not match -n (%d)\n", ids.size(), nind);
+    return 0;
   }
 
   srand(time(NULL));
@@ -1459,6 +1457,10 @@ int main(int argc, char **argv){
 
   if (gname != NULL && beaglefile != NULL){
     fprintf(stderr, "cannot provide both a beagle ( -G %s) and glf ( -g %s) file\n", beaglefile, gname);
+    return 0;
+  }
+  if (num_threads <= 0){
+    fprintf(stderr, "\t-> Number of threads (-p) must be > 0. Got: %d\n", num_threads);
     return 0;
   }
   
@@ -1516,7 +1518,10 @@ int main(int argc, char **argv){
 	  hit+=1.0;
 	  asum+=imat[j][i];
 	}
-      freq.push_back(1-asum/hit/2.0);//flip
+      if(hit==0.0)
+	freq.push_back(0.0);
+      else
+	freq.push_back(1-asum/hit/2.0);//flip
     }
 #if 0 //validated with plink --freq
     for(int i=0;i<bimnlines;i++)
@@ -1615,6 +1620,18 @@ int main(int argc, char **argv){
   fflush(stderr);
   if(overall_number_of_sites==0)
     return 0;
+  if (ids.size() != 0 && ids.size() != nind) {
+    fprintf(stderr, "\t-> Number of names (%lu) does not match inferred nind (%d)\n", ids.size(), nind);
+    return 0;
+  }
+  if(pair1!=-1 && pair1>=nind){
+    fprintf(stderr,"\t-> -a index out of range: %d (nind=%d)\n",pair1,nind);
+    return 0;
+  }
+  if(pair2!=-1 && pair2>=nind){
+    fprintf(stderr,"\t-> -b index out of range: %d (nind=%d)\n",pair2,nind);
+    return 0;
+  }
   if (switchMaf) {
     fprintf(stderr, "\t-> switching frequencies\n");
     for (size_t i = 0; i < overall_number_of_sites; i++)
