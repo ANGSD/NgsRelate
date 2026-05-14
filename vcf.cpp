@@ -238,7 +238,13 @@ size_t getgls(char*fname,std::vector<double *> &mygl, std::vector<double> &freqs
       if(npl<0){
         // return codes: https://github.com/samtools/htslib/blob/bcf9bff178f81c9c1cf3a052aeb6cbe32fe5fdcc/htslib/vcf.h#L667
         // no PL tag is available
-        fprintf(stderr, "BAD SITE %s:%ld. return code:%d while fetching PL tag\n", bcf_seqname(hdr,rec), rec->pos, npl);
+        fprintf(stderr, "BAD SITE %s:%lld. return code:%d while fetching PL tag\n",
+                bcf_seqname(hdr,rec), (long long)rec->pos, npl);
+        continue;
+      }
+      if(npl != 3*nsamples){
+        fprintf(stderr, "BAD SITE %s:%lld. unexpected PL length: got %d expected %d\n",
+                bcf_seqname(hdr,rec), (long long)rec->pos, npl, 3*nsamples);
         continue;
       }
       // https://github.com/samtools/bcftools/blob/e9c08eb38d1dcb2b2d95a8241933daa1dd3204e5/plugins/tag2tag.c#L151
@@ -256,7 +262,13 @@ size_t getgls(char*fname,std::vector<double *> &mygl, std::vector<double> &freqs
     } else if(vcf_format_field == "GT"){
        int ngts = bcf_get_genotypes(hdr, rec, &gt, &ngt_arr);
        if ( ngts<0 ){
-         fprintf(stderr, "BAD SITE %s:%ld. return code:%d while fetching GT tag\n", bcf_seqname(hdr,rec), rec->pos, npl);
+         fprintf(stderr, "BAD SITE %s:%lld. return code:%d while fetching GT tag\n",
+                 bcf_seqname(hdr,rec), (long long)rec->pos, ngts);
+         continue;
+       }
+       if(ngts < 2*nsamples){
+         fprintf(stderr, "BAD SITE %s:%lld. unexpected GT length: got %d expected at least %d\n",
+                 bcf_seqname(hdr,rec), (long long)rec->pos, ngts, 2*nsamples);
          continue;
        }
        for(int ns=0; ns<nsamples;ns++){
@@ -361,7 +373,7 @@ size_t getgls(char*fname,std::vector<double *> &mygl, std::vector<double> &freqs
     // fprintf(stderr,"rec->pos:%d npl:%d naf:%d rec->n_allele:%d af[0]:%f\n",rec->pos,npl,naf,rec->n_allele,freq);
     // exit(0);
   }
-  fprintf(stderr, "\t-> [file=\'%s\'][chr=\'%s\'] Read %i records %i of which were SNPs. Number of sites used for downstream analysis (MAF >= %f):%lu\n",fname,seek, n, nsnp, minfreq,mygl.size()); 
+  fprintf(stderr, "\t-> [file=\'%s\'][chr=\'%s\'] Read %i records %i of which were SNPs. Number of sites used for downstream analysis (MAF >= %f):%lu\n",fname,seek?seek:"(null)", n, nsnp, minfreq,mygl.size()); 
 
   free(pl);
   free(gt);
@@ -408,7 +420,9 @@ void *wrap2(void *){
 
 double ** readbcfvcf(char*fname,int &nind, std::vector<double> &freqs,int minind,double minfreq, std::string vcf_format_field, std::string vcf_allele_field,char *seek){
   
-  fprintf(stderr,"\t-> readbcfvcf seek:%s nind:%d\n",seek,nind);
+  fprintf(stderr,"\t-> readbcfvcf seek:%s nind:%d\n",seek?seek:"(null)",nind);
+  jobs.clear();
+  mycounter = 0;
   htsFile * inf = NULL;inf=hts_open(fname, "r");assert(inf);  
   bcf_hdr_t *hdr = NULL;hdr=bcf_hdr_read(inf);assert(hdr);
   int isbcf=0;
@@ -502,6 +516,8 @@ double ** readbcfvcf(char*fname,int &nind, std::vector<double> &freqs,int minind
   free(seqnames);
   if(hdr) bcf_hdr_destroy(hdr);
   hts_close(inf);
+  jobs.clear();
+  mycounter = 0;
 
   return gls;
 }
@@ -521,7 +537,7 @@ int main(int argc, char **argv) {
   char *reg = NULL;
   if(argc==3)
     reg=strdup(argv[2]);
-  fprintf(stderr,"reg:%s\n",reg);
+  fprintf(stderr,"reg:%s\n",reg?reg:"(null)");
   gls = readbcfvcf(argv[1],nind,freqs,2,0.04,pl,fr,reg);
   return 0;
 }
