@@ -1,5 +1,14 @@
 #!/bin/bash
 MD5=md5sum
+MD5FILE=${TEST_MD5_FILE:-}
+
+if [ -z "${MD5FILE}" ]; then
+    if [ "$(uname -s)" = "Linux" ] && [ -f test1.github.md5 ]; then
+        MD5FILE=test1.github.md5
+    else
+        MD5FILE=test1.md5
+    fi
+fi
 
 if [ $# -eq 1 ] 
 then
@@ -39,4 +48,5 @@ ${PRG} -h small.bcf  -p 1 -r 100 -c 0 -F 1 -O ${ODIR}/vcf8.res  2>>${LOG}
 
 echo -e "\t test all done "  >>${LOG} 2>&1
 
-${MD5} -c test1.md5 >>${LOG} 2>&1
+echo "Using checksum file: ${MD5FILE}" >>${LOG} 2>&1
+${MD5} -c ${MD5FILE} >>${LOG} 2>&1
