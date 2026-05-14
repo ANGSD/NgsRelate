@@ -22,6 +22,11 @@
 #include <cstdint>
 #include <unistd.h>
 #include "filereaders.h"
+#include "VERSION.h"
+
+#ifndef NGSRELATE_VERSION
+#define NGSRELATE_VERSION "unknown"
+#endif
 
 #ifdef __WITH_BCF__
 #include "vcf.h"
@@ -82,8 +87,6 @@ char *vcf_format_field = strdup("PL"); // can take PL or GT
 char *vcf_allele_field = strdup("AFngsrelate"); // can take any tag value e.g. AF AF1 etc
 
 std::vector<char *> ids;
-
-float emTole=1e-12;
 
 // https://en.cppreference.com/w/c/numeric/math/isnan
 bool is_nan(double x) { return x != x; }
@@ -657,6 +660,7 @@ void emission_ngs_inbred(std::vector<double> * freq, double **gls, double **emis
 
 void print_info(FILE *fp){
   fprintf(fp, "\n");
+  fprintf(fp, "Version: %s\n", NGSRELATE_VERSION);
   fprintf(fp, "Usage main analyses: ./ngsrelate  [options] \n");
   fprintf(fp, "Options:\n");
   fprintf(fp, "   -f <filename>       Name of file with frequencies\n");
@@ -1336,6 +1340,7 @@ int main(int argc, char **argv){
    clock_t t=clock();
    time_t t2=time(NULL);
 
+  fprintf(stderr,"\t-> NgsRelate version: %s\n", NGSRELATE_VERSION);
 
   if(argc==1)
     print_info(stderr);
