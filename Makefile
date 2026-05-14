@@ -1,11 +1,14 @@
-#modied from htslib makefile
-FLAGS=-O3
+# modified from htslib makefile
+FLAGS ?= -O3
 
 CXXFLAGS += $(FLAGS)
+CPPFLAGS += -D__WITH_BCF__
 
-CXXSRC = $(wildcard *.cpp)
-OBJ = $(CXXSRC:.cpp=.o)
-VERSION_HEADER=VERSION.h
+TARGET := ngsRelate
+CXXSRC := $(wildcard *.cpp)
+OBJ := $(CXXSRC:.cpp=.o)
+VERSION_HEADER := VERSION.h
+LDLIBS_COMMON := -lz -lpthread
 
 BASE_VERSION := 2.1.0
 
@@ -19,18 +22,33 @@ endif
 endif
 endif
 
-all: $(VERSION_HEADER) ngsRelate
+all: $(VERSION_HEADER) $(TARGET)
 
 # Adjust $(HTSSRC) to point to your top-level htslib directory
-ifdef HTSSRC
+USE_HTSSRC := 0
+ifneq ($(strip $(HTSSRC)),)
+ifneq ($(strip $(HTSSRC)),systemwide)
+USE_HTSSRC := 1
 $(info HTSSRC defined)
-HTS_INCDIR=$(realpath $(HTSSRC))
-HTS_LIBDIR=$(realpath $(HTSSRC))/libhts.a
+HTS_ROOT := $(realpath $(strip $(HTSSRC)))
+ifneq ("$(wildcard $(HTS_ROOT)/include/htslib/hts.h)","")
+HTS_INCDIR := $(HTS_ROOT)/include
+else
+HTS_INCDIR := $(HTS_ROOT)
+endif
+ifneq ("$(wildcard $(HTS_ROOT)/lib/libhts.a)","")
+HTS_LIBDIR := $(HTS_ROOT)/lib/libhts.a
+else
+HTS_LIBDIR := $(HTS_ROOT)/libhts.a
+endif
+else
+$(info HTSSRC set to systemwide, using -lhts)
+endif
 else
 $(info HTSSRC not defined, assuming systemwide installation -lhts)
 endif
 
-.PHONY: misc clean test force
+.PHONY: all clean misc test force
 
 -include $(OBJ:.o=.d)
 
@@ -41,27 +59,25 @@ $(VERSION_HEADER): force
 
 force:
 
-ifdef HTSSRC
+ifeq ($(USE_HTSSRC),1)
 %.o: %.cpp $(VERSION_HEADER)
-	$(CXX) -c  $(CXXFLAGS) $*.cpp -I$(HTS_INCDIR) -D__WITH_BCF__ ## -DDB_EMIS -DDB_MP
-	$(CXX) -MM $(CXXFLAGS) $*.cpp -I$(HTS_INCDIR) -D__WITH_BCF__ >$*.d
+	$(CXX) -c $(CXXFLAGS) $(CPPFLAGS) -I$(HTS_INCDIR) $< -o $@ ## -DDB_EMIS -DDB_MP
+	$(CXX) -MM $(CXXFLAGS) $(CPPFLAGS) -I$(HTS_INCDIR) $< >$*.d
 
-ngsRelate: $(VERSION_HEADER) $(OBJ)
-	$(CXX) $(FLAGS)  -o ngsRelate *.o $(HTS_LIBDIR) -lz -lm -lbz2 -llzma -lpthread -lcurl -D__WITH_BCF__
+$(TARGET): $(VERSION_HEADER) $(OBJ)
+	$(CXX) $(CXXFLAGS) $(LDFLAGS) -o $(TARGET) $(OBJ) $(HTS_LIBDIR) $(LDLIBS_COMMON) -lbz2 -llzma -lm -lcurl
 else
 %.o: %.cpp $(VERSION_HEADER)
-	$(CXX) -c  $(CXXFLAGS)  -D__WITH_BCF__ $*.cpp
-	$(CXX) -MM $(CXXFLAGS)  -D__WITH_BCF__ $*.cpp >$*.d
+	$(CXX) -c $(CXXFLAGS) $(CPPFLAGS) $< -o $@
+	$(CXX) -MM $(CXXFLAGS) $(CPPFLAGS) $< >$*.d
 
-ngsRelate: $(VERSION_HEADER) $(OBJ)
-	$(CXX) $(FLAGS)  -o ngsRelate *.o -lz -lpthread -lhts  -lbz2 -llzma 
+$(TARGET): $(VERSION_HEADER) $(OBJ)
+	$(CXX) $(CXXFLAGS) $(LDFLAGS) -o $(TARGET) $(OBJ) $(LDLIBS_COMMON) -lhts
 endif
 
 clean:
-	rm  -f *.o *.d ngsRelate $(VERSION_HEADER) $(VERSION_HEADER).tmp *~
-
-.PHONY: all clean install install-all install-misc misc test
+	rm -f *.o *.d $(TARGET) $(VERSION_HEADER) $(VERSION_HEADER).tmp *~
 
 test:
 	echo "Only subset of analyses is being tested"
-	cd test;./testAll.sh ../ngsRelate
+	cd test;./testAll.sh ../$(TARGET)
