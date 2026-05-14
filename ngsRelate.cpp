@@ -1021,32 +1021,40 @@ void anal1(int a,int b,worker_args * td,double minMaf, bool & nosites,int bootst
 }
 
 char *formatoutputnosites(int a, int b){
-  char retbuf[4096];
+  char retbuf[32768];
+  retbuf[0] = '\0';
+#define APPENDF(...) do { \
+    size_t _off = strlen(retbuf); \
+    if(_off < sizeof(retbuf)) \
+      snprintf(retbuf + _off, sizeof(retbuf) - _off, __VA_ARGS__); \
+  } while(0)
   if (ids.size()) {
-    snprintf(retbuf,4096, "%d\t%d\t%s\t%s\t%d", a,
-	     b, ids[a], ids[b], -1);
+    APPENDF("%d\t%d\t%s\t%s\t%d", a, b, ids[a], ids[b], -1);
   } else {
-    snprintf(retbuf,4096, "%d\t%d\t%d", a, b, -1);
+    APPENDF("%d\t%d\t%d", a, b, -1);
   }
 
-  for(int val=0; val<30; val++){
-    snprintf(retbuf+strlen(retbuf), 4096, "\t%d", -1);
-  }
+  for(int val=0; val<30; val++)
+    APPENDF("\t%d", -1);
   
-  snprintf(retbuf+strlen(retbuf), 4096, "\n");
+  APPENDF("\n");
+#undef APPENDF
   
   return strdup(retbuf);  
 }
 
 char *formatoutput(int a, int b,worker_args *td_out,double total_sites){
-  char retbuf[4096];
+  char retbuf[32768];
+  retbuf[0] = '\0';
+#define APPENDF(...) do { \
+    size_t _off = strlen(retbuf); \
+    if(_off < sizeof(retbuf)) \
+      snprintf(retbuf + _off, sizeof(retbuf) - _off, __VA_ARGS__); \
+  } while(0)
   if (ids.size()) {
-    snprintf(retbuf,4096, "%d\t%d\t%s\t%s\t%d", a,
-	     b, ids[a],
-	     ids[b], td_out->nkeep);
+    APPENDF("%d\t%d\t%s\t%s\t%d", a, b, ids[a], ids[b], td_out->nkeep);
   } else {
-    snprintf(retbuf,4096, "%d\t%d\t%d", a, b,
-	     td_out->nkeep);
+    APPENDF("%d\t%d\t%d", a, b, td_out->nkeep);
   }
 
  /////////////////////////
@@ -1064,14 +1072,14 @@ char *formatoutput(int a, int b,worker_args *td_out,double total_sites){
  
  if (td_out->best == 9) {
    for (int j = 0; j < 9; j++) {
-     snprintf(retbuf+strlen(retbuf),4096, "\t%f", td_out->pars[j]);
+     APPENDF("\t%f", td_out->pars[j]);
    }
  } else {
    for (int j = 0; j < 9; j++){
      if (j==td_out->best){
-       snprintf(retbuf+strlen(retbuf),4096, "\t%f", 1 - TINY);
+       APPENDF("\t%f", 1 - TINY);
      } else {
-       snprintf(retbuf+strlen(retbuf),4096, "\t%f", TINY / 8.0);
+       APPENDF("\t%f", TINY / 8.0);
      }
    }
  }
@@ -1084,7 +1092,7 @@ char *formatoutput(int a, int b,worker_args *td_out,double total_sites){
  double rab = (td_out->pars[8] + td_out->pars[2]) +
    (0.75 * (td_out->pars[6] + td_out->pars[4])) +
    td_out->pars[1] * 0.5;
- snprintf(retbuf+strlen(retbuf),4096, "\t%f", rab);
+ APPENDF("\t%f", rab);
 
  /////////////////////////////////////////////////
  // Fa - inbreeding coefficient of individual a //
@@ -1092,7 +1100,7 @@ char *formatoutput(int a, int b,worker_args *td_out,double total_sites){
  /////////////////////////////////////////////////
  double Fa = td_out->pars[8] + td_out->pars[7] + td_out->pars[6] +
    td_out->pars[5];
- snprintf(retbuf+strlen(retbuf),4096, "\t%f", Fa);
+ APPENDF("\t%f", Fa);
  
  /////////////////////////////////////////////////
  // Fb - inbreeding coefficient of individual b //
@@ -1100,7 +1108,7 @@ char *formatoutput(int a, int b,worker_args *td_out,double total_sites){
  /////////////////////////////////////////////////
  double Fb = td_out->pars[8] + td_out->pars[7] + td_out->pars[4] +
    td_out->pars[3];
- snprintf(retbuf+strlen(retbuf),4096, "\t%f", Fb);
+ APPENDF("\t%f", Fb);
  
  /////////////////////////////////////////////////////
  // theta / coancestry / kinship coefficient / f_XY //
@@ -1110,7 +1118,7 @@ char *formatoutput(int a, int b,worker_args *td_out,double total_sites){
    td_out->pars[8] +
    0.5 * (td_out->pars[6] + td_out->pars[4] + td_out->pars[2]) +
    0.25 * td_out->pars[1];
- snprintf(retbuf+strlen(retbuf),4096, "\t%f", theta);
+ APPENDF("\t%f", theta);
 
  /////////////////////////////////////////////
  // summary statistics from ackerman et al. //
@@ -1120,7 +1128,7 @@ char *formatoutput(int a, int b,worker_args *td_out,double total_sites){
  double fraternity = td_out->pars[7] + td_out->pars[2];
  double identity = td_out->pars[8];
  double zygosity = td_out->pars[8] + td_out->pars[7] + td_out->pars[2];
- snprintf(retbuf+strlen(retbuf),4096, "\t%f\t%f\t%f\t%f\t%f", inbred_relatedness_1_2,
+ APPENDF("\t%f\t%f\t%f\t%f\t%f", inbred_relatedness_1_2,
 	 inbred_relatedness_2_1, fraternity, identity, zygosity);
  
  /////////////////////////////////////////////////////////////////////////////////////////////////////////////
@@ -1132,17 +1140,17 @@ char *formatoutput(int a, int b,worker_args *td_out,double total_sites){
    td_out->pars[6] + td_out->pars[4] + td_out->pars[2] + 0.5 * (td_out->pars[5] + td_out->pars[3] + td_out->pars[1]);
  // 
  double eq_11f = 0.5 * (td_out->pars[5] - td_out->pars[3]);
- snprintf(retbuf+strlen(retbuf),4096, "\t%f\t%f", eq_11e, eq_11f);
+ APPENDF("\t%f\t%f", eq_11e, eq_11f);
 
  ///////////////////////////////
  // optimization of EM output //
  ///////////////////////////////
  
  if (td_out->best == 9) {
-   snprintf(retbuf+strlen(retbuf),4096, "\t%f\t%d\t%d\t%f", td_out->ll, td_out->niter, -1,
+   APPENDF("\t%f\t%d\t%d\t%f", td_out->ll, td_out->niter, -1,
 	   (1.0 * td_out->nkeep) / total_sites);
  } else {
-   snprintf(retbuf+strlen(retbuf),4096, "\t%f\t%d\t%f\t%f", td_out->bestll, td_out->niter, td_out->ll,
+   APPENDF("\t%f\t%d\t%f\t%f", td_out->bestll, td_out->niter, td_out->ll,
             (1.0 * td_out->nkeep) / total_sites);
  }
 
@@ -1150,9 +1158,9 @@ char *formatoutput(int a, int b,worker_args *td_out,double total_sites){
  ////////////////////
  // printing 2dsfs //
  ////////////////////
- snprintf(retbuf+strlen(retbuf),4096, "\t%e", td_out->pars_2dsfs[0]);
+ APPENDF("\t%e", td_out->pars_2dsfs[0]);
  for (int j = 1; j < 9; j++) {
-   snprintf(retbuf+strlen(retbuf),4096, ",%e", td_out->pars_2dsfs[j]);
+   APPENDF(",%e", td_out->pars_2dsfs[j]);
  }
 
  //////////////////////////////////////
@@ -1175,9 +1183,10 @@ char *formatoutput(int a, int b,worker_args *td_out,double total_sites){
  // printing 2dsfs based statistics //
  /////////////////////////////////////
  
- snprintf(retbuf+strlen(retbuf),4096, "\t%f\t%f\t%f", r0, r1, king);
+ APPENDF("\t%f\t%f\t%f", r0, r1, king);
 
- snprintf(retbuf+strlen(retbuf),4096, "\t%f\t%d\n", td_out->ll_2dsfs, td_out->niter_2dsfs);
+ APPENDF("\t%f\t%d\n", td_out->ll_2dsfs, td_out->niter_2dsfs);
+#undef APPENDF
  // fprintf(stderr,"retbuf:%s\n",retbuf);
  return strdup(retbuf);
 }
