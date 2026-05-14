@@ -30,9 +30,11 @@ jobs:
           git clone --recursive https://github.com/samtools/htslib.git
           cd htslib;make
       # Runs a set of commands using the runners shell
-      - name: compile ngsrelate
+      - name: Compile ngsRelate
         run: |
-          make HTSSRC=htslib/ 
+          make HTSSRC=htslib/
+      - name: Run tests
+        run: |
           make test
       - name: Upload test outputs
         if: always()
