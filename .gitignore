@@ -5,3 +5,4 @@ vcf.d
 vcf.o
 filereaders.d
 filereaders.o
+VERSION.h
