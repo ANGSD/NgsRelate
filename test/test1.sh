@@ -6,11 +6,6 @@ then
     PRG=$1
 fi
 
-if [[ "$OSTYPE" == "darwin"* ]]; then
-    MD5=./md5osx.sh
-fi
-
-
 LOG=${0}.log
 ODIR=odir
 echo "Cleaning old output dir ${ODIR} PRG:${PRG}" >${LOG}
@@ -44,6 +39,4 @@ ${PRG} -h small.bcf  -p 1 -r 100 -c 0 -F 1 -O ${ODIR}/vcf8.res  2>>${LOG}
 
 echo -e "\t test all done "  >>${LOG} 2>&1
 
-#md5sum odir/* >test1.md5
-
-#${MD5} -w -c test1.md5 >>${LOG} 2>&1
+${MD5} -c test1.md5 >>${LOG} 2>&1

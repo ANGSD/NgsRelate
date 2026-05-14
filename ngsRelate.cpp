@@ -18,6 +18,8 @@
 #include <limits>
 #include <string>
 #include <algorithm> //shuffle
+#include <random>
+#include <cstdint>
 #include <unistd.h>
 #include "filereaders.h"
 
@@ -34,6 +36,7 @@ std::vector<char *> spillfilesnames;
 typedef struct{
   int a;
   int b;//<-if inbreding a=b
+  int bootstrap_rep;
   char *res;//<-results as char*
 }mypair;
 
@@ -161,9 +164,31 @@ void normalize(double *tmp,int len){
     tmp[i] /=s;
 }
 
-void sample48(double *ary,int dim){
+static inline uint64_t mix64(uint64_t x){
+  x ^= x >> 30;
+  x *= 0xbf58476d1ce4e5b9ULL;
+  x ^= x >> 27;
+  x *= 0x94d049bb133111ebULL;
+  x ^= x >> 31;
+  return x;
+}
+
+static inline uint64_t rng_seed_for_pair(int base_seed, int a, int b, int restart_idx, int stream_id){
+  uint64_t x = static_cast<uint64_t>(static_cast<uint32_t>(base_seed));
+  x ^= static_cast<uint64_t>(static_cast<uint32_t>(a)) << 1;
+  x ^= static_cast<uint64_t>(static_cast<uint32_t>(b)) << 21;
+  x ^= static_cast<uint64_t>(static_cast<uint32_t>(restart_idx)) << 41;
+  x ^= static_cast<uint64_t>(static_cast<uint32_t>(stream_id)) << 57;
+  x = mix64(x);
+  if(x==0)
+    x = 0x9e3779b97f4a7c15ULL;
+  return x;
+}
+
+void sample48(double *ary,int dim,std::mt19937_64 &rng){
+  std::uniform_real_distribution<double> uni(TINY, 1.0 - TINY);
   for(int i=0;i<dim;i++)
-    ary[i] =TINY+drand48()*(1-2*TINY);
+    ary[i] = uni(rng);
   
   normalize(ary,dim);
 }
@@ -263,12 +288,10 @@ double sumSquare(double * mat,int dim){
   return tmp;
 }
 
-int emAccel(double *F,double **emis,double *F_new,int len, int & niter,int dim){
+int emAccel(double *F,double **emis,double *F_new,int len, int & niter,int dim,double &stepMax){
   //  maybe these should be usersettable?
  
   double stepMin =1;
-  double stepMax0 = 1;
-  static double stepMax=stepMax0;
   double mstep=4;
   //  double objfnInc=1;
 #ifdef DB_MP
@@ -397,6 +420,7 @@ int emAccel(double *F,double **emis,double *F_new,int len, int & niter,int dim){
 int em(double *sfs,double  **emis, int len, int dim){
   int niter = 0;
   double oldLik,lik;
+  double stepMax = 1;
   //  sample48(sfs,dim);//<- moved to outside 
 
   oldLik = loglike(sfs,emis,len,dim);
@@ -410,7 +434,7 @@ int em(double *sfs,double  **emis, int len, int dim){
     if(model==0)
       emStep(sfs,emis,tmp,len,dim);
     else
-      emAccel(sfs,emis,tmp,len, niter,dim);      
+      emAccel(sfs,emis,tmp,len, niter,dim,stepMax);
     for(int i=0;i<dim;i++)
       sfs[i]= tmp[i];
     
@@ -783,7 +807,7 @@ struct worker_args_t {
 typedef struct worker_args_t worker_args;
 
 // function will update pk_keeplist and return the number of sites that should be retained for analysis
-int populate_keeplist(int pk_a,int pk_b,int pk_nsites,double **pk_gls,int pk_minmaf,std::vector<double> *pk_freq,int *pk_keeplist,int *tmp){//last is workspace to avoid allocation and deallocation;
+int populate_keeplist(int pk_a,int pk_b,int pk_nsites,double **pk_gls,int pk_minmaf,std::vector<double> *pk_freq,int *pk_keeplist,int *tmp,int bootstrap_rep){//last is workspace to avoid allocation and deallocation;
 
   int *keeplist = pk_keeplist;
   int nkeep=0;
@@ -811,9 +835,11 @@ int populate_keeplist(int pk_a,int pk_b,int pk_nsites,double **pk_gls,int pk_min
     nkeep++;
   }
   
-  if(tmp){//indicater for if we should bootstrap
+  if(tmp && nkeep>0){//indicater for if we should bootstrap
+    std::mt19937_64 rng(rng_seed_for_pair(seed, pk_a, pk_b, bootstrap_rep, 2));
+    std::uniform_int_distribution<int> pick(0, nkeep-1);
     for(int i=0;i<nkeep;i++){
-      tmp[i] = keeplist[lrand48() % nkeep];
+      tmp[i] = keeplist[pick(rng)];
       //      fprintf(stderr,"tmp:%d\n",tmp[i]);
     }
     std::sort(tmp,tmp+nkeep);
@@ -883,7 +909,8 @@ int analyse_jaq(double *pk_pars,std::vector<double> *pk_freq,double **pk_gls,int
 #endif
   
   for(int n=0;n<ntimes;n++) {
-    sample48(tmp_pk_pars,do_inbred?2:9);
+    std::mt19937_64 rng(rng_seed_for_pair(seed, pk_a, pk_b, n, 0));
+    sample48(tmp_pk_pars,do_inbred?2:9,rng);
     
     for(int i=3;do_simple&&do_inbred==0 && i<9;i++)//setting it to the old
       tmp_pk_pars[i] = 0;
@@ -947,10 +974,10 @@ int analyse_jaq(double *pk_pars,std::vector<double> *pk_freq,double **pk_gls,int
 }
 
 
-void anal1(int a,int b,worker_args * td,double minMaf, bool & nosites){
+void anal1(int a,int b,worker_args * td,double minMaf, bool & nosites,int bootstrap_rep){
   
   assert(td->nsites>0);
-  td->nkeep = populate_keeplist(a,b,td->nsites,td->gls,minMaf,td->freq,td->keeplist,td->bootindex);
+  td->nkeep = populate_keeplist(a,b,td->nsites,td->gls,minMaf,td->freq,td->keeplist,td->bootindex,bootstrap_rep);
   
   if (td->nkeep==0){
     fprintf(stderr, "\t-> sample index %d and %d have no overlapping sites with data. Pair will not be analyzed\n", a, b);
@@ -976,7 +1003,8 @@ void anal1(int a,int b,worker_args * td,double minMaf, bool & nosites){
    
     td->ll_2dsfs=log(0);
     for(int n=0;n<ntimes;n++){
-      sample48(tmp_pars_2dsfs,9);
+      std::mt19937_64 rng(rng_seed_for_pair(seed, a, b, n, 1));
+      sample48(tmp_pars_2dsfs,9,rng);
       tmp_niter_2dsfs = em(tmp_pars_2dsfs, td->emis, td->nkeep,9);
       tmp_ll_2dsfs = loglike(tmp_pars_2dsfs, td->emis, td->nkeep,9);
       if(n==0||tmp_ll_2dsfs>td->ll_2dsfs){
@@ -1162,7 +1190,7 @@ void * turbothread(void *threadarg){
 
   for(int i=td->a;i<td->b;i++){
     bool nosites=false;
-    anal1(mp[i].a,mp[i].b, td, minMaf, nosites);
+    anal1(mp[i].a,mp[i].b, td, minMaf, nosites, mp[i].bootstrap_rep);
     //collate results
     char buf[4096];
     if (do_inbred){
@@ -1195,7 +1223,7 @@ int main_analysis2(std::vector<double> &freq,double **gls,int num_threads,FILE *
 	if(pair2!=-1)
 	  j=pair2;
 	mypair tmp;
-	tmp.a=i;tmp.b=j;
+	tmp.a=i;tmp.b=j;tmp.bootstrap_rep=0;
 	mp.push_back(tmp);
 	if(pair2!=-1)
 	  break;
@@ -1204,19 +1232,22 @@ int main_analysis2(std::vector<double> &freq,double **gls,int num_threads,FILE *
 	break;
     }
   }else{
-    for(int i=0;i<nind;i++){
-      mypair tmp;
-      tmp.a=tmp.b=i;
-      mp.push_back(tmp);
-    }
+	    for(int i=0;i<nind;i++){
+	      mypair tmp;
+	      tmp.a=tmp.b=i;tmp.bootstrap_rep=0;
+	      mp.push_back(tmp);
+	    }
   }
   if(nBootstrap>0 &&mp.size()>1){
     fprintf(stderr,"\t-> You need to specify -a and -b for doing bootstrap\n");
     return 0;
   }
   if(nBootstrap>0){
-    for(int i=0;i<nBootstrap;i++)
-      mp.push_back(mp[0]);
+    for(int i=0;i<nBootstrap;i++){
+      mypair tmp = mp[0];
+      tmp.bootstrap_rep = i+1;
+      mp.push_back(tmp);
+    }
 
   }
 
