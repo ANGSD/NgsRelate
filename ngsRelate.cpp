@@ -21,6 +21,7 @@
 #include <random>
 #include <cstdint>
 #include <unistd.h>
+#include <cerrno>
 #include "filereaders.h"
 #include "VERSION.h"
 
@@ -1320,15 +1321,41 @@ int main_analysis2(std::vector<double> &freq,double **gls,int num_threads,FILE *
 }
 
 int my_atoi(char *s){
-  // https://stackoverflow.com/a/3850567
+  errno = 0;
   char *endptr = s;
-  int value = (int)strtol(s, &endptr, 10);
-  if(*endptr == *s ){
-    fprintf(stderr, "pair '%s' is not a 0-based index\n", s);
+  long value = strtol(s, &endptr, 10);
+  if (*endptr == *s || *endptr != '\0' || errno == ERANGE ||
+      value < std::numeric_limits<int>::min() ||
+      value > std::numeric_limits<int>::max()) {
+    fprintf(stderr, "pair '%s' is not a valid 0-based index\n", s);
     exit(0);
   }
   if(value < 0){
     fprintf(stderr, "pair '%s' must be a non-negative 0-based index\n", s);
+    exit(0);
+  }
+  return static_cast<int>(value);
+}
+
+int parse_int_opt(const char *opt_name, const char *s){
+  errno = 0;
+  char *endptr = NULL;
+  long value = strtol(s, &endptr, 10);
+  if (endptr == s || *endptr != '\0' || errno == ERANGE ||
+      value < std::numeric_limits<int>::min() ||
+      value > std::numeric_limits<int>::max()) {
+    fprintf(stderr, "Invalid integer for -%s: '%s'\n", opt_name, s);
+    exit(0);
+  }
+  return static_cast<int>(value);
+}
+
+double parse_double_opt(const char *opt_name, const char *s){
+  errno = 0;
+  char *endptr = NULL;
+  double value = strtod(s, &endptr);
+  if (endptr == s || *endptr != '\0' || errno == ERANGE || !std::isfinite(value)) {
+    fprintf(stderr, "Invalid floating point value for -%s: '%s'\n", opt_name, s);
     exit(0);
   }
   return value;
@@ -1365,31 +1392,31 @@ int main(int argc, char **argv){
     case 'P': plinkfile = strdup(optarg); break;
     case 'O': outname = strdup(optarg); break;
     case 'R': region = strdup(optarg); break;
-    case 'i': maxIter = atoi(optarg); break;
-    case 'N': ntimes = atoi(optarg); break;
-    case 't': tole = atof(optarg); break;
-    case 'r': seed = atoi(optarg); break;
+    case 'i': maxIter = parse_int_opt("i", optarg); break;
+    case 'N': ntimes = parse_int_opt("N", optarg); break;
+    case 't': tole = parse_double_opt("t", optarg); break;
+    case 'r': seed = parse_int_opt("r", optarg); break;
     case 'g': gname = strdup(optarg); break;
     case 'G': beaglefile = strdup(optarg); break;      
-    case 'm': model = atoi(optarg); break;
-    case 'B': nBootstrap = atoi(optarg); break;
-    case 's': switchMaf = atoi(optarg); break;
-    case 'F': do_inbred = atoi(optarg); break;
-    case 'o': do_simple = atoi(optarg); break;
-    case 'c': gc = atoi(optarg); break;
+    case 'm': model = parse_int_opt("m", optarg); break;
+    case 'B': nBootstrap = parse_int_opt("B", optarg); break;
+    case 's': switchMaf = parse_int_opt("s", optarg); break;
+    case 'F': do_inbred = parse_int_opt("F", optarg); break;
+    case 'o': do_simple = parse_int_opt("o", optarg); break;
+    case 'c': gc = parse_int_opt("c", optarg); break;
     case 'a': pair1 = my_atoi(optarg); break;
     case 'b': pair2 = my_atoi(optarg); break;
     // case 'a': pair1 = atoi(optarg); break;
     // case 'b': pair2 = atoi(optarg); break;
-    case 'n': {nind = atoi(optarg); hasDef=1; break;}
-    case 'p': num_threads = atoi(optarg);break;
-    case 'e': errate = atof(optarg); break;
-    case 'l': minMaf = atof(optarg); break;
+    case 'n': {nind = parse_int_opt("n", optarg); hasDef=1; break;}
+    case 'p': num_threads = parse_int_opt("p", optarg);break;
+    case 'e': errate = parse_double_opt("e", optarg); break;
+    case 'l': minMaf = parse_double_opt("l", optarg); break;
     case 'h': htsfile = strdup(optarg); break;
     case 'T': free(vcf_format_field);vcf_format_field = strdup(optarg); break;
     case 'A': free(vcf_allele_field);vcf_allele_field = strdup(optarg); break;            
     case 'z': readids(ids,optarg); break;
-    case 'L': nsites_nofreqfile = atoi(optarg); break;
+    case 'L': nsites_nofreqfile = parse_int_opt("L", optarg); break;
     default: {fprintf(stderr,"unknown arg:\n");return 0;}
       print_info(stderr);
     }
@@ -1699,7 +1726,9 @@ int main(int argc, char **argv){
   delete[] gls;
   free(freqname);
   free(gname);
+  free(beaglefile);
   free(htsfile);
+  free(plinkfile);
   fclose(output);
   for(int i=0;i<spillfiles.size();i++){
     fclose(spillfiles[i]);
@@ -1714,5 +1743,8 @@ int main(int argc, char **argv){
   if(region) free(region);
   if(vcf_allele_field) free(vcf_allele_field);
   if(vcf_format_field) free(vcf_format_field);
+  for (size_t i = 0; i < ids.size(); i++) {
+    free(ids[i]);
+  }
   return 0;
 }

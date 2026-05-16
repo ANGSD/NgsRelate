@@ -404,7 +404,7 @@ size_t getgls(char*fname,std::vector<double *> &mygl, std::vector<double> &freqs
 void *wrap(void *ptr){
   satan *god = (satan*) ptr;
   god->nind=getgls(god->fname, god->mygl,god->freqs, god->minind, god->minfreq,god->vcf_format_field,god->vcf_allele_field,god->seek);
-  pthread_exit(NULL);//this is sometimes called without thread
+  return NULL;
 }
 
 int wrap_nothreading(void *ptr){
@@ -421,7 +421,7 @@ void *wrap2(void *){
     mycounter++;
     pthread_mutex_unlock(&mymut);
     if(myvar>=jobs.size())
-      pthread_exit(NULL);
+      return NULL;
     satan *god = (satan*) &jobs[myvar];
     god->nind=getgls(god->fname, god->mygl,god->freqs, god->minind, god->minfreq,god->vcf_format_field,god->vcf_allele_field,god->seek);
   }
