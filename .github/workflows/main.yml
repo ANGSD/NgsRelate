@@ -20,7 +20,7 @@ concurrency:
 jobs:
   # This workflow contains a single job called "build"
   build:
-    timeout-minutes: 30
+    timeout-minutes: 90
     strategy:
       fail-fast: false
       matrix:
@@ -41,7 +41,7 @@ jobs:
       - name: dependencies (macos)
         if: startsWith(matrix.os, 'macos')
         run: |
-          HOMEBREW_NO_AUTO_UPDATE=1 brew install htslib
+          HOMEBREW_NO_AUTO_UPDATE=1 brew install htslib || HOMEBREW_NO_AUTO_UPDATE=1 brew install htslib
       # Runs a set of commands using the runners shell
       - name: Compile ngsRelate
         run: |
