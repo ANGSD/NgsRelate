@@ -208,7 +208,7 @@ double loglike(double *p,double **emis,int len,int dim){
   return ret;
 }
 
-void emStep(double *pre,double **emis,double *post,int len,int len2){
+void emStep(double *pre,double **emis,double *post,int len,int len2,double *inner){
   for(int i=0;i<len2;i++){
     if(pre[i]<0||pre[i]>1||is_nan(pre[i])){
       fprintf(stderr,"Problem with guess in emStep: ");
@@ -218,7 +218,6 @@ void emStep(double *pre,double **emis,double *post,int len,int len2){
       exit(0);
     }
   }
-  double inner[len2];
   for(int x=0;x<len2;x++){
     post[x] =0.0;
   }
@@ -292,7 +291,9 @@ double sumSquare(double * mat,int dim){
   return tmp;
 }
 
-int emAccel(double *F,double **emis,double *F_new,int len, int & niter,int dim,double &stepMax){
+int emAccel(double *F,double **emis,double *F_new,int len, int & niter,int dim,double &stepMax,
+            double *inner,double *F_em1,double *F_diff1,double *F_em2,double *F_diff2,
+            double *F_diff3,double *F_tmp){
   //  maybe these should be usersettable?
  
   double stepMin =1;
@@ -306,14 +307,8 @@ int emAccel(double *F,double **emis,double *F_new,int len, int & niter,int dim,d
   fprintf(stderr, "\n");
 #endif
 
-  double F_em1[dim];
-  double F_diff1[dim];
-  double F_em2[dim];
-  double F_diff2[dim];
-  double F_diff3[dim];
-  double F_tmp[dim];
   niter++;
-  emStep(F, emis, F_em1, len,dim);
+  emStep(F, emis, F_em1, len,dim,inner);
   // stayin(F_em1);
 #ifdef DB_MP
   fprintf(stderr, "iter: %d emstep1:  ", niter);
@@ -346,7 +341,7 @@ int emAccel(double *F,double **emis,double *F_new,int len, int & niter,int dim,d
     return 1;
   }
   niter++;
-  emStep(F_em1, emis, F_em2, len,dim);
+  emStep(F_em1, emis, F_em2, len,dim,inner);
   minus(F_em2, F_em1, F_diff2,dim);
 #ifdef DB_MP
   fprintf(stderr, "iter: %d emstep2:  ", niter);
@@ -408,7 +403,7 @@ int emAccel(double *F,double **emis,double *F_new,int len, int & niter,int dim,d
 
   if (fabs(alpha - 1) > 0.01){
     niter++;
-    emStep(F_new,emis,F_tmp,len,dim);
+    emStep(F_new,emis,F_tmp,len,dim,inner);
     for(int i=0;i<dim;i++)
       std::swap(F_new[i],F_tmp[i]);
   }
@@ -429,16 +424,23 @@ int em(double *sfs,double  **emis, int len, int dim){
 
   oldLik = loglike(sfs,emis,len,dim);
 
-  double tmp[dim];
+  double *tmp = new double[dim];
+  double *inner = new double[dim];
+  double *F_em1 = new double[dim];
+  double *F_diff1 = new double[dim];
+  double *F_em2 = new double[dim];
+  double *F_diff2 = new double[dim];
+  double *F_diff3 = new double[dim];
+  double *F_tmp = new double[dim];
 
   int it;
   
   for(it=0;niter<maxIter;it++) {
     niter++;
     if(model==0)
-      emStep(sfs,emis,tmp,len,dim);
+      emStep(sfs,emis,tmp,len,dim,inner);
     else
-      emAccel(sfs,emis,tmp,len, niter,dim,stepMax);
+      emAccel(sfs,emis,tmp,len, niter,dim,stepMax,inner,F_em1,F_diff1,F_em2,F_diff2,F_diff3,F_tmp);
     for(int i=0;i<dim;i++)
       sfs[i]= tmp[i];
     
@@ -451,6 +453,14 @@ int em(double *sfs,double  **emis, int len, int dim){
     }
     oldLik=lik;
   }
+  delete [] F_tmp;
+  delete [] F_diff3;
+  delete [] F_diff2;
+  delete [] F_em2;
+  delete [] F_diff1;
+  delete [] F_em1;
+  delete [] inner;
+  delete [] tmp;
   return niter;
 }
 
