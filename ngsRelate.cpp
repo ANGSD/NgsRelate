@@ -1271,7 +1271,8 @@ int main_analysis2(std::vector<double> &freq,double **gls,int num_threads,FILE *
   }
   fprintf(stderr, "\n");
 #endif
-  std::random_shuffle(mp.begin(),mp.end());
+  std::mt19937 rng(static_cast<uint32_t>(seed));
+  std::shuffle(mp.begin(), mp.end(), rng);
   fprintf(stderr,"\t-> length of joblist:%lu\n",mp.size());
 
   //initialize threads ids
