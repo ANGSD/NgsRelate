@@ -1277,7 +1277,7 @@ int main_analysis2(std::vector<double> &freq,double **gls,int num_threads,FILE *
   fprintf(stderr,"\t-> length of joblist:%lu\n",mp.size());
 
   //initialize threads ids
-  pthread_t threads[num_threads];
+  std::vector<pthread_t> threads(num_threads);
   worker_args **all_args = new worker_args*[num_threads];
   int block=mp.size()/num_threads;
 
@@ -1707,13 +1707,13 @@ int main(int argc, char **argv){
   output = fopen(outname,"wb");
   assert(output);
   for(int i=0;i<num_threads;i++){
-    char buf[strlen(outname)+20];
-    snprintf(buf,strlen(outname)+20,"%s.spill%d.res",outname,i);
+    std::vector<char> buf(strlen(outname)+20);
+    snprintf(buf.data(), buf.size(), "%s.spill%d.res", outname, i);
     FILE *fp=NULL;
-    fp=fopen(buf,"wb");
+    fp=fopen(buf.data(),"wb");
     assert(fp!=NULL);
     spillfiles.push_back(fp);
-    spillfilesnames.push_back(strdup(buf));
+    spillfilesnames.push_back(strdup(buf.data()));
   }
   
 

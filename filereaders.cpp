@@ -536,7 +536,7 @@ double **readBeagle(const char *fname, int nSites, int nInd) {
   std::string row;
   row.reserve(lens);
   int nlines=0 ;
-  char buf[lens];
+  std::vector<char> buf(lens);
 
   gzFile fp = gzopen(fname, "rb");
   if (fp==Z_NULL){
@@ -549,7 +549,7 @@ double **readBeagle(const char *fname, int nSites, int nInd) {
 
   double **ret = new double *[nSites];
   
-  while(readRow(fp, buf, lens, row)!=0){
+  while(readRow(fp, buf.data(), lens, row)!=0){
     if(nlines==0 && hasHeader){
       row.clear();
       hasHeader=false;
