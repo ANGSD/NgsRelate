@@ -9,10 +9,18 @@ on:
     branches: [ "**" ]
   pull_request:
     branches: [ master ]
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
 # A workflow run is made up of one or more jobs that can run sequentially or in parallel
 jobs:
   # This workflow contains a single job called "build"
   build:
+    timeout-minutes: 30
     strategy:
       fail-fast: false
       matrix:
@@ -23,7 +31,7 @@ jobs:
     # Steps represent a sequence of tasks that will be executed as part of the job
     steps:
       # Checks-out your repository under $GITHUB_WORKSPACE, so your job can access it
-      - uses: actions/checkout@v3
+      - uses: actions/checkout@v4
 
       - name: dependencies (ubuntu)
         if: startsWith(matrix.os, 'ubuntu')
@@ -33,12 +41,14 @@ jobs:
       - name: dependencies (macos)
         if: startsWith(matrix.os, 'macos')
         run: |
-          brew update
-          brew install htslib
+          HOMEBREW_NO_AUTO_UPDATE=1 brew install htslib
       # Runs a set of commands using the runners shell
       - name: Compile ngsRelate
         run: |
           make HTSSRC=systemwide
+      - name: Smoke test version output
+        run: |
+          ./ngsRelate 2>&1 | head -n 3
       - name: Run tests
         run: |
           make test
@@ -48,5 +58,6 @@ jobs:
         with:
           name: test-odir-${{ matrix.os }}
           path: |
+            ngsRelate
             test/odir
             test/test1.sh.log
