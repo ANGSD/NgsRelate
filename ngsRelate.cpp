@@ -1299,11 +1299,21 @@ int main_analysis2(std::vector<double> &freq,double **gls,int num_threads,FILE *
   }
   all_args[num_threads-1]->b = mp.size();
 
-   for(int i=0;i<num_threads;i++)
-     assert(pthread_create(&threads[i],NULL,turbothread,all_args[i])==0);
+   for(int i=0;i<num_threads;i++){
+     int rc = pthread_create(&threads[i],NULL,turbothread,all_args[i]);
+     if(rc!=0){
+       fprintf(stderr,"\t-> Failed to create worker thread %d: %s\n",i,strerror(rc));
+       exit(1);
+     }
+   }
 
-   for(int i=0;i<num_threads;i++)
-     assert(pthread_join(threads[i], NULL)==0);
+   for(int i=0;i<num_threads;i++){
+     int rc = pthread_join(threads[i], NULL);
+     if(rc!=0){
+       fprintf(stderr,"\t-> Failed to join worker thread %d: %s\n",i,strerror(rc));
+       exit(1);
+     }
+   }
    
    if(do_inbred)
      fprintf(output,"Ind\tZ=0\tZ=1\tloglh\tnIter\tcoverage\tsites\n");
@@ -1715,13 +1725,19 @@ int main(int argc, char **argv){
   fflush(stderr);
   FILE *output = NULL;
   output = fopen(outname,"wb");
-  assert(output);
+  if(output==NULL){
+    fprintf(stderr,"\t-> Failed to open output file '%s': %s\n",outname,strerror(errno));
+    return 1;
+  }
   for(int i=0;i<num_threads;i++){
     std::vector<char> buf(strlen(outname)+20);
     snprintf(buf.data(), buf.size(), "%s.spill%d.res", outname, i);
     FILE *fp=NULL;
     fp=fopen(buf.data(),"wb");
-    assert(fp!=NULL);
+    if(fp==NULL){
+      fprintf(stderr,"\t-> Failed to open spill file '%s': %s\n",buf.data(),strerror(errno));
+      return 1;
+    }
     spillfiles.push_back(fp);
     spillfilesnames.push_back(strdup(buf.data()));
   }

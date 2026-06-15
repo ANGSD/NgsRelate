@@ -581,7 +581,10 @@ double **readBeagle(const char *fname, int nSites, int nInd) {
   fprintf(stderr, "\t-> Beagle - done processing %d sites\n", nlines);
   gzclose(fp);
 
-  assert(nlines==nSites);
+  if(nlines!=nSites){
+    fprintf(stderr,"\t-> Beagle - expected %d sites but read %d. Check -L or the input file.\n",nSites,nlines);
+    exit(1);
+  }
   
   return(ret);
 }

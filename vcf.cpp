@@ -13,6 +13,7 @@
 #include <cmath>
 #include <limits>
 #include <string>
+#include <cstring>
 #include <pthread.h>
 #include <cassert>
 
@@ -39,14 +40,44 @@ std::vector<satan> jobs;
 
 //populates a vector with the names of which we have data
 std::vector<char *> hasdata(char *fname){
-  htsFile * inf = NULL;inf=hts_open(fname, "r");assert(inf);
-  bcf_hdr_t *hdr = NULL;hdr=bcf_hdr_read(inf);assert(hdr);
-  bcf1_t *rec = NULL;rec=bcf_init();assert(rec);
-  hts_idx_t *idx=NULL;idx=bcf_index_load(fname);assert(idx);
+  htsFile * inf = NULL;inf=hts_open(fname, "r");
+  if(inf==NULL){
+    fprintf(stderr,"\t-> Failed to open hts file '%s'\n",fname);
+    exit(1);
+  }
+  bcf_hdr_t *hdr = NULL;hdr=bcf_hdr_read(inf);
+  if(hdr==NULL){
+    fprintf(stderr,"\t-> Failed to read BCF/VCF header from '%s'\n",fname);
+    hts_close(inf);
+    exit(1);
+  }
+  bcf1_t *rec = NULL;rec=bcf_init();
+  if(rec==NULL){
+    fprintf(stderr,"\t-> Failed to allocate BCF record for '%s'\n",fname);
+    bcf_hdr_destroy(hdr);
+    hts_close(inf);
+    exit(1);
+  }
+  hts_idx_t *idx=NULL;idx=bcf_index_load(fname);
+  if(idx==NULL){
+    fprintf(stderr,"\t-> Failed to load BCF index for '%s'\n",fname);
+    bcf_destroy1(rec);
+    bcf_hdr_destroy(hdr);
+    hts_close(inf);
+    exit(1);
+  }
   hts_itr_t *iter=NULL;
   int nseq = 0;  // number of sequences
   const char **seqnames = NULL;
-  seqnames = bcf_hdr_seqnames(hdr, &nseq); assert(seqnames);//bcf_hdr_id2name(hdr,i)  
+  seqnames = bcf_hdr_seqnames(hdr, &nseq);
+  if(seqnames==NULL){
+    fprintf(stderr,"\t-> Failed to read sequence names from '%s'\n",fname);
+    bcf_destroy1(rec);
+    bcf_hdr_destroy(hdr);
+    hts_idx_destroy(idx);
+    hts_close(inf);
+    exit(1);
+  }
   std::vector<char *> ret;
   for(int i=0;i<nseq;i++){
     size_t buflen = strlen(seqnames[i])+100;
@@ -433,8 +464,17 @@ double ** readbcfvcf(char*fname,int &nind, std::vector<double> &freqs,int minind
   fprintf(stderr,"\t-> readbcfvcf seek:%s nind:%d\n",seek?seek:"(null)",nind);
   jobs.clear();
   mycounter = 0;
-  htsFile * inf = NULL;inf=hts_open(fname, "r");assert(inf);  
-  bcf_hdr_t *hdr = NULL;hdr=bcf_hdr_read(inf);assert(hdr);
+  htsFile * inf = NULL;inf=hts_open(fname, "r");
+  if(inf==NULL){
+    fprintf(stderr,"\t-> Failed to open hts file '%s'\n",fname);
+    exit(1);
+  }
+  bcf_hdr_t *hdr = NULL;hdr=bcf_hdr_read(inf);
+  if(hdr==NULL){
+    fprintf(stderr,"\t-> Failed to read BCF/VCF header from '%s'\n",fname);
+    hts_close(inf);
+    exit(1);
+  }
   int isbcf=0;
   std::vector<char *> hd;
 
@@ -461,7 +501,12 @@ double ** readbcfvcf(char*fname,int &nind, std::vector<double> &freqs,int minind
   int nseq = 0;  // number of sequences
   const char **seqnames = NULL;
   seqnames = bcf_hdr_seqnames(hdr, &nseq); 
-  assert(seqnames);
+  if(seqnames==NULL){
+    fprintf(stderr,"\t-> Failed to read sequence names from '%s'\n",fname);
+    bcf_hdr_destroy(hdr);
+    hts_close(inf);
+    exit(1);
+  }
   
   double **gls=NULL;
   if(seek!=NULL||isbcf==0){//single run
@@ -494,13 +539,20 @@ double ** readbcfvcf(char*fname,int &nind, std::vector<double> &freqs,int minind
 		int howmany=std::min(diskio_threads,(int)hd.size()-at);
 		pthread_t *mythd = new pthread_t[howmany];
 		for(int i=0;i<howmany;i++){
-		  if(std_queue)
-		    assert (pthread_create(&mythd[i],NULL,wrap,&jobs[i+at])==0);
-		  else
-		    assert (pthread_create(&mythd[i],NULL,wrap2,NULL)==0);
+		  int rc = std_queue ? pthread_create(&mythd[i],NULL,wrap,&jobs[i+at])
+		                     : pthread_create(&mythd[i],NULL,wrap2,NULL);
+		  if(rc!=0){
+		    fprintf(stderr,"\t-> Failed to create VCF reader thread %d: %s\n",i+at,strerror(rc));
+		    exit(1);
+		  }
 		}
-		for(int i=0;i<howmany;i++)
-		  assert(pthread_join(mythd[i],NULL)==0);
+		for(int i=0;i<howmany;i++){
+		  int rc = pthread_join(mythd[i],NULL);
+		  if(rc!=0){
+		    fprintf(stderr,"\t-> Failed to join VCF reader thread %d: %s\n",i+at,strerror(rc));
+		    exit(1);
+		  }
+		}
 		delete [] mythd;
 		at+=howmany;
 	      }
