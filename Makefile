@@ -10,7 +10,7 @@ OBJ := $(CXXSRC:.cpp=.o)
 VERSION_HEADER := VERSION.h
 LDLIBS_COMMON := -lz -lpthread
 
-BASE_VERSION := 2.3.0
+BASE_VERSION := 2.3.1
 
 ifeq ($(origin PACKAGE_VERSION), undefined)
 PACKAGE_VERSION := $(BASE_VERSION)
