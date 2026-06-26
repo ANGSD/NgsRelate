@@ -459,7 +459,7 @@ void *wrap2(void *){
 }
 
 
-double ** readbcfvcf(char*fname,int &nind, std::vector<double> &freqs,int minind,double minfreq, std::string vcf_format_field, std::string vcf_allele_field,char *seek){
+double ** readbcfvcf(char*fname,int &nind, std::vector<double> &freqs,int minind,double minfreq, std::string vcf_format_field, std::string vcf_allele_field,char *seek, std::vector<char *> &ids, int use_vcf_sample_ids){
   
   fprintf(stderr,"\t-> readbcfvcf seek:%s nind:%d\n",seek?seek:"(null)",nind);
   jobs.clear();
@@ -474,6 +474,15 @@ double ** readbcfvcf(char*fname,int &nind, std::vector<double> &freqs,int minind
     fprintf(stderr,"\t-> Failed to read BCF/VCF header from '%s'\n",fname);
     hts_close(inf);
     exit(1);
+  }
+  if(use_vcf_sample_ids && ids.empty()){
+    int nsamples = bcf_hdr_nsamples(hdr);
+    for(int i=0;i<nsamples;i++){
+      ids.push_back(strdup(hdr->samples[i]));
+    }
+    if(ids.empty()==false){
+      fprintf(stderr,"\t-> Using %d sample IDs from VCF/BCF header for output labels\n", nsamples);
+    }
   }
   int isbcf=0;
   std::vector<char *> hd;
@@ -595,13 +604,14 @@ int main(int argc, char **argv) {
   double **gls=NULL;
   int nind;
   std::vector<double> freqs;
+  std::vector<char *> ids;
   std::string pl=std::string("PL");
   std::string fr=std::string("AFngsrelate");
   char *reg = NULL;
   if(argc==3)
     reg=strdup(argv[2]);
   fprintf(stderr,"reg:%s\n",reg?reg:"(null)");
-  gls = readbcfvcf(argv[1],nind,freqs,2,0.04,pl,fr,reg);
+  gls = readbcfvcf(argv[1],nind,freqs,2,0.04,pl,fr,reg,ids,1);
   return 0;
 }
 

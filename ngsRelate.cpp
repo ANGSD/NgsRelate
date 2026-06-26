@@ -86,6 +86,7 @@ int hasDef = 0;
 double ttol=1e-6;
 char *vcf_format_field = strdup("PL"); // can take PL or GT
 char *vcf_allele_field = strdup("AFngsrelate"); // can take any tag value e.g. AF AF1 etc
+int use_vcf_sample_ids = 1;
 
 std::vector<char *> ids;
 
@@ -700,6 +701,7 @@ void print_info(FILE *fp){
   fprintf(fp, "   -z <INT>            Name of file with IDs (optional)\n");
   fprintf(fp, "   -T <STRING>         For -h vcf use PL (default) or GT tag\n");
   fprintf(fp, "   -A <STRING>         For -h vcf use allele frequency TAG e.g. AFngsrelate (default)\n");  
+  fprintf(fp, "   -I <INT>            Use sample IDs from VCF/BCF header as output labels? 1=yes (default), 0=no\n");
   fprintf(fp, "   -P <filename>       plink name of the binary plink file (excluding the .bed)\n");
   fprintf(fp, "\n");
   fprintf(fp,"Or\n ./ngsrelate extract_freq_bim pos.glf.gz plink.bim plink.freq\n");
@@ -1406,7 +1408,7 @@ int main(int argc, char **argv){
   char *outname=NULL;
   char *region=NULL;
   
-  while ((n = getopt(argc, argv, "f:i:t:r:g:G:m:s:F:o:c:e:a:b:n:l:z:p:h:L:T:A:P:O:X:R:B:N:")) >= 0) {
+  while ((n = getopt(argc, argv, "f:i:t:r:g:G:m:s:F:o:c:e:a:b:n:l:z:p:h:L:T:A:I:P:O:X:R:B:N:")) >= 0) {
     switch (n) {
     case 'f': freqname = strdup(optarg); break;
     case 'P': plinkfile = strdup(optarg); break;
@@ -1435,6 +1437,7 @@ int main(int argc, char **argv){
     case 'h': htsfile = strdup(optarg); break;
     case 'T': free(vcf_format_field);vcf_format_field = strdup(optarg); break;
     case 'A': free(vcf_allele_field);vcf_allele_field = strdup(optarg); break;            
+    case 'I': use_vcf_sample_ids = parse_int_opt("I", optarg); break;
     case 'z': readids(ids,optarg); break;
     case 'L': nsites_nofreqfile = parse_int_opt("L", optarg); break;
     default: {fprintf(stderr,"unknown arg:\n");return 0;}
@@ -1654,7 +1657,7 @@ int main(int argc, char **argv){
       fprintf(stderr, "\t-> Remove -f argument. EXITING\n");
       return 0;      
     }
-    gls=readbcfvcf(htsfile,nind,freq,2,minMaf, vcf_format_field, vcf_allele_field,region);
+    gls=readbcfvcf(htsfile,nind,freq,2,minMaf, vcf_format_field, vcf_allele_field,region,ids,use_vcf_sample_ids);
     overall_number_of_sites = freq.size();
   }
   

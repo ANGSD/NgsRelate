@@ -109,6 +109,7 @@ As of version 2, NgsRelate can parse BCF/VCF files using [htslib](https://github
 ```
 By default, NgsRelate will estimate the allele frequencies using the individuals provided in the VCF files. Allele frequencies from the INFO field can used be used instead using `-A TAG`. The `TAG` usually take the form of `AF` or `AF1` but can be set to anything. By default the *PL* data (Phred-scaled likelihoods for genotypes) is parsed, however, the called genotypes can also be used instead with the `-T GT` option.
 If called genotypes are being used, the software requires an additional argument (`-c 1`). If using `-c 2`, ngsRelate calls genotypes assuming hardy-weinberg.
+When using VCF/BCF input, NgsRelate will use the sample IDs from the VCF/BCF header as output labels automatically. If you want to disable that behavior, use `-I 0`. If you want to override those labels, provide an explicit ID file with `-z`.
 
 # Input file format #
 
@@ -157,7 +158,7 @@ The remaining columns relate to statistics based on a 2D-SFS.
 32. the log-likelihood of the 2dsfs estimate.
 33. number of iterations for 2dsfs estimate
 
-You can also input a file with the IDs of the individuals (on ID per line), using the `-z` option, in the same order as in the file `filelist` used to make the genotype likelihoods or the VCF file. If you do the output will also contain these IDs as column 3 and 4.
+You can also input a file with the IDs of the individuals (on ID per line), using the `-z` option, in the same order as in the file `filelist` used to make the genotype likelihoods or the VCF file. If you do the output will also contain these IDs as column 3 and 4. For VCF/BCF input, `-z` overrides the sample IDs read from the file header when `-I 1` is in effect.
 
 Note that in some cases nIter is -1. This indicates that values on the boundary of the parameter space had a higher likelihood than the values achieved using the EM-algorithm (ML methods sometimes have trouble finding the ML estimate when it is on the boundary of the parameter space, and we therefore test the boundary values explicitly and output these if these have the highest likelihood).
 
