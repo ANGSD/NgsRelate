@@ -59,6 +59,28 @@ git clone https://github.com/ANGSD/ngsRelate
 cd htslib/;make -j2;cd ../ngsRelate;make HTSSRC=../htslib/
 ```
 
+When building `htslib` from source, the build may also require system
+development headers for `liblzma` (`lzma.h`) and `bzip2` (`bzlib.h`). On HPC
+systems without root access, these are often provided through environment
+modules rather than preinstalled globally.
+
+If `htslib` fails with errors such as `fatal error: lzma.h: No such file or
+directory` or `fatal error: bzlib.h: No such file or directory`, load the
+corresponding modules or use a system/package-managed `htslib` installation
+instead. For example, on some clusters this can be done with commands such as:
+
+``` bash
+module load xz
+module load bzip2
+```
+
+If a system-wide `htslib` package is available, NgsRelate can also be built
+against that installation:
+
+``` bash
+make HTSSRC=systemwide
+```
+
 ## Version note ##
 For source builds without a `.git` directory, the binary version defaults to
 `BASE_VERSION` in `Makefile`.
