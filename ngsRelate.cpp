@@ -80,6 +80,7 @@ int do_2dsfs_only = 0;
 int do_inbred=0;
 int do_simple=0;
 int switchMaf = 0;
+int verbose = 0;
 
 double minMaf =0.05;
 int hasDef = 0;
@@ -446,6 +447,8 @@ int em(double *sfs,double  **emis, int len, int dim){
       sfs[i]= tmp[i];
     
     lik = loglike(sfs,emis,len,dim);
+    if(verbose>0)
+      fprintf(stderr,"\t-> EM iter %d loglike=%f\n", niter, lik);
 
     if(fabs(lik-oldLik)<tole){
 
@@ -690,7 +693,7 @@ void print_info(FILE *fp){
   fprintf(fp, "   -s <INT>            Should you swich the freq with 1-freq?\n");
   fprintf(fp, "   -F <INT>            Estimate inbreeding instead of estimating the nine jacquard coefficients\n");
   fprintf(fp, "   -o <INT>            estimating the 3 jacquard coefficient, assumming no inbreeding\n");
-  fprintf(fp, "   -v <INT>            Verbose. print like per iteration\n");
+  fprintf(fp, "   -v <INT>            Verbose. print log-likelihood per EM iteration when > 0\n");
   fprintf(fp, "   -e <FLOAT>          Errorrates when calling genotypes?\n");
   fprintf(fp, "   -a <INT>            First individual used for analysis? (zero offset)\n");
   fprintf(fp, "   -b <INT>            Second individual used for analysis? (zero offset)\n");
@@ -1408,7 +1411,7 @@ int main(int argc, char **argv){
   char *outname=NULL;
   char *region=NULL;
   
-  while ((n = getopt(argc, argv, "f:i:t:r:g:G:m:s:F:o:c:e:a:b:n:l:z:p:h:L:T:A:I:P:O:X:R:B:N:")) >= 0) {
+  while ((n = getopt(argc, argv, "f:i:t:r:g:G:m:s:F:o:c:e:a:b:n:l:z:p:h:L:T:A:I:P:O:X:R:B:N:v:")) >= 0) {
     switch (n) {
     case 'f': freqname = strdup(optarg); break;
     case 'P': plinkfile = strdup(optarg); break;
@@ -1425,6 +1428,7 @@ int main(int argc, char **argv){
     case 's': switchMaf = parse_int_opt("s", optarg); break;
     case 'F': do_inbred = parse_int_opt("F", optarg); break;
     case 'o': do_simple = parse_int_opt("o", optarg); break;
+    case 'v': verbose = parse_int_opt("v", optarg); break;
     case 'c': gc = parse_int_opt("c", optarg); break;
     case 'a': pair1 = my_atoi(optarg); break;
     case 'b': pair2 = my_atoi(optarg); break;

@@ -56,6 +56,13 @@ grep -q $'\tNA06985\tNA06994\t' ${ODIR}/vcf_names.res || {
     exit 1
 }
 
+echo "3) verify verbose EM output works" >>${LOG}
+${PRG} -h small.bcf -I 0 -R 18 -a 0 -b 1 -p 1 -c 0 -r 100 -v 1 -O ${ODIR}/vcf_verbose.res 2>>${LOG}
+grep -q "EM iter" ${LOG} || {
+    echo "verbose output missing EM iter lines" >>${LOG}
+    exit 1
+}
+
 echo -e "\t test all done "  >>${LOG} 2>&1
 
 echo "Using checksum file: ${MD5FILE}" >>${LOG} 2>&1
