@@ -23,23 +23,25 @@ Options:
    -t <FLOAT>          Tolerance for breaking EM
    -r <FLOAT>          Seed for rand
    -R <chr:from-to>    Region for analysis (only for bcf)
-   -g gfile            Name of genotypellh file
+   -g gfile            Name of glf (compressed binary) file
+   -G gfile            Name of beagle (compressed) file
    -p <INT>            threads (default 4)
    -c <INT>            Should call genotypes instead?
    -s <INT>            Should you swich the freq with 1-freq?
    -F <INT>            Estimate inbreeding instead of estimating the nine jacquard coefficients
    -o <INT>            estimating the 3 jacquard coefficient, assumming no inbreeding
-   -v <INT>            Verbose. print like per iteration
-   -e <FLOAT>            Errorrates when calling genotypes?
+   -v <INT>            Verbose. print log-likelihood per EM iteration when > 0
+   -e <FLOAT>          Errorrates when calling genotypes?
    -a <INT>            First individual used for analysis? (zero offset)
    -b <INT>            Second individual used for analysis? (zero offset)
    -B <INT>            Number of bootstrap replicates for (only for single pairs)
    -N <INT>            How many times to start each pair with random seed?
    -n <INT>            Number of samples in glf.gz
-   -l <INT>            minMaf or 1-Maf filter
+   -l <FLOAT>          minMaf or 1-Maf filter (default: 0.05)
    -z <INT>            Name of file with IDs (optional)
    -T <STRING>         For -h vcf use PL (default) or GT tag
    -A <STRING>         For -h vcf use allele frequency TAG e.g. AFngsrelate (default)
+   -I <INT>            Use sample IDs from VCF/BCF header as output labels? 1=yes (default), 0=no
    -P <filename>       plink name of the binary plink file (excluding the .bed)
 
 Or
